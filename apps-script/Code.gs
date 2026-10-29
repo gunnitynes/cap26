@@ -39,9 +39,9 @@ const MARK_LABEL = { y: 'Pass', h: 'Hint', g: 'Got there', n: 'Failed' };
 
 // The skills, in test order. Keep the ids in step with CRIT in docs/index.html; the labels are only column headers here.
 const SKILLS = [
-  ['p1', 'Power-up order'], ['p2', 'CR level down for speakers/routing'], ['p3', 'Safe levels, methodical'],
-  ['m1', 'Dynamic mic, placed'], ['m2', 'Wall box → right channel'], ['m3', 'Healthy desk signal'], ['m4', 'Phantom power'],
-  ['r1', 'Mix bus → speakers'],
+  ['p1', 'Power-up order'], ['p2', 'CR level down/mute for connections'], ['p3', 'Safe levels, methodical'],
+  ['m1', 'Correct mic, placed'], ['m2', 'Wall box → right channel'], ['m3', 'Healthy desk signal'], ['m4', 'Phantom power'],
+  ['r1', 'Console → speakers'],
   ['t1', 'PT track in/out'], ['t2', 'PT record level'], ['t3', '1-2-3 test, other channel'], ['t4', 'Playback path'],
   ['c1', 'Usable cue mix'], ['c2', 'Pre vs post fader'], ['c3', 'Cue → headphone amp'], ['c4', 'Cue to a Live room'],
   ['s1', 'Shutdown order'], ['s2', 'Left as found'],
@@ -52,6 +52,7 @@ const STAGES = [['p', 'Power'], ['m', 'Mic'], ['r', 'Route'], ['t', 'Record'], [
 const BANDS = [['Distinction', 90, '#0b43e0', '#dce6ff'], ['Merit', 75, '#0f7a57', '#d8f1e6'], ['Pass', 60, '#5a6276', '#eef0f4'], ['Resit', 0, '#bf2b2b', '#fbe0e0']];
 const ERR_POINTS = 10;
 
+const STUDIO_LIST = ['K3', 'K4'];   // the studios a test can be in
 const DATE_FMT = 'dd.mm.yyyy';
 const BLUE = '#0b43e0', INK = '#10131c', PAPER = '#f4f6fa', MUTE = '#5a6276';
 const SHEETS = {
@@ -169,6 +170,8 @@ function style_() {
       .setHelpText('A test date, like 04.11.2026. Double-click for a calendar.').build());
   st.getRange(2, 5, st.getMaxRows() - 1, 1).setNumberFormat('dd.MM.yyyy HH:mm');
   st.getRange(2, 2, st.getMaxRows() - 1, 1).setFontWeight('bold');
+  st.getRange(2, 3, st.getMaxRows() - 1, 1).setHorizontalAlignment('center').setDataValidation(
+    SpreadsheetApp.newDataValidation().requireValueInList(STUDIO_LIST, true).setAllowInvalid(false).setHelpText('K3 or K4').build());
   st.getRange(2, 4, st.getMaxRows() - 1, 3).setFontColor(MUTE);
   st.hideColumns(7);
   const m = sheet_(SHEETS.MARKS), mh = SHEETS.MARKS.header.length;
@@ -517,7 +520,7 @@ function addStudents_(me, req) {
   const day = checkDay_(req.day); if (!day) return { ok: false, error: 'Pick a test date first.' };
   const names = (Array.isArray(req.names) ? req.names : []).map(n => clean_(n, 80)).filter(Boolean).slice(0, 60);
   if (!names.length) return { ok: false, error: 'Type at least one name.' };
-  const studio = clean_(req.studio, 40), sh = sheet_(SHEETS.STUDENTS), now = new Date();
+  const studio = STUDIO_LIST.indexOf(clean_(req.studio, 10)) >= 0 ? clean_(req.studio, 10) : STUDIO_LIST[0], sh = sheet_(SHEETS.STUDENTS), now = new Date();
   const rows = names.map(n => [toDate_(day), n, studio, me.name, now, '', newId_()]);
   const start = sh.getLastRow() + 1;
   sh.getRange(start, 1, rows.length, 7).setValues(rows);

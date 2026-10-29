@@ -366,11 +366,11 @@ body{margin:0;font-size:15px}
    To change the test, edit STAGES and CRIT. Every skill counts the same.
    core:1              the student must not fail it (combined mark under 50% means Resit)
    ask:'…'             a question shown on the sheet for the teacher to ask out loud
-   studios:['Studio A'] only for students booked in those studios (leave it out for everyone)
+   studios:['K3']      only for students booked in those studios (leave it out for everyone)
    Marks already given on a removed skill are ignored; a new skill simply starts unmarked. */
 const STAGES=[
  {id:'power',short:'Power',name:'Power up & safe listening'},
- {id:'mic',short:'Mic',name:'Mic in the live room'},
+ {id:'mic',short:'Mic',name:'Connecting a Mic'},
  {id:'route',short:'Route',name:'Route to the speakers'},
  {id:'rec',short:'Record',name:'Record & play back in Pro Tools'},
  {id:'cue',short:'Cue',name:'Headphones & cue mix'},
@@ -378,13 +378,13 @@ const STAGES=[
 ];
 const CRIT=[
  {id:'p1',s:'power',core:1,t:'Powers up in the right order',look:'Desk, interface, outboard and computer first. Speakers (or their amp) switched on last.'},
- {id:'p2',s:'power',core:1,safety:1,t:'Control-room level down before speaker power and routing changes',look:'Watch this the whole test, not just at the start. Every speaker on/off and every big routing change happens with the control-room level down.'},
+ {id:'p2',s:'power',core:1,safety:1,t:'Control-room level down/mute before any console connections',look:'Watch this the whole test, not just at the start. Every speaker on/off and every big routing change happens with the control-room level down.'},
  {id:'p3',s:'power',t:'Keeps listening levels safe and works methodically',look:'No pressing random buttons with the level up. Brings level up slowly once signal is confirmed on the meters.'},
- {id:'m1',s:'mic',t:'Chooses a dynamic mic and places it sensibly',look:'Picks a dynamic (not the condenser or ribbon), uses a proper XLR, mic on a stand pointing at the source.'},
+ {id:'m1',s:'mic',t:'Chooses the correct mic and places it sensibly',look:'Picks a dynamic (not the condenser or ribbon), uses a proper XLR, mic on a stand pointing at the source.'},
  {id:'m2',s:'mic',t:'Connects the live-room wall box to the right desk channel',look:'Knows which tie line lands on which desk input. Can say the number before plugging in.'},
  {id:'m3',s:'mic',core:1,t:'Gets a healthy signal on the desk',look:'Gain set at the preamp, not with the fader. Solid level on the meter, no clip light, no pad or HPF left on by accident.'},
  {id:'m4',s:'mic',core:1,safety:1,t:'Understands phantom power',ask:'If I had asked you to use the condenser instead, what would you have needed to do?',look:'+48V on that channel only. Faders and control-room level down when switching it. Wait for it to settle. Off before unplugging. Never on a ribbon.'},
- {id:'r1',s:'route',core:1,t:'Routes the channel to the mix bus and hears it in the speakers',look:'Channel assigned to the mix bus, mix bus selected as the monitor source, right speakers selected, level brought up gently.'},
+ {id:'r1',s:'route',core:1,t:'Routes the channel to the console and hears it in the speakers',look:'Channel assigned to the mix bus, mix bus selected as the monitor source, right speakers selected, level brought up gently.'},
  {id:'t1',s:'rec',core:1,t:'Creates a Pro Tools track with the correct input and output',look:'Mono audio track, input matches the desk send / interface channel, output to the right interface output.'},
  {id:'t2',s:'rec',t:'Healthy record level in Pro Tools',look:'Peaks well short of clipping (roughly −18 to −10 dBFS). Fixes level at the preamp, not with the Pro Tools fader, and knows the fader does not change the recorded level.'},
  {id:'t3',s:'rec',core:1,t:'Records a 1-2-3 test and returns it on a different desk channel',look:'Track armed, records a short clip, playback arrives on the channel you asked for.'},
@@ -396,6 +396,7 @@ const CRIT=[
  {id:'s1',s:'down',core:1,safety:1,t:'Knows the shutdown order',ask:'If you had to shut down the studio now, what would you switch off first?',look:'Control-room level down, then speakers off first. Then outboard and desk, computer last after saving and quitting Pro Tools.'},
  {id:'s2',s:'down',t:'Leaves the studio as it was found',look:'Patch cables out, phantom off, sends and EQ back to zero, faders down, mic and cables put away, session saved and closed.'}
 ];
+const STUDIOS=['K3','K4'];
 const MARK={y:'Pass',h:'Hint',g:'Got there',n:'Failed'};
 const POINTS={y:1,h:.75,g:.5,n:0};
 const QUICK=['Speakers switched with level up','Phantom switched with fader up','Control-room level dangerously loud while patching'];
@@ -587,7 +588,7 @@ function startDemo(){
   const d=today();
   const nx=new Date();nx.setDate(nx.getDate()+6);const later=nx.getFullYear()+'-'+String(nx.getMonth()+1).padStart(2,'0')+'-'+String(nx.getDate()).padStart(2,'0');
   const all=v=>Object.fromEntries(CRIT.map(c=>[c.id,v(c)]));
-  const mk=(name,day,by)=>{const id=rid();S.tests[id]={name,studio:'Studio A',day,createdAt:Date.now()-Math.random()*1e6,by}};
+  const mk=(name,day,by)=>{const id=rid();S.tests[id]={name,studio:'K3',day,createdAt:Date.now()-Math.random()*1e6,by}};
   mk('Example · Lena',d,{'Gunnar':{marks:{p1:'y',p2:'y',p3:'y',m1:'y',m2:'h',m3:'y',m4:'y',r1:'y',t1:'y',t2:'g',t3:'y'}}});
   mk('Example · Jonas',d,{'Gunnar':{marks:all(c=>c.id==='t2'?'h':'y')},'Anna':{marks:all(c=>c.id==='m2'||c.id==='c4'?'g':'y'),safety:{a:{t:Date.now(),text:'Phantom switched with fader up'}}}});
   mk('Example · Mira',d,{'Gunnar':{marks:{p1:'y',p2:'n',m1:'y'},safety:{a:{t:Date.now()-6e5,text:'Speakers switched with level up'}}}});
@@ -807,7 +808,7 @@ function renderRoster(){
   const cnt={todo:0,live:0,done:0,dist:0,merit:0,passg:0,resitg:0};list.forEach(t=>cnt[statusOf(t).k]++);
   const marked=list.filter(t=>scoreOf(mine(t),t).complete).length;
   const grades=list.map(t=>({t,g:gradeOf(t)})),unfinished=grades.filter(x=>!x.g.complete).length;
-  const lastStudio=ls.get('ops.studio','');
+  const lastStudio=STUDIOS.includes(ls.get('ops.studio',''))?ls.get('ops.studio',''):STUDIOS[0];
   const row=t=>{const st=statusOf(t),ce=scoreOf(mine(t),t).inc.length,nt=Object.keys(entries(t)).length;
     return `<button class="row" data-open="${t.id}">${ring(t)}<span class="who"><b>${esc(t.name)}</b><span>${[esc(t.studio||''),nt?nt+' teacher'+(nt>1?'s':''):''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}</span></span><span class="pill ${st.k}">${st.l}</span></button>`};
   const stats=rev
@@ -843,7 +844,7 @@ function renderRoster(){
      <h3 style="font-size:16px">Add students to ${fmtDay(S.day)}</h3>
      <p class="readout" style="margin:-4px 0 0">Plan ahead: change the date at the top first, then add the students for that day.</p>
      <div class="field"><label for="addNames">Names, one per line</label><textarea id="addNames" rows="3" placeholder="Student name"></textarea></div>
-     <div class="field"><label for="addStudio">Studio</label><input type="text" id="addStudio" value="${esc(lastStudio)}" placeholder="e.g. Studio A"></div>
+     <div class="field"><label>Studio</label><div class="seg" id="addStudio" role="group" aria-label="Studio">${STUDIOS.map(x=>`<button type="button" data-studio="${x}" aria-pressed="${x===lastStudio}">${x}</button>`).join('')}</div></div>
      <button class="primary" type="submit" ${!canMark()?'disabled':''}>Add to ${fmtDay(S.day)}</button>
    </form>
 
@@ -854,19 +855,6 @@ function renderRoster(){
    </div>
    <textarea class="export" id="exportBox" hidden readonly></textarea>
 
-   <details class="guide card" id="guide">
-     <summary>How marking works</summary>
-     <ul>
-       <li>Each teacher signs in with their own name and password and marks on their own phone. You never see another teacher's marks while you mark.</li>
-       <li>Marks: <span class="key" style="background:var(--ok)">Pass</span> done unaided = 100, <span class="key" style="background:var(--hint)">Hint</span> after one prompt = 75, <span class="key" style="background:var(--late)">Got there</span> with more help = 50, <span class="key" style="background:var(--no)">Failed</span> = 0.</li>
-       <li><b>The same sum for every student.</b> Each skill's mark is the average of every teacher who marked it. The score is the average of all skills, so every skill counts the same and every teacher counts the same.</li>
-       <li>Each different <b>critical error</b> takes off 10 points, once, however many teachers logged it.</li>
-       <li>A <b>Core</b> skill whose combined mark is under 50 means Resit, whatever the score.</li>
-       <li>Final score sets the grade: <b>Distinction</b> 90 and up, <b>Merit</b> 75–89, <b>Pass</b> 60–74, <b>Resit</b> under 60. A grade is only given once every skill has at least one mark.</li>
-       <li>Grades stay hidden while you mark. When a test day is done, tap <b>Reveal grades</b> to see the results table and download it. The same table is written into the Results tab of the spreadsheet.</li>
-       <li>Plan test days ahead: pick the date at the top, add the students, and they are filed under that date. A student can be moved to another date from their sheet.</li>
-     </ul>
-   </details>
    <div style="height:32px"></div>`;
   stripCounts(byDay);
   $('#app').querySelectorAll('[data-cal]').forEach(b=>b.onclick=()=>{S.day=b.dataset.cal;S.cal=S.day.slice(0,7);S.all=false;ls.set('ops.day',S.day);renderBar();render();scrollTo(0,0)});
@@ -880,9 +868,10 @@ function renderRoster(){
   $('#dlAll').onclick=()=>offerFile(`ops-test-results-all-dates.csv`,resultsCSV(all));
   $('#dlMarks').onclick=()=>offerFile(`ops-test-every-mark.csv`,marksCSV(all));
   $('#app').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>go('test',b.dataset.open));
+  $('#addStudio').onclick=e=>{const b=e.target.closest('[data-studio]');if(!b)return;$('#addStudio').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b))};
   $('#addForm').onsubmit=async e=>{e.preventDefault();if(!canMark())return;
     const names=$('#addNames').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!names.length){toast('Type at least one name');return}
-    const studio=$('#addStudio').value.trim(),day=S.day;ls.set('ops.studio',studio);
+    const studio=$('#addStudio [aria-pressed="true"]')?.dataset.studio||STUDIOS[0],day=S.day;ls.set('ops.studio',studio);
     const msg=(names.length>1?`Added ${names.length} students`:`Added ${names[0]}`)+' to '+fmtDay(day);
     if(S.demo){names.forEach((name,i)=>{S.tests[rid()]={name,studio,day,createdAt:Date.now()+i,by:{}}});render();toast(msg);return}
     const btn=e.target.querySelector('button[type=submit]');btn.disabled=true;btn.textContent='Adding…';
@@ -942,7 +931,7 @@ function renderSheet(){
        ${skillsFor(t).filter(c=>c.s===s.id).map(c=>`
        <article class="crit" data-crit="${c.id}">
          <div class="crit-top"><div class="t"><h3>${esc(c.t)}</h3>
-           <div class="tags">${c.core?'<span class="tag core">Core</span>':''}${c.safety?'<span class="tag safety">Safety</span>':''}${c.ask?'<span class="tag">Ask</span>':''}</div></div>
+           <div class="tags">${c.ask?'<span class="tag">Ask</span>':''}</div></div>
            <button class="more" type="button" data-addnote="${c.id}">+ Note</button></div>
          ${c.ask?`<div class="detail"><div class="ask">${esc(c.ask)}</div></div>`:''}
          ${markBtns('crit',c.id,['y','h','g','n'])}

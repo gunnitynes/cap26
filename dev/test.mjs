@@ -84,7 +84,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
 
   // 5. A teacher marks, the readable Marks row and the hidden copy agree.
   const gt = call(g, { action: 'login', name: 'gunni', password: 'test-pass-1' }).token;
-  call(g, { action: 'addStudents', token: gt, names: ['Polina'], studio: 'Studio A', day: '2026-11-04' });
+  call(g, { action: 'addStudents', token: gt, names: ['Polina'], studio: 'K3', day: '2026-11-04' });
   const sid = call(g, { action: 'state', token: gt }).students[0].id;
   call(g, { action: 'saveEntry', token: gt, sid, patch: { marks: { p1: 'y', m4: 'h', c2: 'n', zz: 'bogus' }, safety: { a: { t: 1, text: 'Speakers switched with level up' } } } });
   const m = tab(book, 'Marks').data;
@@ -109,28 +109,28 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   // one typed row with a real date (what the date picker gives), then a pasted list with no dates or studios
   // dates must come from inside the sandbox, like the ones Google hands the script
   const pick = d => { const x = g.toDate_(d); x.setHours(0); return x; };   // what the date picker stores: midnight
-  st.getRange(2, 1, 1, 3).setValues([[pick('2026-11-04'), 'Polina', 'Studio A']]);
+  st.getRange(2, 1, 1, 3).setValues([[pick('2026-11-04'), 'Polina', 'K3']]);
   g.onEdit({ range: st.getRange(2, 1, 1, 3) });
   st.getRange(3, 2, 3, 1).setValues([['Paul'], ['Faddei'], ['  Yutaro ']]);
   g.onEdit({ range: st.getRange(3, 2, 3, 1) });
   // someone types a date as text in a later row
-  st.getRange(6, 1, 1, 3).setValues([['5.11.2026', 'Tales', 'Studio B']]);
+  st.getRange(6, 1, 1, 3).setValues([['5.11.2026', 'Tales', 'K4']]);
   g.onEdit({ range: st.getRange(6, 1, 1, 3) });
   const rows = tab(book, 'Students').data.slice(1);
   assert.ok(rows.every(r => r[6]), 'every named row gets an ID');
-  assert.deepEqual(rows.map(r => r[2]), ['Studio A', 'Studio A', 'Studio A', 'Studio A', 'Studio B']);
+  assert.deepEqual(rows.map(r => r[2]), ['K3', 'K3', 'K3', 'K3', 'K4']);
   ok('a pasted list takes the date and studio from the row above and gets IDs');
   const s1 = call(g, { action: 'state', token: tok }).students;
   assert.deepEqual(s1.map(x => x.name + ' ' + x.day), ['Polina 2026-11-04', 'Paul 2026-11-04', 'Faddei 2026-11-04', 'Yutaro 2026-11-04', 'Tales 2026-11-05']);
   ok('the page sees them on the right dates, including a date typed as text');
   // a row that arrived without the edit trigger (an import) still shows up
-  st.getRange(7, 1, 1, 3).setValues([[pick('2026-11-05'), 'Ida', 'Studio B']]);
+  st.getRange(7, 1, 1, 3).setValues([[pick('2026-11-05'), 'Ida', 'K4']]);
   assert.ok(call(g, { action: 'state', token: tok }).students.some(x => x.name === 'Ida'));
   ok('rows added without the edit trigger get an ID on the next refresh');
   st.getRange(3, 6).setValue('absent');
   assert.ok(!call(g, { action: 'state', token: tok }).students.some(x => x.name === 'Paul'));
   ok('typing in Removed takes a student off the page');
-  call(g, { action: 'addStudents', token: tok, names: ['Mira'], studio: 'Studio A', day: '2026-11-04' });
+  call(g, { action: 'addStudents', token: tok, names: ['Mira'], studio: 'K3', day: '2026-11-04' });
   const last = tab(book, 'Students').data.at(-1);
   assert.equal(g.day_(last[0]), '2026-11-04'); assert.equal(typeof last[0], 'object'); assert.equal(last[1], 'Mira');
   ok('students added on the page land in the sheet as real dates');
@@ -144,7 +144,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   te.getRange(3, 1, 1, 2).setValues([['Anna', '4821']]); g.onEdit({ range: te.getRange(3, 2) });
   const gt = call(g, { action: 'login', name: 'gunni', password: 'test-pass-1' }).token;
   const at = call(g, { action: 'login', name: 'anna', password: '4821' }).token;
-  call(g, { action: 'addStudents', token: gt, names: ['Polina', 'Paul'], studio: 'Studio A', day: '2026-11-04' });
+  call(g, { action: 'addStudents', token: gt, names: ['Polina', 'Paul'], studio: 'K3', day: '2026-11-04' });
   const [pol, paul] = call(g, { action: 'state', token: gt }).students.map(s => s.id);
   const IDS = ['p1','p2','p3','m1','m2','m3','m4','r1','t1','t2','t3','t4','c1','c2','c3','c4','s1','s2'];
   const all = v => Object.fromEntries(IDS.map(id => [id, v(id)]));
@@ -162,7 +162,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(P[head.indexOf('Score')], 99); assert.equal(P[head.indexOf('Errors')], -10); assert.equal(P[head.indexOf('Final')], 89);
   assert.equal(P[head.indexOf('Grade')], 'Merit'); assert.equal(P[head.indexOf('Teachers')], 'Gunni, Anna');
   assert.equal(P[head.indexOf('Mic')], 97);   // (100+100+100+87.5)/4
-  assert.equal(Q[head.indexOf('Grade')], 'Unfinished'); assert.equal(Q[head.indexOf('Core skill under 50%')], 'Mix bus → speakers');
+  assert.equal(Q[head.indexOf('Grade')], 'Unfinished'); assert.equal(Q[head.indexOf('Core skill under 50%')], 'Console → speakers');
   assert.equal(P[head.indexOf('In the app')], 'Hidden');
   ok('the Grades tab works out the same grade as the page, per stage, with errors and core fails');
   assert.equal(d[4][2], 1); assert.equal(d[4][5], 1);   // one Merit, one Unfinished in the summary
