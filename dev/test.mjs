@@ -165,7 +165,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(Q[head.indexOf('Grade')], 'Unfinished'); assert.equal(Q[head.indexOf('Core skill under 50%')], 'Console → speakers');
   assert.equal(P[head.indexOf('In the app')], 'Hidden');
   ok('the Grades tab works out the same grade as the page, per stage, with errors and core fails');
-  assert.equal(d[4][2], 1); assert.equal(d[4][5], 1);   // one Merit, one Unfinished in the summary
+  assert.equal(d[4][1], 1); assert.equal(d[4][4], 1);   // one Merit, one Unfinished in the summary
   ok('the summary counts each grade');
 }
 console.log(`\n${n} checks passed`);

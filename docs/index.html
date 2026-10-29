@@ -242,7 +242,7 @@ details.guide[open] summary::after{content:"–"}
 .gate .ghost{white-space:nowrap}
 .pill.dist{color:var(--led);background:var(--led-soft)} .pill.merit{color:var(--ok);background:var(--ok-soft)} .pill.passg{color:var(--ink);background:var(--sunk)} .pill.resitg{color:var(--no);background:var(--no-soft)} .pill.done{color:var(--ink)}
 .grade{font-size:34px;font-weight:800;letter-spacing:-.02em;line-height:1}
-.bands{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:11px;font-family:var(--mono);color:var(--mute);text-align:center}
+.bands{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:11px;font-family:var(--mono);color:var(--mute);text-align:center}
 .bands span{border:1px solid var(--line);border-radius:6px;padding:5px 2px}
 .bands span.on{border-color:currentColor;font-weight:700}
 .hidden-grade{display:flex;align-items:center;gap:12px;background:var(--sunk);border:1px dashed var(--line);border-radius:10px;padding:12px;font-size:14px;color:var(--mute)}
@@ -345,6 +345,22 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .st-col i{display:block;width:100%;border-radius:5px}
 .st small{font-family:var(--mono);font-size:9.5px;color:var(--mute);letter-spacing:.04em}
 .gc-flag{font-size:12.5px;color:var(--no);font-weight:600}
+.stat-res{text-align:left;border-color:var(--led);background:linear-gradient(135deg,var(--led-soft),transparent 75%),var(--panel);color:var(--ink);cursor:pointer}
+.stat-res .n{color:var(--led)}.stat-res .n small{font-size:14px;color:var(--mute);margin-left:2px}
+.stat-res .l span{color:var(--led);font-size:13px}
+.modal{position:fixed;inset:0;z-index:30;display:flex;align-items:flex-end;justify-content:center;background:color-mix(in srgb,#05070c 55%,transparent);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);padding-top:calc(env(safe-area-inset-top,0px) + 28px);animation:fadeIn .18s ease}
+.modal-panel{width:100%;max-width:640px;max-height:100%;overflow:auto;overscroll-behavior:contain;background:var(--bg);border:1px solid var(--line);border-bottom:0;border-radius:22px 22px 0 0;
+  padding:8px max(16px,env(safe-area-inset-right,0px)) calc(22px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:14px;animation:slideUp .26s cubic-bezier(.2,.8,.2,1)}
+.modal-grip{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto}
+.modal-h{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.modal-h b{display:block;font-size:24px;font-weight:800;letter-spacing:-.02em}
+.modal-sum{display:flex;flex-wrap:wrap;gap:8px}
+.modal-sum span{display:inline-flex;align-items:baseline;gap:6px;border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:13px;color:var(--mute)}
+.modal-sum b{font-family:var(--mono);font-size:16px;color:var(--c)}
+.modal .tbl-wrap{margin-inline:0;padding-inline:0}
+.modal .foot{flex-wrap:wrap}
+@keyframes slideUp{from{transform:translateY(40px);opacity:.4}}@keyframes fadeIn{from{opacity:0}}
+@media (prefers-reduced-motion:reduce){.modal,.modal-panel{animation:none}}
 .toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;font-weight:600;z-index:20;max-width:calc(100% - 32px)}
 .export{margin-top:10px;font-family:var(--mono);font-size:11px;min-height:120px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -400,7 +416,7 @@ const STUDIOS=['K3','K4'];
 const MARK={y:'Pass',h:'Hint',g:'Got there',n:'Failed'};
 const POINTS={y:1,h:.75,g:.5,n:0};
 const QUICK=['Speakers switched with level up','Phantom switched with fader up','Control-room level dangerously loud while patching'];
-const GRADES=[{k:'dist',l:'Distinction',min:.9,col:'led'},{k:'merit',l:'Merit',min:.75,col:'ok'},{k:'passg',l:'Pass',min:.6,col:'ink'},{k:'resitg',l:'Resit',min:0,col:'no'}];
+const GRADES=[{k:'merit',l:'Merit',min:.75,col:'ok'},{k:'passg',l:'Pass',min:.6,col:'ink'},{k:'resitg',l:'Resit',min:0,col:'no'}];
 
 /* ------------------------------------------------------------------ helpers */
 const $=s=>document.querySelector(s);
@@ -458,7 +474,7 @@ function gradeOf(t){
   const errors=[...new Set(uids.flatMap(u=>Object.values(es[u].safety||{}).filter(Boolean).map(i=>i.text)))];
   const deduction=errors.length*ERR_POINTS,final=Math.max(0,score-deduction);
   const coreFails=marked.filter(x=>x.c.core&&x.avg<.5).map(x=>x.c);
-  const grade=coreFails.length?GRADES[3]:bandOf(final);
+  const grade=coreFails.length?GRADES[GRADES.length-1]:bandOf(final);
   return {skills,per,marked:marked.length,total:skills.length,complete:marked.length===skills.length,score,errors,deduction,final,coreFails,grade,teachers:uids.filter(u=>Object.values(es[u].marks||{}).some(v=>v in POINTS))};
 }
 const revealed=day=>!!S.days[day]?.revealed;
@@ -555,6 +571,7 @@ async function flush(){
 }
 function setSync(s){S.sync=s;const el=$('#sync');if(!el)return;el.dataset.s=s;el.querySelector('span').textContent=s==='ok'?(S.demo?'Preview only':'Saved'):s==='busy'?'Saving…':'Not saved yet, retrying'}
 addEventListener('online',()=>flushSoon(10));
+addEventListener('keydown',e=>{if(e.key==='Escape'&&S.modal){S.modal=null;render()}});
 // a tab closed with marks still waiting gets a warning
 addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDefault();e.returnValue=''}});
 
@@ -638,8 +655,9 @@ function renderBar(){
     const mon=st.children[14];st.style.scrollBehavior='auto';st.scrollLeft=mon.offsetLeft-st.offsetLeft;st.style.scrollBehavior=''}
   const h=document.querySelector('.bar').offsetHeight;document.documentElement.style.setProperty('--barh',h+'px');
 }
-function go(v,id){S.view=v;S.open=id||null;renderBar();render();scrollTo(0,0);wake(v==='test')}
-function refresh(){if(S.view==='test')syncSheet();else if(S.view==='roster'||S.view==='grades')render();else if(S.view==='account')renderAccount(true)}
+function go(v,id){S.modal=null;document.body.style.overflow='';S.view=v;S.open=id||null;renderBar();render();scrollTo(0,0);wake(v==='test')}
+function refresh(){if(S.view==='test')syncSheet();else if(S.view==='roster'&&S.modal)return;   // leave an open Results window as it is
+  else if(S.view==='roster'||S.view==='grades')render();else if(S.view==='account')renderAccount(true)}
 function render(){S.view==='login'?renderLogin():S.view==='account'?renderAccount():S.view==='grades'?renderGrades():S.view==='test'&&view(S.open)?renderSheet():renderRoster()}
 
 function renderLogin(){
@@ -741,7 +759,7 @@ function renderAccount(quiet){
 }
 
 /* ---- Grade overview: the whole date at a glance — distribution, the class by stage, and a card per student */
-const GCOL={dist:'led',merit:'ok',passg:'ink',resitg:'no'};
+const GCOL={merit:'ok',passg:'ink',resitg:'no'};
 const SHORT=['Power','Mic','Route','Rec','Cue','Down'];   // fits under a narrow bar
 function stageScores(t){const g=gradeOf(t);return STAGES.map(s=>{const xs=g.per.filter(x=>x.c.s===s.id&&x.avg!==null);return xs.length?Math.round(xs.reduce((a,x)=>a+x.avg,0)/xs.length*100):null})}
 function renderGrades(){
@@ -751,7 +769,7 @@ function renderGrades(){
   // finished students first (highest final first), then unfinished, then not started
   const rank=g=>g.complete?2:g.marked?1:0;
   rows.sort(sort==='name'?(a,b)=>a.t.name.localeCompare(b.t.name):(a,b)=>rank(b.g)-rank(a.g)||(b.g.final||0)-(a.g.final||0));
-  const cnt={dist:0,merit:0,passg:0,resitg:0,open:0};rows.forEach(({g})=>{if(g.complete)cnt[g.grade.k]++;else cnt.open++});
+  const cnt={merit:0,passg:0,resitg:0,open:0};rows.forEach(({g})=>{if(g.complete)cnt[g.grade.k]++;else cnt.open++});
   const avg=STAGES.map((s,i)=>{const v=rows.map(r=>r.st[i]).filter(x=>x!==null);return v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length):null});
   const pct=v=>v===null?'–':v+'%';
   const bar=(v,col)=>`<span class="hbar"><i style="width:${v||0}%;background:var(--${col})"></i></span>`;
@@ -771,8 +789,8 @@ function renderGrades(){
     ${!list.length?`<div class="empty"><b>No students on ${fmtDay(S.day)}</b>Pick another date on the student list.</div>`:''}
     ${list.length&&!rev?`<div class="card gv-hidden"><b>Grades are hidden for this date.</b><span>Below is how far marking has got. Reveal the grades on the student list when the day is done.</span></div>`:''}
     ${list.length&&rev?`<section class="card gv-dist">
-        <div class="dist">${[['dist','Distinction'],['merit','Merit'],['passg','Pass'],['resitg','Resit'],['open','Unfinished']].filter(([k])=>cnt[k]).map(([k])=>`<i style="flex:${cnt[k]};background:var(--${k==='open'?'line':GCOL[k]})"></i>`).join('')}</div>
-        <div class="legend">${[['dist','Distinction'],['merit','Merit'],['passg','Pass'],['resitg','Resit'],['open','Unfinished']].map(([k,l])=>`<span><i style="background:var(--${k==='open'?'line':GCOL[k]})"></i>${l}<b>${cnt[k]}</b></span>`).join('')}</div>
+        <div class="dist">${[['merit','Merit'],['passg','Pass'],['resitg','Resit'],['open','Unfinished']].filter(([k])=>cnt[k]).map(([k])=>`<i style="flex:${cnt[k]};background:var(--${k==='open'?'line':GCOL[k]})"></i>`).join('')}</div>
+        <div class="legend">${[['merit','Merit'],['passg','Pass'],['resitg','Resit'],['open','Unfinished']].map(([k,l])=>`<span><i style="background:var(--${k==='open'?'line':GCOL[k]})"></i>${l}<b>${cnt[k]}</b></span>`).join('')}</div>
       </section>
       <section class="card gv-stages"><b class="gv-h">The class by stage</b>
         ${STAGES.map((s,i)=>`<div class="srow"><span>${esc(s.short)}</span>${bar(avg[i],avg[i]===null?'line':avg[i]>=75?'ok':avg[i]>=50?'hint':'no')}<b>${pct(avg[i])}</b></div>`).join('')}
@@ -805,14 +823,16 @@ function renderRoster(){
   const days=Object.keys(byDay).sort();
   const list=all.filter(t=>t.day===S.day).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
   const rev=revealed(S.day);
-  const cnt={todo:0,live:0,done:0,dist:0,merit:0,passg:0,resitg:0};list.forEach(t=>cnt[statusOf(t).k]++);
+  const cnt={todo:0,live:0,done:0,merit:0,passg:0,resitg:0};list.forEach(t=>cnt[statusOf(t).k]++);
   const marked=list.filter(t=>scoreOf(mine(t),t).complete).length;
   const grades=list.map(t=>({t,g:gradeOf(t)})),unfinished=grades.filter(x=>!x.g.complete).length;
   const lastStudio=STUDIOS.includes(ls.get('ops.studio',''))?ls.get('ops.studio',''):STUDIOS[0];
   const row=t=>{const st=statusOf(t),ce=scoreOf(mine(t),t).inc.length,nt=Object.keys(entries(t)).length;
     return `<button class="row" data-open="${t.id}">${ring(t)}<span class="who"><b>${esc(t.name)}</b><span>${[esc(t.studio||''),nt?nt+' teacher'+(nt>1?'s':''):''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}</span></span><span class="pill ${st.k}">${st.l}</span></button>`};
+  const graded=grades.filter(x=>x.g.complete).length;
   const stats=rev
-    ?GRADES.map(g=>`<div class="stat"><div class="n" style="color:var(--${g.col})">${cnt[g.k]}</div><div class="l">${g.l}</div></div>`).join('')
+    ?`<button class="stat stat-res" id="resultsBtn" type="button" aria-label="Open the results"><div class="n">${graded}<small>/${list.length}</small></div><div class="l">Results <span aria-hidden="true">↗</span></div></button>`
+      +GRADES.map(g=>`<div class="stat"><div class="n" style="color:var(--${g.col})">${cnt[g.k]}</div><div class="l">${g.l}</div></div>`).join('')
     :`<div class="stat"><div class="n">${list.length}</div><div class="l">Students</div></div>
       <div class="stat"><div class="n">${marked}</div><div class="l">Marked by you</div></div>
       <div class="stat"><div class="n" style="color:var(--led)">${cnt.live}</div><div class="l">In progress</div></div>
@@ -828,13 +848,17 @@ function renderRoster(){
        <div class="foot"><button class="primary" id="revealYes" type="button">Reveal grades</button><button class="ghost" id="revealNo" type="button">Cancel</button></div></div>`
      :`<div class="gate"><p>${rev?`<b>Grades shown</b> for ${fmtDay(S.day)}.`:`<b>Grades hidden.</b> You have fully marked ${marked} of ${list.length}.`}</p><button class="ghost" id="revealBtn" type="button" ${!canMark()?'disabled':''}>${rev?'Hide grades':'Reveal grades'}</button></div>`}
    ${list.length?`<button class="govr" id="govBtn" type="button"><span class="govr-bars" aria-hidden="true"><i style="--h:.55"></i><i style="--h:.9"></i><i style="--h:.7"></i><i style="--h:.35"></i></span><span><b>Grade overview</b><small>${rev?'Every student at a glance, by stage':'Progress so far · grades hidden until revealed'}</small></span><span class="govr-go">→</span></button>`:''}
-   ${rev&&list.length?`<section class="card tally" aria-label="Results">
-       <div class="tally-h"><b>Results</b><span>${fmtDay(S.day)} · ${list.length} student${list.length>1?'s':''}</span></div>
+   ${rev&&list.length&&S.modal==='results'?`<div class="modal" id="resModal" role="dialog" aria-modal="true" aria-label="Results for ${fmtDay(S.day)}">
+     <div class="modal-panel">
+       <div class="modal-grip" aria-hidden="true"></div>
+       <div class="modal-h"><div><span class="eyebrow">Results</span><b>${fmtDay(S.day)}</b></div><button class="iconbtn" id="resClose" type="button" aria-label="Close the results">✕</button></div>
+       <div class="modal-sum">${GRADES.map(g=>`<span style="--c:var(--${g.col})"><b>${cnt[g.k]}</b>${g.l}</span>`).join('')}${list.length-graded?`<span style="--c:var(--mute)"><b>${list.length-graded}</b>Unfinished</span>`:''}</div>
        <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Student</th><th>Final</th><th>Grade</th></tr></thead><tbody>
        ${grades.map(({t,g})=>`<tr data-open="${t.id}"><td><b>${esc(t.name)}</b><small>${g.teachers.length} teacher${g.teachers.length===1?'':'s'} · ${g.marked}/${g.total} skills</small></td><td><b>${g.marked?Math.round(g.final)+'%':'–'}</b>${g.marked?`<small>${Math.round(g.score)}${g.deduction?' − '+g.deduction+' errors':''}</small>`:''}</td><td>${g.complete?`<span class="pill ${g.grade.k}">${g.grade.l}</span>${g.coreFails.length?'<small class="crit-n">core skill</small>':''}`:'<span class="pill live">Unfinished</span>'}</td></tr>`).join('')}
        </tbody></table></div>
-       <div class="foot"><button class="primary" id="dlDay" type="button">Download results (.csv)</button><button class="ghost" id="cpDay" type="button">Copy</button></div>
-     </section>`:''}
+       <div class="foot"><button class="primary" id="dlDay" type="button">Download (.csv)</button><button class="ghost" id="cpDay" type="button">Copy</button><button class="ghost" id="resGov" type="button">Grade overview</button></div>
+     </div>
+   </div>`:''}
    <div class="list">
      <div class="dayhead"><b>${fmtDay(S.day)}${S.day===today()?' · today':''}</b><span>${list.length} student${list.length===1?'':'s'}</span></div>
      ${list.length?list.map(row).join(''):`<div class="empty"><b>No tests on ${fmtDay(S.day)}</b>Add students below, or pick another date.</div>`}
@@ -862,6 +886,12 @@ function renderRoster(){
   $('#revealBtn')?.addEventListener('click',()=>{if(rev)setReveal(S.day,false);else{S.confirm=S.day;render()}});
   $('#revealYes')?.addEventListener('click',()=>setReveal(S.day,true));
   $('#govBtn')?.addEventListener('click',()=>go('grades'));
+  $('#resultsBtn')?.addEventListener('click',()=>{S.modal='results';render()});
+  const closeRes=()=>{S.modal=null;render()};
+  $('#resClose')?.addEventListener('click',closeRes);
+  $('#resModal')?.addEventListener('click',e=>{if(e.target.id==='resModal')closeRes()});
+  $('#resGov')?.addEventListener('click',()=>go('grades'));
+  document.body.style.overflow=$('#resModal')?'hidden':'';
   $('#revealNo')?.addEventListener('click',()=>{S.confirm=null;render()});
   $('#dlDay')?.addEventListener('click',()=>offerFile(`ops-test-results-${S.day}.csv`,resultsCSV(list)));
   $('#cpDay')?.addEventListener('click',()=>copyText(resultsCSV(list)));

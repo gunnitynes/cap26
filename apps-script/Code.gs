@@ -49,7 +49,7 @@ const SKILLS = [
 // Core skills (a combined mark under 50% means Resit) and the six stages, as on the page.
 const CORE = { p1: 1, p2: 1, m3: 1, m4: 1, r1: 1, t1: 1, t3: 1, t4: 1, c1: 1, c2: 1, c3: 1, s1: 1 };
 const STAGES = [['p', 'Power'], ['m', 'Mic'], ['r', 'Route'], ['t', 'Record'], ['c', 'Cue'], ['s', 'Shut down']];
-const BANDS = [['Distinction', 90, '#0b43e0', '#dce6ff'], ['Merit', 75, '#0f7a57', '#d8f1e6'], ['Pass', 60, '#5a6276', '#eef0f4'], ['Resit', 0, '#bf2b2b', '#fbe0e0']];
+const BANDS = [['Merit', 75, '#0f7a57', '#d8f1e6'], ['Pass', 60, '#5a6276', '#eef0f4'], ['Resit', 0, '#bf2b2b', '#fbe0e0']];
 const ERR_POINTS = 10;
 
 const STUDIO_LIST = ['K3', 'K4'];   // the studios a test can be in
@@ -125,7 +125,7 @@ function buildStart_() {
     ['Days', 'Tick "Grades revealed" to show the grades for a date on the page. The page can do this too.'],
     ['Grades', 'The overview: every student\'s grade, progress, a colour per test stage and their critical errors. Kept up to date by itself.'],
     ['', ''],
-    ['How the grade works', 'Pass 100 · Hint 75 · Got there 50 · Failed 0. Each skill is averaged over every teacher who marked it, every skill counts the same, each different critical error takes off 10, a Core skill under 50 means Resit. Distinction 90+, Merit 75–89, Pass 60–74, Resit under 60.'],
+    ['How the grade works', 'Pass 100 · Hint 75 · Got there 50 · Failed 0. Each skill is averaged over every teacher who marked it, every skill counts the same, each different critical error takes off 10, a Core skill under 50 means Resit. Merit 75 and up, Pass 60–74, Resit under 60.'],
   ];
   sh.getRange(1, 1, rows.length, 2).setValues(rows);
   sh.setColumnWidth(1, 190); sh.setColumnWidth(2, 640);
@@ -620,7 +620,7 @@ function gradeOf_(byTeacher) {
   const final = score === null ? null : Math.max(0, score - errors.length * ERR_POINTS);
   const coreFails = marked.filter(x => CORE[x.id] && x.avg < 0.5).map(x => SKILLS.find(s => s[0] === x.id)[1]);
   const complete = marked.length === SKILLS.length;
-  const band = final === null ? null : coreFails.length ? BANDS[3] : BANDS.find(b => final >= b[1] - 1e-9);
+  const band = final === null ? null : coreFails.length ? BANDS[BANDS.length - 1] : BANDS.find(b => final >= b[1] - 1e-9);
   const stages = STAGES.map(([p]) => { const xs = marked.filter(x => x.id[0] === p); return xs.length ? Math.round(xs.reduce((a, x) => a + x.avg, 0) / xs.length * 100) : ''; });
   return { teachers, marked: marked.length, score, errors, final, coreFails, complete, band, stages };
 }
@@ -641,7 +641,7 @@ function buildGrades_() {
     .concat(['Score', 'Errors', 'Final', '', 'Grade', 'Core skill under 50%', 'In the app', 'Critical errors']);
   const W = head.length, C = { STAGE: 7, SCORE: 13, ERR: 14, FINAL: 15, BAR: 16, GRADE: 17 };
 
-  const counts = { Distinction: 0, Merit: 0, Pass: 0, Resit: 0, Unfinished: 0 };
+  const counts = { Merit: 0, Pass: 0, Resit: 0, Unfinished: 0 };
   const values = [], bars = [], groupStarts = [];
   let prevDay = '';
   students.forEach((s, i) => {
@@ -667,8 +667,8 @@ function buildGrades_() {
   sh.getRange('A1').setFontSize(22).setFontWeight('bold').setFontColor(BLUE);
   sh.getRange('A2').setFontColor(MUTE);
   // the summary: one block per grade, with a bar showing its share of all students
-  const names = ['Distinction', 'Merit', 'Pass', 'Resit', 'Unfinished'];
-  const colours = [BANDS[0], BANDS[1], BANDS[2], BANDS[3], ['', 0, '#9aa3b5', PAPER]];
+  const names = ['Merit', 'Pass', 'Resit', 'Unfinished'];
+  const colours = [BANDS[0], BANDS[1], BANDS[2], ['', 0, '#9aa3b5', PAPER]];
   sh.getRange(4, 1, 2, 1).setValues([['Overview'], [students.length + (students.length === 1 ? ' student' : ' students')]]);
   sh.getRange('A4').setFontWeight('bold'); sh.getRange('A5').setFontColor(MUTE);
   names.forEach((n, i) => {
@@ -704,9 +704,9 @@ function buildGrades_() {
     const text = (t, bg, fg) => SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(t).setBackground(bg).setFontColor(fg).setBold(true).setRanges([gradeCol]).build();
     sh.setConditionalFormatRules([
       heat(sh.getRange(top, C.STAGE, values.length, 6)), heat(sh.getRange(top, C.SCORE, values.length, 1)), heat(sh.getRange(top, C.FINAL, values.length, 1)),
-      text('Distinction', BANDS[0][3], BANDS[0][2]), text('Merit', BANDS[1][3], BANDS[1][2]), text('Pass', BANDS[2][3], INK), text('Resit', BANDS[3][3], BANDS[3][2]),
+      text('Merit', BANDS[0][3], BANDS[0][2]), text('Pass', BANDS[1][3], INK), text('Resit', BANDS[2][3], BANDS[2][2]),
       text('Unfinished', PAPER, MUTE), text('Not started', '#ffffff', '#9aa3b5'),
-      SpreadsheetApp.newConditionalFormatRule().whenNumberLessThan(0).setFontColor(BANDS[3][2]).setBold(true).setRanges([sh.getRange(top, C.ERR, values.length, 1)]).build(),
+      SpreadsheetApp.newConditionalFormatRule().whenNumberLessThan(0).setFontColor(BANDS[2][2]).setBold(true).setRanges([sh.getRange(top, C.ERR, values.length, 1)]).build(),
     ]);
   } else {
     sh.getRange(top, 1).setValue('No students yet. Add them in the Students tab or on the page.').setFontColor(MUTE);
