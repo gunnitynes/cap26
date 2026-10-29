@@ -16,7 +16,7 @@
  * Tabs (Ops Test ▸ Set up / tidy the sheet):
  *   Start here  what this is and how to add a teacher
  *   Teachers    Name | Password | Role | Status | Last sign-in    (+ two hidden columns holding the scrambled password)
- *   Students    one row per student and test date
+ *   Students    one row per student and test date; type or paste names here (a date picker on the date column)
  *   Marks       one row per student per teacher, every skill readable; the last column is the page's own copy
  *   Days        tick "Grades revealed" to reveal a date (the page does this too)
  *   Results     the tally, written by the page when grades are revealed or downloaded
@@ -41,6 +41,7 @@ const SKILLS = [
   ['s1', 'Shutdown order'], ['s2', 'Left as found'],
 ];
 
+const DATE_FMT = 'dd.mm.yyyy';
 const BLUE = '#0b43e0', INK = '#10131c', PAPER = '#f4f6fa', MUTE = '#5a6276';
 const SHEETS = {
   START:    { name: 'Start here', header: [] },
@@ -71,7 +72,7 @@ function onOpen() {
 /** Builds every tab, moves older layouts over without losing anything, and styles it all. Safe to run any time. */
 function setup() {
   const ss = SpreadsheetApp.getActive();
-  migrateTeachers_(); migrateStudents_(); migrateMarks_();
+  migrateTeachers_(); migrateStudents_(); migrateMarks_(); migrateDates_();
   Object.keys(SHEETS).forEach(k => { if (k !== 'START') sheet_(SHEETS[k]); });
   buildStart_();
   style_();
@@ -96,12 +97,16 @@ function buildStart_() {
     ['', '2. Type a password next to it (6 characters or more). It is hidden as soon as you press Enter.'],
     ['', '   Or leave the password empty: they choose their own the first time they sign in on the page.'],
     ['', '3. Check the Status column. "Ready" means they can sign in.'],
+    ['Add students', 'Open the Students tab. Type the test date, the student\'s name and the studio, one student per row.'],
+    ['', 'Pasting a whole list? Paste the names into the Student column and type the date once at the top: rows below take the date and studio from the row above.'],
+    ['', 'They appear on the page within a few seconds. Teachers can also add students on the page itself.'],
+    ['Remove a student', 'Type anything (for example "absent") in their Removed column. Their row stays, so nothing is lost.'],
     ['Forgot a password?', 'Type a new one over the dots in the Password column, or clear it so they choose a new one.'],
     ['Remove a teacher', 'Delete their row in Teachers. Their marks stay in Marks.'],
     ['', ''],
     ['What the tabs hold', ''],
     ['Teachers', 'Who can sign in. Passwords are stored scrambled and never shown.'],
-    ['Students', 'Everyone booked for a test, by date. Removed students stay listed with who removed them.'],
+    ['Students', 'Everyone booked for a test: date, name, studio. Type or paste here, or add them on the page.'],
     ['Marks', 'One row per student per teacher, every skill readable. The last column is the page\'s own copy; leave it alone.'],
     ['Days', 'Tick "Grades revealed" to show the grades for a date on the page. The page can do this too.'],
     ['Results', 'The final tally per student. The page writes it when grades are revealed or downloaded.'],
@@ -115,9 +120,10 @@ function buildStart_() {
   sh.getRange('A2').setFontColor(MUTE);
   sh.getRange('A1:B1').merge(); sh.getRange('A2:B2').merge();
   sh.getRange('B4').setFormula('=HYPERLINK("' + PAGE_URL + '","' + PAGE_URL + '")').setFontWeight('bold');
-  [4, 6, 10, 11, 13, 20].forEach(r => sh.getRange(r, 1).setFontWeight('bold'));
-  sh.getRange('A13:B13').setBackground(PAPER);
-  sh.getRange('A14:A18').setFontWeight('bold').setFontColor(BLUE);
+  rows.forEach((r, i) => { if (r[0] && i > 1) sh.getRange(i + 1, 1).setFontWeight('bold'); });
+  const tabsAt = rows.findIndex(r => r[0] === 'What the tabs hold') + 1;
+  sh.getRange(tabsAt, 1, 1, 2).setBackground(PAPER);
+  sh.getRange(tabsAt + 1, 1, 5, 1).setFontColor(BLUE);
   sh.setHiddenGridlines(true);
   sh.setTabColor(BLUE);
   sh.setFrozenRows(0);
@@ -145,20 +151,25 @@ function style_() {
   t.getRange(2, T.STATUS + 1, t.getMaxRows() - 1, 1).setFontColor(MUTE);
   t.getRange(2, T.NAME + 1, t.getMaxRows() - 1, 1).setFontWeight('bold');
   const st = sheet_(SHEETS.STUDENTS);
-  st.getRange('A:A').setNumberFormat('@'); st.getRange(2, 5, st.getMaxRows() - 1, 1).setNumberFormat('dd.MM.yyyy HH:mm');
+  st.getRange(2, 1, st.getMaxRows() - 1, 1).setNumberFormat(DATE_FMT).setHorizontalAlignment('left').setDataValidation(
+    SpreadsheetApp.newDataValidation().requireDate().setAllowInvalid(false)
+      .setHelpText('A test date, like 04.11.2026. Double-click for a calendar.').build());
+  st.getRange(2, 5, st.getMaxRows() - 1, 1).setNumberFormat('dd.MM.yyyy HH:mm');
+  st.getRange(2, 2, st.getMaxRows() - 1, 1).setFontWeight('bold');
+  st.getRange(2, 4, st.getMaxRows() - 1, 3).setFontColor(MUTE);
   st.hideColumns(7);
   const m = sheet_(SHEETS.MARKS), mh = SHEETS.MARKS.header.length;
-  m.getRange('A:A').setNumberFormat('@'); m.setFrozenColumns(3);
+  m.getRange(2, 1, m.getMaxRows() - 1, 1).setNumberFormat(DATE_FMT).setHorizontalAlignment('left'); m.setFrozenColumns(3);
   m.getRange(2, mh - 2, m.getMaxRows() - 1, 1).setNumberFormat('dd.MM.yyyy HH:mm');
   m.hideColumns(mh - 1, 2);
   m.getRange(1, 7, 1, SKILLS.length).setTextRotation(0).setHorizontalAlignment('center');
   m.getRange(2, 7, m.getMaxRows() - 1, SKILLS.length).setHorizontalAlignment('center');
   const markRange = m.getRange(2, 7, m.getMaxRows() - 1, SKILLS.length);
   const d = sheet_(SHEETS.DAYS);
-  d.getRange('A:A').setNumberFormat('@'); d.getRange(2, 2, d.getMaxRows() - 1, 1).insertCheckboxes();
+  d.getRange(2, 1, d.getMaxRows() - 1, 1).setNumberFormat(DATE_FMT).setHorizontalAlignment('left'); d.getRange(2, 2, d.getMaxRows() - 1, 1).insertCheckboxes();
   d.getRange(2, 4, d.getMaxRows() - 1, 1).setNumberFormat('dd.MM.yyyy HH:mm');
   const r = sheet_(SHEETS.RESULTS);
-  r.getRange('A:A').setNumberFormat('@'); r.setFrozenColumns(2);
+  r.getRange(2, 1, r.getMaxRows() - 1, 1).setNumberFormat(DATE_FMT).setHorizontalAlignment('left'); r.setFrozenColumns(2);
   r.getRange(2, 14, r.getMaxRows() - 1, 1).setNumberFormat('dd.MM.yyyy HH:mm');
   const gradeCol = r.getRange(2, 10, r.getMaxRows() - 1, 1);
   const rule = (range, text, bg, fg) => SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(text).setBackground(bg).setFontColor(fg).setBold(true).setRanges([range]).build();
@@ -177,6 +188,10 @@ function style_() {
 
 /** Runs by itself on every edit. A password typed in the Teachers tab is scrambled and hidden straight away. */
 function onEdit(e) {
+  try {
+    const sh0 = e && e.range && e.range.getSheet();
+    if (sh0 && sh0.getName() === SHEETS.STUDENTS.name && e.range.getRow() >= 2) { studentsTyped_(sh0, e.range.getRow(), e.range.getNumRows()); return; }
+  } catch (err) {}
   try {
     const sh = e && e.range && e.range.getSheet();
     if (!sh || sh.getName() !== SHEETS.TEACHERS.name || e.range.getRow() < 2) return;
@@ -225,6 +240,38 @@ function refreshTeacherStatus_() {
   sh.getRange(2, T.STATUS + 1, out.length, 1).setValues(out);
 }
 
+/**
+ * Students typed or pasted into the Students tab: a row with a name gets an ID so the page shows it.
+ * An empty date or studio is taken from the row above, so a pasted list only needs the date once.
+ */
+function studentsTyped_(sh, top, count) {
+  const first = Math.max(2, top), last = Math.min(sh.getLastRow(), top + count - 1);
+  if (last < first) return;
+  const above = first > 2 ? sh.getRange(first - 1, 1, 1, 3).getValues()[0] : ['', '', ''];
+  const rows = sh.getRange(first, 1, last - first + 1, 7).getValues();
+  let who = 'Sheet'; try { who = Session.getActiveUser().getEmail() || 'Sheet'; } catch (e) {}
+  let prevDate = above[0], prevStudio = above[2], changed = false;
+  rows.forEach(r => {
+    const name = String(r[S_.NAME] || '').trim();
+    if (name) {
+      if (!r[S_.DAY] && prevDate) { r[S_.DAY] = prevDate; changed = true; }
+      if (!r[S_.STUDIO] && prevStudio) { r[S_.STUDIO] = prevStudio; changed = true; }
+      if (!r[S_.ID]) { r[S_.ID] = newId_(); r[S_.BY] = r[S_.BY] || who; r[S_.AT] = r[S_.AT] || new Date(); changed = true; }
+    }
+    if (r[S_.DAY]) prevDate = r[S_.DAY];
+    if (r[S_.STUDIO]) prevStudio = r[S_.STUDIO];
+  });
+  if (changed) sh.getRange(first, 1, rows.length, 7).setValues(rows);
+}
+
+/** Catches rows that arrived without the edit trigger (an import, a copy from another sheet). */
+function ensureStudentIds_() {
+  const sh = sheet_(SHEETS.STUDENTS), last = sh.getLastRow();
+  if (last < 2) return;
+  const ids = sh.getRange(2, S_.ID + 1, last - 1, 1).getValues(), names = sh.getRange(2, S_.NAME + 1, last - 1, 1).getValues();
+  if (names.some((n, i) => String(n[0] || '').trim() && !ids[i][0])) studentsTyped_(sh, 2, last - 1);
+}
+
 // ─────────────────────────────────────────────────────────────── sheet menu (still works, now optional)
 
 function menuAddTeacher() {
@@ -270,7 +317,7 @@ function route_(req) {
   const me = auth_(req.token);
   if (!me) return { ok: false, error: 'Please sign in again.', code: 'auth' };
   switch (a) {
-    case 'state':          return state_(me);
+    case 'state':          withLock_(() => { ensureStudentIds_(); return {}; }); return state_(me);
     case 'addStudents':    return withLock_(() => addStudents_(me, req));
     case 'updateStudent':  return withLock_(() => updateStudent_(me, req));
     case 'saveEntry':      return withLock_(() => saveEntry_(me, req));
@@ -414,9 +461,9 @@ function teachers_() {
 const S_ = { DAY: 0, NAME: 1, STUDIO: 2, BY: 3, AT: 4, REMOVED: 5, ID: 6 };
 
 function students_() {
-  return rows_(SHEETS.STUDENTS).map((r, i) => ({ row: i + 2, id: String(r[S_.ID] || ''), day: day_(r[S_.DAY]), name: String(r[S_.NAME] || ''),
+  return rows_(SHEETS.STUDENTS).map((r, i) => ({ row: i + 2, id: String(r[S_.ID] || ''), day: day_(r[S_.DAY]), name: String(r[S_.NAME] || '').trim(),
     studio: String(r[S_.STUDIO] || ''), addedBy: String(r[S_.BY] || ''), createdAt: +new Date(r[S_.AT]) || 0, removed: !!r[S_.REMOVED] }))
-    .filter(s => s.id && s.name);
+    .filter(s => s.id && s.name && s.day);
 }
 function marksRows_() {
   const dataCol = SHEETS.MARKS.header.length - 1, idCol = dataCol - 1;
@@ -446,9 +493,8 @@ function addStudents_(me, req) {
   const names = (Array.isArray(req.names) ? req.names : []).map(n => clean_(n, 80)).filter(Boolean).slice(0, 60);
   if (!names.length) return { ok: false, error: 'Type at least one name.' };
   const studio = clean_(req.studio, 40), sh = sheet_(SHEETS.STUDENTS), now = new Date();
-  const rows = names.map(n => [day, n, studio, me.name, now, '', Utilities.getUuid().slice(0, 13)]);
+  const rows = names.map(n => [toDate_(day), n, studio, me.name, now, '', newId_()]);
   const start = sh.getLastRow() + 1;
-  sh.getRange(start, 1, rows.length, 1).setNumberFormat('@');
   sh.getRange(start, 1, rows.length, 7).setValues(rows);
   return { ok: true, ids: rows.map(r => r[6]) };
 }
@@ -465,8 +511,8 @@ function updateStudent_(me, req) {
   }
   if (req.day !== undefined) {
     const day = checkDay_(req.day); if (!day) return { ok: false, error: 'That date is not valid.' };
-    sh.getRange(s.row, S_.DAY + 1).setNumberFormat('@').setValue(day);
-    marksRows_().filter(m => m.sid === s.id).forEach(m => sheet_(SHEETS.MARKS).getRange(m.row, 1).setNumberFormat('@').setValue(day));
+    sh.getRange(s.row, S_.DAY + 1).setValue(toDate_(day));
+    marksRows_().filter(m => m.sid === s.id).forEach(m => sheet_(SHEETS.MARKS).getRange(m.row, 1).setValue(toDate_(day)));
   }
   if (req.studio !== undefined) sh.getRange(s.row, S_.STUDIO + 1).setValue(clean_(req.studio, 40));
   return { ok: true };
@@ -486,7 +532,6 @@ function saveEntry_(me, req) {
   const data = merge_(mine ? mine.data : {}, clean);
   const sh = sheet_(SHEETS.MARKS), row = marksRow_(s, me.name, data);
   const r = mine ? mine.row : sh.getLastRow() + 1;
-  sh.getRange(r, 1).setNumberFormat('@');
   sh.getRange(r, 1, 1, row.length).setValues([row]);
   return { ok: true };
 }
@@ -497,7 +542,7 @@ function marksRow_(s, teacher, data) {
   const marked = ids.filter(id => m[id] in POINTS);
   const score = marked.length ? Math.round(marked.reduce((a, id) => a + POINTS[m[id]], 0) / marked.length * 100) : '';
   const errors = Object.keys(data.safety || {}).map(k => data.safety[k]).filter(Boolean).map(x => x.text);
-  return [s.day, s.name, teacher, marked.length + '/' + ids.length, score, errors.join('; ')]
+  return [toDate_(s.day), s.name, teacher, marked.length + '/' + ids.length, score, errors.join('; ')]
     .concat(ids.map(id => MARK_LABEL[m[id]] || ''))
     .concat([data.summary || '', new Date(), s.id, JSON.stringify(data)]);
 }
@@ -505,10 +550,9 @@ function marksRow_(s, teacher, data) {
 function setReveal_(me, req) {
   const day = checkDay_(req.day); if (!day) return { ok: false, error: 'That date is not valid.' };
   const sh = sheet_(SHEETS.DAYS), rows = sh.getDataRange().getValues();
-  const row = [day, !!req.on, me.name, new Date()];
+  const row = [toDate_(day), !!req.on, me.name, new Date()];
   const i = rows.findIndex((r, k) => k > 0 && day_(r[0]) === day);
   const r = i > 0 ? i + 1 : Math.max(2, sh.getLastRow() + 1);
-  sh.getRange(r, 1).setNumberFormat('@');
   sh.getRange(r, 1, 1, 4).setValues([row]);
   try { sh.getRange(r, 2).insertCheckboxes(); sh.getRange(r, 2).setValue(!!req.on); } catch (e) {}
   return { ok: true };
@@ -521,13 +565,12 @@ function publishResults_(me, req) {
   const rows = (Array.isArray(req.rows) ? req.rows : []).slice(0, 300).map(r => {
     const a = (Array.isArray(r) ? r : []).slice(0, width).map(v => typeof v === 'number' ? v : String(v == null ? '' : v).slice(0, 3000));
     while (a.length < width) a.push('');
-    a[0] = day; a.push(new Date()); return a;
+    a[0] = toDate_(day); a.push(new Date()); return a;
   });
   const all = sh.getDataRange().getValues();
   for (let i = all.length - 1; i >= 1; i--) if (day_(all[i][0]) === day) sh.deleteRow(i + 1);
   if (rows.length) {
     const start = sh.getLastRow() + 1;
-    sh.getRange(start, 1, rows.length, 1).setNumberFormat('@');
     sh.getRange(start, 1, rows.length, width + 1).setValues(rows);
   }
   return { ok: true, rows: rows.length };
@@ -556,9 +599,20 @@ function migrateStudents_() {
   const o = headerOf_(SHEETS.STUDENTS.name);
   if (!o || o.head[0] === 'Test date') return;
   // v1 layout: ID | Test date | Student | Studio | Added by | Added at | Deleted
-  const rows = o.rows.filter(r => r[0]).map(r => [day_(r[1]), r[2], r[3], r[4], r[5], r[6] || '', r[0]]);
+  const rows = o.rows.filter(r => r[0]).map(r => [toDate_(day_(r[1])), r[2], r[3], r[4], r[5], r[6] || '', r[0]]);
   o.sh.clear(); o.sh.getRange(1, 1, 1, 7).setValues([SHEETS.STUDENTS.header]);
-  if (rows.length) { o.sh.getRange(2, 1, rows.length, 1).setNumberFormat('@'); o.sh.getRange(2, 1, rows.length, 7).setValues(rows); }
+  if (rows.length) o.sh.getRange(2, 1, rows.length, 7).setValues(rows);
+}
+/** Dates stored as text by the first version ('2026-11-04') become real dates, so the date picker and sorting work. */
+function migrateDates_() {
+  [SHEETS.STUDENTS, SHEETS.MARKS, SHEETS.DAYS, SHEETS.RESULTS].forEach(def => {
+    const sh = SpreadsheetApp.getActive().getSheetByName(def.name);
+    if (!sh || sh.getLastRow() < 2) return;
+    const col = sh.getRange(2, 1, sh.getLastRow() - 1, 1), v = col.getValues();
+    let changed = false;
+    const out = v.map(r => { if (r[0] && !(r[0] instanceof Date) && day_(r[0])) { changed = true; return [toDate_(day_(r[0]))]; } return r; });
+    if (changed) col.setValues(out);
+  });
 }
 function migrateMarks_() {
   const o = headerOf_(SHEETS.MARKS.name);
@@ -607,8 +661,17 @@ function merge_(a, b) {
 }
 function norm_(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
 function clean_(s, max) { return String(s == null ? '' : s).replace(/[\u0000-\u001f]/g, ' ').trim().replace(/\s+/g, ' ').slice(0, max); }
+/** Any date the sheet may hold (a real date, 2026-11-04, or 4.11.2026 typed as text) → '2026-11-04'; '' if it is not a date. */
 function day_(v) {
-  if (v instanceof Date) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-  return String(v || '').trim().slice(0, 10);
+  if (v instanceof Date) return isNaN(v) ? '' : Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  const t = String(v || '').trim();
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+  m = t.match(/^(\d{1,2})[./](\d{1,2})[./](\d{2,4})$/);
+  if (m) return (m[3].length === 2 ? '20' + m[3] : m[3]) + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
+  return '';
 }
+/** '2026-11-04' → a real date at noon (noon keeps it on the same day in any time zone). */
+function toDate_(d) { const p = String(d).split('-').map(Number); return new Date(p[0], p[1] - 1, p[2], 12); }
+function newId_() { return Utilities.getUuid().slice(0, 13); }
 function checkDay_(v) { const d = String(v || ''); return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : ''; }

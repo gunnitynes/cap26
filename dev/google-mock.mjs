@@ -67,7 +67,12 @@ export function loadScript() {
       DigestAlgorithm: { SHA_256: 'sha256' }, Charset: { UTF_8: 'utf8' },
       computeDigest: (alg, s) => [...crypto.createHash('sha256').update(s, 'utf8').digest()].map(b => b > 127 ? b - 256 : b),
       base64Encode: bytes => Buffer.from(bytes.map(b => b & 255)).toString('base64'),
-      formatDate: (d, tz, f) => d.toISOString().slice(0, 16).replace('T', ' '),
+      formatDate: (d, tz, f) => {
+        // enough of Google's patterns for Code.gs: yyyy MM dd HH mm, in the given time zone
+        const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
+          .formatToParts(d).map(x => [x.type, x.value]));
+        return f.replace('yyyy', p.year).replace('MM', p.month).replace('dd', p.day).replace('HH', p.hour).replace('mm', p.minute);
+      },
     },
     console,
   };

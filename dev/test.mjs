@@ -86,4 +86,40 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(st.entries[0].data.marks.m4, 'h');
   ok('the page reads its marks back from the sheet');
 }
+// 6. Students typed or pasted straight into the Students tab.
+{
+  const { g, book } = loadScript();
+  g.setup();
+  const ss = g.SpreadsheetApp.getActive(), te = ss.getSheetByName('Teachers'), st = ss.getSheetByName('Students');
+  te.getRange(2, 1, 1, 2).setValues([['Gunni', 'test-pass-1']]); g.onEdit({ range: te.getRange(2, 2) });
+  const tok = call(g, { action: 'login', name: 'gunni', password: 'test-pass-1' }).token;
+  // one typed row with a real date (what the date picker gives), then a pasted list with no dates or studios
+  // dates must come from inside the sandbox, like the ones Google hands the script
+  const pick = d => { const x = g.toDate_(d); x.setHours(0); return x; };   // what the date picker stores: midnight
+  st.getRange(2, 1, 1, 3).setValues([[pick('2026-11-04'), 'Polina', 'Studio A']]);
+  g.onEdit({ range: st.getRange(2, 1, 1, 3) });
+  st.getRange(3, 2, 3, 1).setValues([['Paul'], ['Faddei'], ['  Yutaro ']]);
+  g.onEdit({ range: st.getRange(3, 2, 3, 1) });
+  // someone types a date as text in a later row
+  st.getRange(6, 1, 1, 3).setValues([['5.11.2026', 'Tales', 'Studio B']]);
+  g.onEdit({ range: st.getRange(6, 1, 1, 3) });
+  const rows = tab(book, 'Students').data.slice(1);
+  assert.ok(rows.every(r => r[6]), 'every named row gets an ID');
+  assert.deepEqual(rows.map(r => r[2]), ['Studio A', 'Studio A', 'Studio A', 'Studio A', 'Studio B']);
+  ok('a pasted list takes the date and studio from the row above and gets IDs');
+  const s1 = call(g, { action: 'state', token: tok }).students;
+  assert.deepEqual(s1.map(x => x.name + ' ' + x.day), ['Polina 2026-11-04', 'Paul 2026-11-04', 'Faddei 2026-11-04', 'Yutaro 2026-11-04', 'Tales 2026-11-05']);
+  ok('the page sees them on the right dates, including a date typed as text');
+  // a row that arrived without the edit trigger (an import) still shows up
+  st.getRange(7, 1, 1, 3).setValues([[pick('2026-11-05'), 'Ida', 'Studio B']]);
+  assert.ok(call(g, { action: 'state', token: tok }).students.some(x => x.name === 'Ida'));
+  ok('rows added without the edit trigger get an ID on the next refresh');
+  st.getRange(3, 6).setValue('absent');
+  assert.ok(!call(g, { action: 'state', token: tok }).students.some(x => x.name === 'Paul'));
+  ok('typing in Removed takes a student off the page');
+  call(g, { action: 'addStudents', token: tok, names: ['Mira'], studio: 'Studio A', day: '2026-11-04' });
+  const last = tab(book, 'Students').data.at(-1);
+  assert.equal(g.day_(last[0]), '2026-11-04'); assert.equal(typeof last[0], 'object'); assert.equal(last[1], 'Mira');
+  ok('students added on the page land in the sheet as real dates');
+}
 console.log(`\n${n} checks passed`);
