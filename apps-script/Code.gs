@@ -249,7 +249,7 @@ function studentsTyped_(sh, top, count) {
   if (last < first) return;
   const above = first > 2 ? sh.getRange(first - 1, 1, 1, 3).getValues()[0] : ['', '', ''];
   const rows = sh.getRange(first, 1, last - first + 1, 7).getValues();
-  let who = 'Sheet'; try { who = Session.getActiveUser().getEmail() || 'Sheet'; } catch (e) {}
+  const who = 'Sheet';   // typed in the sheet (reading the editor's email would need an extra Google permission)
   let prevDate = above[0], prevStudio = above[2], changed = false;
   rows.forEach(r => {
     const name = String(r[S_.NAME] || '').trim();
