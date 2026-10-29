@@ -12,7 +12,8 @@
  *     · new phone, or browser data cleared? type a new code for them
  *   Admins (you) have a permanent password in the same column instead of a code.
  *
- *   The page only shows a teacher their own marks until the grades for a date are revealed.
+ *   The page is for marking: each teacher sees only their own marks there. Grading happens later, here,
+ *   in the Grades tab, which combines every teacher's marks.
  *   (Anyone who can open this Sheet can of course see every tab.)
  *
  * Tabs (Ops Test ▸ Set up / tidy the sheet):
@@ -20,7 +21,6 @@
  *   Teachers    Name | Password | Role | Status | Last sign-in    (+ two hidden columns holding the scrambled password)
  *   Students    one row per student and test date; type or paste names here (a date picker on the date column)
  *   Marks       one row per student per teacher, every skill readable; the last column is the page's own copy
- *   Days        tick "Grades revealed" to reveal a date (the page does this too)
  *   Grades      the overview: every student's combined grade, stages, progress and errors, rebuilt by the script
  */
 
@@ -64,7 +64,6 @@ const SHEETS = {
   MARKS:    { name: 'Marks', header: ['Test date', 'Student', 'Teacher', 'Skills marked', 'Teacher score %', 'Critical errors']
                 .concat(SKILLS.map(s => s[1])).concat(['Feedback', 'Updated', 'Student ID', 'Page data (do not edit)']),
               widths: [100, 170, 120, 100, 110, 220].concat(SKILLS.map(() => 92)).concat([260, 140, 110, 120]) },
-  DAYS:     { name: 'Days', header: ['Test date', 'Grades revealed', 'By', 'At'], widths: [110, 130, 120, 150] },
   GRADES:   { name: 'Grades', header: [] },
 };
 const T = { NAME: 0, PASS: 1, ROLE: 2, STATUS: 3, LAST: 4, HASH: 5, SALT: 6 };
@@ -86,7 +85,7 @@ function setup() {
   const ss = SpreadsheetApp.getActive();
   migrateTeachers_(); migrateStudents_(); migrateMarks_(); migrateDates_();
   Object.keys(SHEETS).forEach(k => { if (k !== 'START' && k !== 'GRADES') sheet_(SHEETS[k]); });
-  const old = ss.getSheetByName('Results'); if (old) ss.deleteSheet(old);    // replaced by Grades, which the script keeps up to date
+  ['Results', 'Days'].forEach(n => { const old = ss.getSheetByName(n); if (old) ss.deleteSheet(old); });   // no longer used: grading happens in Grades
   buildStart_();
   style_();
   buildGrades_();
@@ -122,7 +121,6 @@ function buildStart_() {
     ['Teachers', 'Who can sign in, with their single-use code (or admin password). Codes are stored scrambled and never shown.'],
     ['Students', 'Everyone booked for a test: date, name, studio. Type or paste here, or add them on the page.'],
     ['Marks', 'One row per student per teacher, every skill readable. The last column is the page\'s own copy; leave it alone.'],
-    ['Days', 'Tick "Grades revealed" to show the grades for a date on the page. The page can do this too.'],
     ['Grades', 'The overview: every student\'s grade, progress, a colour per test stage and their critical errors. Kept up to date by itself.'],
     ['', ''],
     ['How the grade works', 'Pass 100 · Hint 75 · Got there 50 · Failed 0. Each skill is averaged over every teacher who marked it, every skill counts the same, each different critical error takes off 10, a Core skill under 50 means Resit. Merit 75 and up, Pass 60–74, Resit under 60.'],
@@ -181,15 +179,12 @@ function style_() {
   m.getRange(1, 7, 1, SKILLS.length).setTextRotation(0).setHorizontalAlignment('center');
   m.getRange(2, 7, m.getMaxRows() - 1, SKILLS.length).setHorizontalAlignment('center');
   const markRange = m.getRange(2, 7, m.getMaxRows() - 1, SKILLS.length);
-  const d = sheet_(SHEETS.DAYS);
-  d.getRange(2, 1, d.getMaxRows() - 1, 1).setNumberFormat(DATE_FMT).setHorizontalAlignment('left'); d.getRange(2, 2, d.getMaxRows() - 1, 1).insertCheckboxes();
-  d.getRange(2, 4, d.getMaxRows() - 1, 1).setNumberFormat('dd.MM.yyyy HH:mm');
   const rule = (range, text, bg, fg) => SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(text).setBackground(bg).setFontColor(fg).setBold(true).setRanges([range]).build();
   m.setConditionalFormatRules([
     rule(markRange, 'Pass', '#d8f1e6', '#0f7a57'), rule(markRange, 'Hint', '#fbeccf', '#a35f00'),
     rule(markRange, 'Got there', '#fde2d3', '#c2410c'), rule(markRange, 'Failed', '#fbe0e0', '#bf2b2b'),
   ]);
-  [t, st, m, d].forEach(s => s.setTabColor(INK));
+  [t, st, m].forEach(s => s.setTabColor(INK));
 }
 
 // ─────────────────────────────────────────────────────────────── typing in the Teachers tab
@@ -334,7 +329,6 @@ function route_(req) {
     case 'addStudents':    return withLock_(() => addStudents_(me, req));
     case 'updateStudent':  return withLock_(() => updateStudent_(me, req));
     case 'saveEntry':      return withLock_(() => saveEntry_(me, req));
-    case 'setReveal':      return withLock_(() => setReveal_(me, req));
     case 'publishResults': return withLock_(() => publishResults_(me, req));
     case 'changePassword': return withLock_(() => changePassword_(me, req));
     case 'logout':         PropertiesService.getScriptProperties().deleteProperty('s_' + req.token); return { ok: true };
@@ -503,16 +497,15 @@ function marksRows_() {
 function state_(me) {
   const students = students_().filter(s => !s.removed);
   const dayOf = {}; students.forEach(s => dayOf[s.id] = s.day);
-  const days = {}; rows_(SHEETS.DAYS).forEach(r => { if (r[0]) days[day_(r[0])] = r[1] === true || r[1] === 'yes' || r[1] === 'TRUE'; });
   const entries = [];
   marksRows_().forEach(m => {
     if (!(m.sid in dayOf)) return;
-    if (norm_(m.teacher) === norm_(me.name) || days[dayOf[m.sid]]) entries.push({ sid: m.sid, teacher: m.teacher, data: m.data });
+    if (norm_(m.teacher) === norm_(me.name)) entries.push({ sid: m.sid, teacher: m.teacher, data: m.data });
     else entries.push({ sid: m.sid, teacher: m.teacher, progress: Object.keys(m.data.marks || {}).filter(k => m.data.marks[k] in POINTS).length });
   });
   return { ok: true, me: { name: me.name, role: me.role },
     students: students.map(s => ({ id: s.id, day: s.day, name: s.name, studio: s.studio, addedBy: s.addedBy, createdAt: s.createdAt })),
-    entries, days, teachers: teachers_().map(t => t.name) };
+    entries, teachers: teachers_().map(t => t.name) };
 }
 
 function addStudents_(me, req) {
@@ -577,19 +570,7 @@ function marksRow_(s, teacher, data) {
     .concat([data.summary || '', new Date(), s.id, JSON.stringify(data)]);
 }
 
-function setReveal_(me, req) {
-  gradesDirty_();
-  const day = checkDay_(req.day); if (!day) return { ok: false, error: 'That date is not valid.' };
-  const sh = sheet_(SHEETS.DAYS), rows = sh.getDataRange().getValues();
-  const row = [toDate_(day), !!req.on, me.name, new Date()];
-  const i = rows.findIndex((r, k) => k > 0 && day_(r[0]) === day);
-  const r = i > 0 ? i + 1 : Math.max(2, sh.getLastRow() + 1);
-  sh.getRange(r, 1, 1, 4).setValues([row]);
-  try { sh.getRange(r, 2).insertCheckboxes(); sh.getRange(r, 2).setValue(!!req.on); } catch (e) {}
-  return { ok: true };
-}
-
-/** The page asks for the overview after a reveal or a download: rebuild it now. */
+/** Kept for older pages that still ask: rebuilds the overview now. */
 function publishResults_(me, req) {
   buildGrades_();
   return { ok: true };
@@ -635,10 +616,9 @@ function buildGrades_() {
 
   const students = students_().filter(s => !s.removed).sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : a.name.localeCompare(b.name));
   const marks = {}; marksRows_().forEach(m => { (marks[m.sid] = marks[m.sid] || {})[m.teacher] = m.data; });
-  const shown = {}; rows_(SHEETS.DAYS).forEach(r => { if (r[0]) shown[day_(r[0])] = r[1] === true || r[1] === 'yes'; });
   const N = SKILLS.length, top = 9;
   const head = ['Test date', 'Student', 'Studio', 'Teachers', 'Marked', 'Progress'].concat(STAGES.map(x => x[1]))
-    .concat(['Score', 'Errors', 'Final', '', 'Grade', 'Core skill under 50%', 'In the app', 'Critical errors']);
+    .concat(['Score', 'Errors', 'Final', '', 'Grade', 'Core skill under 50%', 'Critical errors']);
   const W = head.length, C = { STAGE: 7, SCORE: 13, ERR: 14, FINAL: 15, BAR: 16, GRADE: 17 };
 
   const counts = { Merit: 0, Pass: 0, Resit: 0, Unfinished: 0 };
@@ -652,7 +632,7 @@ function buildGrades_() {
     values.push([toDate_(s.day), s.name, s.studio, g.teachers.join(', '), g.marked + '/' + N, '']
       .concat(g.stages)
       .concat([g.score === null ? '' : Math.round(g.score), g.errors.length ? -g.errors.length * ERR_POINTS : '', g.final === null ? '' : Math.round(g.final), '',
-               label, g.coreFails.join(', '), shown[s.day] ? 'Shown' : 'Hidden', g.errors.join('; ')]));
+               label, g.coreFails.join(', '), g.errors.join('; ')]));
     const col = g.complete ? g.band[2] : '#9aa3b5';
     bars.push(['=SPARKLINE(' + g.marked + ',{"charttype","bar";"max",' + N + ';"color1","' + BLUE + '"})',
                g.final === null ? '' : '=SPARKLINE(' + Math.round(g.final) + ',{"charttype","bar";"max",100;"color1","' + col + '"})']);
@@ -663,7 +643,7 @@ function buildGrades_() {
   sh.setConditionalFormatRules([]);
   const total = students.length || 1;
   const stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd.MM.yyyy HH:mm');
-  sh.getRange(1, 1, 2, 1).setValues([['Grades'], ['Every student, combined over all teachers. Updated ' + stamp + '. "Hidden" means the app is not showing that date\'s grades yet.']]);
+  sh.getRange(1, 1, 2, 1).setValues([['Grades'], ['Every student, combined over all teachers. Updated ' + stamp + '. This is where the grading happens; the app is only for marking.']]);
   sh.getRange('A1').setFontSize(22).setFontWeight('bold').setFontColor(BLUE);
   sh.getRange('A2').setFontColor(MUTE);
   // the summary: one block per grade, with a bar showing its share of all students
@@ -692,7 +672,7 @@ function buildGrades_() {
     sh.getRange(top, C.SCORE, values.length, 3).setHorizontalAlignment('center').setNumberFormat('0');
     sh.getRange(top, C.FINAL, values.length, 1).setFontWeight('bold').setFontSize(12);
     sh.getRange(top, C.GRADE, values.length, 1).setHorizontalAlignment('center').setFontWeight('bold');
-    sh.getRange(top, C.GRADE + 1, values.length, 3).setFontColor(MUTE).setWrap(true);
+    sh.getRange(top, C.GRADE + 1, values.length, 2).setFontColor(MUTE).setWrap(true);
     // a heavier line where a new test date starts
     groupStarts.forEach(r => { try { sh.getRange(r, 1, 1, W).setBorder(true, null, null, null, null, null, INK, SpreadsheetApp.BorderStyle.SOLID_MEDIUM); } catch (e) {} });
     for (let r = top; r < top + values.length; r++) sh.setRowHeight(r, 26);
@@ -711,7 +691,7 @@ function buildGrades_() {
   } else {
     sh.getRange(top, 1).setValue('No students yet. Add them in the Students tab or on the page.').setFontColor(MUTE);
   }
-  [110, 170, 90, 150, 64, 110].concat(STAGES.map(() => 66)).concat([58, 58, 58, 110, 104, 170, 84, 260]).forEach((w, i) => sh.setColumnWidth(i + 1, w));
+  [110, 170, 90, 150, 64, 110].concat(STAGES.map(() => 66)).concat([58, 58, 58, 110, 104, 200, 300]).forEach((w, i) => sh.setColumnWidth(i + 1, w));
   sh.setFrozenRows(top - 1); sh.setFrozenColumns(2);
   sh.setHiddenGridlines(true);
   sh.setTabColor(BLUE);
@@ -746,7 +726,7 @@ function migrateStudents_() {
 }
 /** Dates stored as text by the first version ('2026-11-04') become real dates, so the date picker and sorting work. */
 function migrateDates_() {
-  [SHEETS.STUDENTS, SHEETS.MARKS, SHEETS.DAYS].forEach(def => {
+  [SHEETS.STUDENTS, SHEETS.MARKS].forEach(def => {
     const sh = SpreadsheetApp.getActive().getSheetByName(def.name);
     if (!sh || sh.getLastRow() < 2) return;
     const col = sh.getRange(2, 1, sh.getLastRow() - 1, 1), v = col.getValues();

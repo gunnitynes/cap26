@@ -153,7 +153,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   call(g, { action: 'saveEntry', token: gt, sid: paul, patch: { marks: { p1: 'y', r1: 'n' } } });
   call(g, { action: 'publishResults', token: gt, day: '2026-11-04' });
   const tabs = book.sheets.map(s => s.name);
-  assert.ok(tabs.includes('Grades') && !tabs.includes('Results'));
+  assert.ok(tabs.includes('Grades') && !tabs.includes('Results') && !tabs.includes('Days'));
   assert.equal(tabs[1], 'Grades');
   const d = tab(book, 'Grades').data, head = d[7];
   const row = name => d.find(r => r[1] === name);
@@ -163,9 +163,13 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(P[head.indexOf('Grade')], 'Merit'); assert.equal(P[head.indexOf('Teachers')], 'Gunni, Anna');
   assert.equal(P[head.indexOf('Mic')], 97);   // (100+100+100+87.5)/4
   assert.equal(Q[head.indexOf('Grade')], 'Unfinished'); assert.equal(Q[head.indexOf('Core skill under 50%')], 'Console → speakers');
-  assert.equal(P[head.indexOf('In the app')], 'Hidden');
+  assert.equal(head.indexOf('In the app'), -1);
   ok('the Grades tab works out the same grade as the page, per stage, with errors and core fails');
   assert.equal(d[4][1], 1); assert.equal(d[4][4], 1);   // one Merit, one Unfinished in the summary
   ok('the summary counts each grade');
+  const seen = call(g, { action: 'state', token: at }).entries.filter(e => e.sid === pol);
+  assert.ok(seen.find(e => e.teacher === 'Anna').data);
+  const gun = seen.find(e => e.teacher === 'Gunni'); assert.equal(gun.data, undefined); assert.equal(gun.progress, 18);
+  ok('in the app a teacher only ever sees their own marks, and how far the others have got');
 }
 console.log(`\n${n} checks passed`);

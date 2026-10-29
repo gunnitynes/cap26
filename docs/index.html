@@ -498,23 +498,12 @@ function gradeOf(t){
   const grade=coreFails.length?GRADES[GRADES.length-1]:bandOf(final);
   return {skills,per,marked:marked.length,total:skills.length,complete:marked.length===skills.length,score,errors,deduction,final,coreFails,grade,teachers:uids.filter(u=>Object.values(es[u].marks||{}).some(v=>v in POINTS))};
 }
-const revealed=day=>!!S.days[day]?.revealed;
+// The app is for marking only. Grades are worked out later, by the teachers, in the Sheet's Grades tab.
 function statusOf(t){
-  if(revealed(t.day)){const g=gradeOf(t);if(g.complete)return {k:g.grade.k,l:g.grade.l,grade:g.grade};if(g.marked)return {k:'live',l:'Unfinished'}}
   const sc=scoreOf(mine(t),t);
   if(sc.complete)return {k:'done',l:'Marked'};
   if(!sc.n)return {k:'todo',l:'Not started'};
   return {k:'live',l:'In progress'}}
-async function setReveal(day,on){
-  // keep the choice on screen until the back end confirms it, so a refresh in between cannot flip it back
-  S.dayWant[day]=on;S.days={...S.days,[day]:{revealed:on}};S.confirm=null;render();
-  const done=()=>toast(on?'Grades revealed for '+fmtDay(day):'Grades hidden again');
-  if(S.demo){delete S.dayWant[day];done();return}
-  const j=await api('setReveal',{day,on});
-  if(!j.ok){delete S.dayWant[day];S.days={...S.days,[day]:{revealed:!on}};render();toast(j.error||'Could not save. Try again.');return}
-  done();await load();
-  if(on)publishResults(day);
-}
 
 /* ------------------------------------------------------------------ back end */
 async function api(action,body={}){
@@ -536,15 +525,12 @@ async function load(){
   for(const st of j.students)tests[st.id]={name:st.name,studio:st.studio,day:st.day,createdAt:st.createdAt,addedBy:st.addedBy,by:{}};
   for(const e of j.entries)if(tests[e.sid])tests[e.sid].by[e.teacher]=e.data||{_progress:e.progress||0};
   S.tests=tests;
-  const days={};for(const [d,v] of Object.entries(j.days))days[d]={revealed:!!v};
-  for(const [d,w] of Object.entries(S.dayWant)){if(!!days[d]?.revealed===w)delete S.dayWant[d];else days[d]={revealed:w}}
-  S.days=days;S.teachers=Object.fromEntries(j.teachers.map(n=>[n,{name:n}]));
+  S.teachers=Object.fromEntries(j.teachers.map(n=>[n,{name:n}]));
   // drop queued changes for students that no longer exist
   for(const id of Object.keys(S.pending))if(!tests[id]){delete S.pending[id]}
   ls.set('ops.pending',S.pending);
   if(S.sync==='err'&&!myPending().length)setSync('ok');
   S.ready=true;refresh();
-  if(revealed(S.day))publishResults(S.day);
 }
 // keep every phone up to date: a quiet refresh every 10 seconds while the page is on screen
 setInterval(()=>{if(document.visibilityState==='visible'&&!flushing&&!myPending().length)load()},10000);
@@ -592,17 +578,9 @@ async function flush(){
 }
 function setSync(s){S.sync=s;const el=$('#sync');if(!el)return;el.dataset.s=s;el.querySelector('span').textContent=s==='ok'?(S.demo?'Preview only':'Saved'):s==='busy'?'Saving…':'Not saved yet, retrying'}
 addEventListener('online',()=>flushSoon(10));
-addEventListener('keydown',e=>{if(e.key==='Escape'&&S.modal){S.modal=null;render()}});
 // a tab closed with marks still waiting gets a warning
 addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDefault();e.returnValue=''}});
 
-/* ------------------------------------------------------------------ results into the Google Sheet */
-async function publishResults(day){
-  if(S.demo||!revealed(day))return;
-  const rows=resultsRows(allTests().filter(t=>t.day===day));
-  const key=JSON.stringify(rows);if(S.published[day]===key)return;
-  const j=await api('publishResults',{day,rows});if(j.ok)S.published[day]=key;
-}
 
 /* ------------------------------------------------------------------ boot */
 async function boot(){
@@ -658,7 +636,7 @@ function renderBar(){
   const t=S.view==='test'&&view(S.open);
   const nm=S.view==='login'?'':S.me;
   const td=t&&new Date(t.day+'T12:00');
-  $('#barInner').innerHTML=`<div class="barrow">${S.view==='test'||S.view==='account'||S.view==='grades'?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
+  $('#barInner').innerHTML=`<div class="barrow">${S.view==='test'||S.view==='account'?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
    <div class="brand"><span class="eyebrow">${S.me&&nm?`<button class="whobtn" id="whoBtn" aria-label="Your teacher name">${esc(nm)}</button>`:'Catalyst Studios'} <span class="sync" id="sync" data-s="${S.sync}"><i class="dot"></i><span></span></span></span><b>Catalyst Operations Test - CAP 2026</b></div>
    ${S.view==='test'&&t&&timerOf(S.open)?`<button class="tm-pill" data-timer="${S.open}" id="tmPill" type="button" aria-label="Timer"><span class="tm-num">${timerOf(S.open).txt}</span></button>`:''}
    ${S.view==='test'&&t&&!timerOf(S.open)?`<span class="datecard" title="Test date"><small>${td.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase()}</small><b>${td.getDate()}</b><span>${td.toLocaleDateString('en-GB',{month:'short'})}</span></span>`:''}
@@ -682,10 +660,9 @@ function renderBar(){
     const mon=st.children[14];st.style.scrollBehavior='auto';st.scrollLeft=mon.offsetLeft-st.offsetLeft;st.style.scrollBehavior=''}
   const h=document.querySelector('.bar').offsetHeight;document.documentElement.style.setProperty('--barh',h+'px');
 }
-function go(v,id){S.modal=null;document.body.style.overflow='';S.view=v;S.open=id||null;renderBar();render();scrollTo(0,0);wake(v==='test')}
-function refresh(){if(S.view==='test')syncSheet();else if(S.view==='roster'&&S.modal)return;   // leave an open Results window as it is
-  else if(S.view==='roster'||S.view==='grades')render();else if(S.view==='account')renderAccount(true)}
-function render(){S.view==='login'?renderLogin():S.view==='account'?renderAccount():S.view==='grades'?renderGrades():S.view==='test'&&view(S.open)?renderSheet():renderRoster()}
+function go(v,id){S.view=v;S.open=id||null;renderBar();render();scrollTo(0,0);wake(v==='test')}
+function refresh(){if(S.view==='test')syncSheet();else if(S.view==='roster')render();else if(S.view==='account')renderAccount(true)}
+function render(){S.view==='login'?renderLogin():S.view==='account'?renderAccount():S.view==='test'&&view(S.open)?renderSheet():renderRoster()}
 
 function renderLogin(){
   const last=ls.get('ops.lastName','');
@@ -785,50 +762,6 @@ function renderAccount(quiet){
     toast(password?(isAdmin?'Password set for '+j.name:j.name+' can sign in once with that code'):j.name+' added. Give them a code to sign in');S.teachers[j.name]={name:j.name};renderAccount()};
 }
 
-/* ---- Grade overview: the whole date at a glance — distribution, the class by stage, and a card per student */
-const GCOL={merit:'ok',passg:'ink',resitg:'no'};
-const SHORT=['Power','Mic','Route','Rec','Cue','Down'];   // fits under a narrow bar
-function stageScores(t){const g=gradeOf(t);return STAGES.map(s=>{const xs=g.per.filter(x=>x.c.s===s.id&&x.avg!==null);return xs.length?Math.round(xs.reduce((a,x)=>a+x.avg,0)/xs.length*100):null})}
-function renderGrades(){
-  const list=allTests().filter(t=>t.day===S.day),rev=revealed(S.day);
-  const rows=list.map(t=>({t,g:gradeOf(t),st:stageScores(t)}));
-  const sort=S.gsort||'final';
-  // finished students first (highest final first), then unfinished, then not started
-  const rank=g=>g.complete?2:g.marked?1:0;
-  rows.sort(sort==='name'?(a,b)=>a.t.name.localeCompare(b.t.name):(a,b)=>rank(b.g)-rank(a.g)||(b.g.final||0)-(a.g.final||0));
-  const cnt={merit:0,passg:0,resitg:0,open:0};rows.forEach(({g})=>{if(g.complete)cnt[g.grade.k]++;else cnt.open++});
-  const avg=STAGES.map((s,i)=>{const v=rows.map(r=>r.st[i]).filter(x=>x!==null);return v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length):null});
-  const pct=v=>v===null?'–':v+'%';
-  const bar=(v,col)=>`<span class="hbar"><i style="width:${v||0}%;background:var(--${col})"></i></span>`;
-  const card=({t,g,st})=>{
-    const col=g.complete?GCOL[g.grade.k]:'mute',label=!g.marked?'Not started':g.complete?g.grade.l:'Unfinished';
-    return `<button class="gcard" data-open="${t.id}" type="button">
-      <div class="gc-top"><b>${esc(t.name)}</b>${rev?`<span class="pill ${g.complete?g.grade.k:'live'}">${label}</span>`:`<span class="gc-prog">${g.marked}/${g.total}</span>`}</div>
-      ${rev?`<div class="gc-final"><span class="gc-num" style="color:var(--${col})">${g.marked?Math.round(g.final):'–'}</span>
-        <span class="track"><i style="width:${g.marked?Math.round(g.final):0}%;background:var(--${col})"></i><u style="left:60%"></u><u style="left:75%"></u><u style="left:90%"></u></span></div>
-      <div class="gc-sub">${!g.marked?'No marks yet':!g.complete?`So far: ${g.marked} of ${g.total} skills marked`:`Score ${Math.round(g.score)}${g.deduction?` − ${g.deduction} for ${g.errors.length} critical error${g.errors.length>1?'s':''}`:''}`}</div>`
-      :`<span class="track"><i style="width:${Math.round(g.marked/g.total*100)}%;background:var(--led)"></i></span>`}
-      ${rev?`<div class="gc-stages">${STAGES.map((s,i)=>`<span class="st"><span class="st-col"><i style="height:${st[i]===null?0:Math.max(6,st[i])}%;background:${st[i]===null?'var(--line)':st[i]>=75?'var(--ok)':st[i]>=50?'var(--hint)':'var(--no)'}"></i></span><small>${SHORT[i]}</small></span>`).join('')}</div>`:''}
-      ${rev&&g.coreFails.length?`<div class="gc-flag">Core skill under 50%: ${g.coreFails.map(c=>esc(c.t)).join('; ')}</div>`:''}
-    </button>`};
-  $('#app').innerHTML=`<div class="gview">
-    <div class="gv-head"><span class="eyebrow">Grade overview</span><h2>${fmtDay(S.day)}</h2><span class="readout" style="margin:0">${list.length} student${list.length===1?'':'s'} · combined over all teachers</span></div>
-    ${!list.length?`<div class="empty"><b>No students on ${fmtDay(S.day)}</b>Pick another date on the student list.</div>`:''}
-    ${list.length&&!rev?`<div class="card gv-hidden"><b>Grades are hidden for this date.</b><span>Below is how far marking has got. Reveal the grades on the student list when the day is done.</span></div>`:''}
-    ${list.length&&rev?`<section class="card gv-dist">
-        <div class="dist">${[['merit','Merit'],['passg','Pass'],['resitg','Resit'],['open','Unfinished']].filter(([k])=>cnt[k]).map(([k])=>`<i style="flex:${cnt[k]};background:var(--${k==='open'?'line':GCOL[k]})"></i>`).join('')}</div>
-        <div class="legend">${[['merit','Merit'],['passg','Pass'],['resitg','Resit'],['open','Unfinished']].map(([k,l])=>`<span><i style="background:var(--${k==='open'?'line':GCOL[k]})"></i>${l}<b>${cnt[k]}</b></span>`).join('')}</div>
-      </section>
-      <section class="card gv-stages"><b class="gv-h">The class by stage</b>
-        ${STAGES.map((s,i)=>`<div class="srow"><span>${esc(s.short)}</span>${bar(avg[i],avg[i]===null?'line':avg[i]>=75?'ok':avg[i]>=50?'hint':'no')}<b>${pct(avg[i])}</b></div>`).join('')}
-      </section>
-      <div class="seg gv-sort" role="group" aria-label="Sort"><button type="button" data-sort="final" aria-pressed="${sort==='final'}">Highest first</button><button type="button" data-sort="name" aria-pressed="${sort==='name'}">A–Z</button></div>`:''}
-    <div class="gcards">${rows.map(card).join('')}</div>
-  </div>`;
-  $('#app').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>go('test',b.dataset.open));
-  $('#app').querySelectorAll('[data-sort]').forEach(b=>b.onclick=()=>{S.gsort=b.dataset.sort;renderGrades()});
-}
-
 function ring(t,size=44){
   const sc=scoreOf(mine(t),t),done=sc.n,f=sc.total?done/sc.total:0,r=18,c=2*Math.PI*r,st=statusOf(t);
   const col=st.grade?`var(--${st.grade.col})`:st.k==='done'?'var(--ink)':'var(--led)';
@@ -840,7 +773,7 @@ function calendar(byDay){
   const first=new Date(y,mo-1,1),lead=(first.getDay()+6)%7,len=new Date(y,mo,0).getDate();
   const cells=[];for(let i=0;i<lead;i++)cells.push('<span class="cal-d out"></span>');
   for(let d=1;d<=len;d++){const id=`${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`,n=(byDay[id]||[]).length;
-    cells.push(`<button class="cal-d${n?' has':''}${id===today()?' today':''}${revealed(id)?' rev':''}" data-cal="${id}" aria-pressed="${id===S.day}" aria-label="${fmtDay(id)}${n?', '+n+' students':''}">${d}${n?`<span class="n">${n}</span>`:''}</button>`)}
+    cells.push(`<button class="cal-d${n?' has':''}${id===today()?' today':''}" data-cal="${id}" aria-pressed="${id===S.day}" aria-label="${fmtDay(id)}${n?', '+n+' students':''}">${d}${n?`<span class="n">${n}</span>`:''}</button>`)}
   return `<div class="card cal"><div class="cal-h"><button class="step" data-mo="-1" aria-label="Previous month">‹</button><b>${first.toLocaleDateString('en-GB',{month:'long',year:'numeric'})}</b><button class="step" data-mo="1" aria-label="Next month">›</button></div>
     <div class="cal-grid">${['Mo','Tu','We','Th','Fr','Sa','Su'].map(x=>`<span class="cal-dow">${x}</span>`).join('')}${cells.join('')}</div></div>`;
 }
@@ -849,18 +782,12 @@ function renderRoster(){
   const byDay={};all.forEach(t=>(byDay[t.day]=byDay[t.day]||[]).push(t));
   const days=Object.keys(byDay).sort();
   const list=all.filter(t=>t.day===S.day).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
-  const rev=revealed(S.day);
-  const cnt={todo:0,live:0,done:0,merit:0,passg:0,resitg:0};list.forEach(t=>cnt[statusOf(t).k]++);
-  const marked=list.filter(t=>scoreOf(mine(t),t).complete).length;
-  const grades=list.map(t=>({t,g:gradeOf(t)})),unfinished=grades.filter(x=>!x.g.complete).length;
+  const cnt={todo:0,live:0,done:0};list.forEach(t=>cnt[statusOf(t).k]++);
+  const marked=cnt.done;
   const lastStudio=STUDIOS.includes(ls.get('ops.studio',''))?ls.get('ops.studio',''):STUDIOS[0];
   const row=t=>{const st=statusOf(t),ce=scoreOf(mine(t),t).inc.length,nt=Object.keys(entries(t)).length;
     return `<button class="row" data-open="${t.id}">${ring(t)}<span class="who"><b>${esc(t.name)}${timerOf(t.id)?` <span class="tm-mini" data-timer="${t.id}"><span class="tm-num">${timerOf(t.id).txt}</span></span>`:''}</b><span>${[esc(t.studio||''),nt?nt+' teacher'+(nt>1?'s':''):''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}</span></span><span class="pill ${st.k}">${st.l}</span></button>`};
-  const graded=grades.filter(x=>x.g.complete).length;
-  const stats=rev
-    ?`<button class="stat stat-res" id="resultsBtn" type="button" aria-label="Open the results"><div class="n">${graded}<small>/${list.length}</small></div><div class="l">Results <span aria-hidden="true">↗</span></div></button>`
-      +GRADES.map(g=>`<div class="stat"><div class="n" style="color:var(--${g.col})">${cnt[g.k]}</div><div class="l">${g.l}</div></div>`).join('')
-    :`<div class="stat"><div class="n">${list.length}</div><div class="l">Students</div></div>
+  const stats=`<div class="stat"><div class="n">${list.length}</div><div class="l">Students</div></div>
       <div class="stat"><div class="n">${marked}</div><div class="l">Marked by you</div></div>
       <div class="stat"><div class="n" style="color:var(--led)">${cnt.live}</div><div class="l">In progress</div></div>
       <div class="stat"><div class="n" style="color:var(--mute)">${cnt.todo}</div><div class="l">Not started</div></div>`;
@@ -869,23 +796,6 @@ function renderRoster(){
    ${S.demo?`<div class="banner"><b>Preview.</b> These students and the second teacher are examples and nothing here is saved.</div>`:''}
    ${!S.demo&&!S.ready?`<div class="banner">Loading the students…</div>`:''}
    <div class="summary">${stats}</div>
-   ${!list.length?'':S.confirm===S.day?`<div class="card confirm" role="alertdialog" aria-label="Reveal grades">
-       <b>Reveal grades for ${fmtDay(S.day)}?</b>
-       <p>Every teacher will see the combined grades for this date.${unfinished?` ${unfinished} student${unfinished>1?'s are':' is'} not fully marked yet and will show as Unfinished.`:''} You can hide them again.</p>
-       <div class="foot"><button class="primary" id="revealYes" type="button">Reveal grades</button><button class="ghost" id="revealNo" type="button">Cancel</button></div></div>`
-     :`<div class="gate"><p>${rev?`<b>Grades shown</b> for ${fmtDay(S.day)}.`:`<b>Grades hidden.</b> You have fully marked ${marked} of ${list.length}.`}</p><button class="ghost" id="revealBtn" type="button" ${!canMark()?'disabled':''}>${rev?'Hide grades':'Reveal grades'}</button></div>`}
-   ${rev&&list.length&&S.modal==='results'?`<div class="modal" id="resModal" role="dialog" aria-modal="true" aria-label="Results for ${fmtDay(S.day)}">
-     <div class="modal-panel">
-       <div class="modal-grip" aria-hidden="true"></div>
-       <div class="modal-h"><div><span class="eyebrow">Results</span><b>${fmtDay(S.day)}</b></div><button class="iconbtn" id="resClose" type="button" aria-label="Close the results">✕</button></div>
-       <div class="modal-sum">${GRADES.map(g=>`<span style="--c:var(--${g.col})"><b>${cnt[g.k]}</b>${g.l}</span>`).join('')}${list.length-graded?`<span style="--c:var(--mute)"><b>${list.length-graded}</b>Unfinished</span>`:''}</div>
-       <button class="govr" id="govBtn" type="button"><span class="govr-bars" aria-hidden="true"><i style="--h:.55"></i><i style="--h:.9"></i><i style="--h:.7"></i><i style="--h:.35"></i></span><span><b>Grade overview</b><small>Every student at a glance, by stage</small></span><span class="govr-go">→</span></button>
-       <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Student</th><th>Final</th><th>Grade</th></tr></thead><tbody>
-       ${grades.map(({t,g})=>`<tr data-open="${t.id}"><td><b>${esc(t.name)}</b><small>${g.teachers.length} teacher${g.teachers.length===1?'':'s'} · ${g.marked}/${g.total} skills</small></td><td><b>${g.marked?Math.round(g.final)+'%':'–'}</b>${g.marked?`<small>${Math.round(g.score)}${g.deduction?' − '+g.deduction+' errors':''}</small>`:''}</td><td>${g.complete?`<span class="pill ${g.grade.k}">${g.grade.l}</span>${g.coreFails.length?'<small class="crit-n">core skill</small>':''}`:'<span class="pill live">Unfinished</span>'}</td></tr>`).join('')}
-       </tbody></table></div>
-       <div class="foot"><button class="primary" id="dlDay" type="button">Download (.csv)</button><button class="ghost" id="cpDay" type="button">Copy</button></div>
-     </div>
-   </div>`:''}
    <div class="list">
      <div class="dayhead"><b>${fmtDay(S.day)}${S.day===today()?' · today':''}</b><span>${list.length} student${list.length===1?'':'s'}</span></div>
      ${list.length?list.map(row).join(''):`<div class="empty"><b>No tests on ${fmtDay(S.day)}</b>Add students below, or pick another date.</div>`}
@@ -899,30 +809,11 @@ function renderRoster(){
      <button class="primary" type="submit" ${!canMark()?'disabled':''}>Add to ${fmtDay(S.day)}</button>
    </form>
 
-   <div class="card exports">
-     <b>Export</b>
-     <p class="readout" style="margin:0">Grades are only included for dates that have been revealed.</p>
-     <div class="foot"><button class="ghost" id="dlAll" type="button">All dates, results (.csv)</button><button class="ghost" id="dlMarks" type="button">All dates, every mark (.csv)</button></div>
-   </div>
-   <textarea class="export" id="exportBox" hidden readonly></textarea>
 
    <div style="height:32px"></div>`;
   stripCounts(byDay);
   $('#app').querySelectorAll('[data-cal]').forEach(b=>b.onclick=()=>{S.day=b.dataset.cal;S.cal=S.day.slice(0,7);S.all=false;S.stripOpen=false;ls.set('ops.day',S.day);renderBar();render();scrollTo(0,0)});
   $('#app').querySelectorAll('[data-mo]').forEach(b=>b.onclick=()=>{const [y,m]=(S.cal||S.day.slice(0,7)).split('-').map(Number);const d=new Date(y,m-1+(+b.dataset.mo),1);S.cal=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');render()});
-  $('#revealBtn')?.addEventListener('click',()=>{if(rev)setReveal(S.day,false);else{S.confirm=S.day;render()}});
-  $('#revealYes')?.addEventListener('click',()=>setReveal(S.day,true));
-  $('#govBtn')?.addEventListener('click',()=>go('grades'));
-  $('#resultsBtn')?.addEventListener('click',()=>{S.modal='results';render()});
-  const closeRes=()=>{S.modal=null;render()};
-  $('#resClose')?.addEventListener('click',closeRes);
-  $('#resModal')?.addEventListener('click',e=>{if(e.target.id==='resModal')closeRes()});
-  document.body.style.overflow=$('#resModal')?'hidden':'';
-  $('#revealNo')?.addEventListener('click',()=>{S.confirm=null;render()});
-  $('#dlDay')?.addEventListener('click',()=>offerFile(`ops-test-results-${S.day}.csv`,resultsCSV(list)));
-  $('#cpDay')?.addEventListener('click',()=>copyText(resultsCSV(list)));
-  $('#dlAll').onclick=()=>offerFile(`ops-test-results-all-dates.csv`,resultsCSV(all));
-  $('#dlMarks').onclick=()=>offerFile(`ops-test-every-mark.csv`,marksCSV(all));
   $('#app').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>go('test',b.dataset.open));
   $('#addStudio').onclick=e=>{const b=e.target.closest('[data-studio]');if(!b)return;$('#addStudio').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b))};
   $('#addForm').onsubmit=async e=>{e.preventDefault();if(!canMark())return;
@@ -938,41 +829,6 @@ function renderRoster(){
   };
 }
 
-const csvq=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-const toCSV=rows=>rows.map(r=>r.map(csvq).join(',')).join('\r\n');
-const byDate=list=>list.slice().sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:(a.createdAt||0)-(b.createdAt||0));
-// one row per student: the tally
-function resultsCSV(list){return toCSV([RESULTS_HEAD,...resultsRows(list)])}
-const RESULTS_HEAD=['Date','Student','Studio','Teachers','Skills marked','Score %','Critical errors','Deduction','Final %','Grade','Core skills under 50%','Status','Feedback'];
-function resultsRows(list){
-  return byDate(list).map(t=>{const g=gradeOf(t),rv=revealed(t.day),es=entries(t);
-    const fb=Object.entries(es).filter(([,e])=>e.summary).map(([u,e])=>teacherName(u)+': '+e.summary).join(' | ');
-    if(!rv)return [t.day,t.name,t.studio,g.teachers.map(teacherName).join(', '),g.marked+'/'+g.total,'','','','','','','Hidden',''];
-    if(!g.marked)return [t.day,t.name,t.studio,'','0/'+g.total,'','','','','','','Not marked',''];
-    return [t.day,t.name,t.studio,g.teachers.map(teacherName).join(', '),g.marked+'/'+g.total,Math.round(g.score),g.errors.join('; '),g.deduction?-g.deduction:0,Math.round(g.final),g.complete?g.grade.l:'',g.coreFails.map(c=>c.t).join('; '),g.complete?'Final':'Unfinished',fb]});
-}
-// one row per student per teacher with every mark: the evidence behind the tally
-function marksCSV(list){
-  const head=['Date','Student','Studio','Teacher',...CRIT.map(c=>c.t),'Teacher score %','Critical errors','Feedback','Notes'];
-  const rows=[];
-  byDate(list).filter(t=>revealed(t.day)).forEach(t=>Object.entries(entries(t)).forEach(([u,e])=>{const sc=scoreOf(e,t);
-    rows.push([t.day,t.name,t.studio,teacherName(u),...CRIT.map(c=>MARK[e.marks?.[c.id]]||''),sc.n?Math.round(sc.pct*100):'',sc.inc.join('; '),e.summary||'',Object.entries(e.notes||{}).filter(([,v])=>v).map(([k,v])=>(CRIT.find(c=>c.id===k)?.t||k)+': '+v).join(' | ')])}));
-  return toCSV([head,...rows]);
-}
-function offerFile(name,csv){
-  try{
-    const url=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
-    const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),4000);toast('Downloaded '+name);
-  }catch(e){copyText(csv)}
-  if(name.includes('results')&&!name.includes('all'))publishResults(S.day);
-}
-function copyText(csv){
-  const box=$('#exportBox');box.value=csv;
-  const fall=()=>{box.hidden=false;box.focus();box.select();toast('Select all and copy from the box')};
-  if(navigator.clipboard?.writeText)navigator.clipboard.writeText(csv).then(()=>toast('Copied. Paste into a spreadsheet.'),fall);else fall();
-}
-
 /* ---- the sheet: built once per open, then synced in place so typing is never interrupted */
 function markBtns(kind,id,opts){return `<div class="marks${opts.length===3?' three':''}" data-${kind}="${id}">${opts.map(v=>`<button type="button" data-v="${v}" aria-pressed="false"><i></i>${MARK[v]}</button>`).join('')}</div>`}
 function renderSheet(){
@@ -983,7 +839,7 @@ function renderSheet(){
      <div class="tm-read"><span class="tm-label eyebrow">Timer</span><span class="tm-num">10:00</span></div>
      <div class="tm-btns"><button class="primary" id="tmStart" type="button">Start</button><button class="ghost" id="tmReset" type="button">Reset</button></div>
    </section>
-   <nav class="stagenav" id="stageNav">${STAGES.filter(s=>skillsFor(t).some(c=>c.s===s.id)).map((s,i)=>`<a href="#st-${s.id}" data-st="${s.id}"><span class="mono">${i+1}</span>${s.short}<i class="dot"></i></a>`).join('')}<a href="#st-errors" data-st="errors"><span class="mono">!</span>Errors</a><a href="#st-result" data-st="result"><span class="mono">✓</span>Grade</a></nav>
+   <nav class="stagenav" id="stageNav">${STAGES.filter(s=>skillsFor(t).some(c=>c.s===s.id)).map((s,i)=>`<a href="#st-${s.id}" data-st="${s.id}"><span class="mono">${i+1}</span>${s.short}<i class="dot"></i></a>`).join('')}<a href="#st-errors" data-st="errors"><span class="mono">!</span>Errors</a><a href="#st-result" data-st="result"><span class="mono">✓</span>Finish</a></nav>
    <div class="sheet">
      ${STAGES.filter(s=>skillsFor(t).some(c=>c.s===s.id)).map((s,i)=>`
      <section class="stage" id="st-${s.id}">
@@ -1006,13 +862,8 @@ function renderSheet(){
      </section>
 
      <section class="card verdict" id="st-result">
-       <span class="eyebrow">Grade</span>
-       <div class="hidden-grade" id="gHidden"><span id="ringSmall"></span><span id="gHiddenTxt"></span></div>
-       <div id="gShown" hidden>
-         <div class="score"><span id="ringBig"></span><div><div class="grade" id="gLabel"></div><div class="readout" id="gSub" style="margin:4px 0 0"></div></div></div>
-         <div class="bands" id="bands" style="margin-top:12px"></div>
-         <div class="per" id="perTeacher"></div>
-       </div>
+       <span class="eyebrow">Finish</span>
+       <p class="readout" id="progTxt" style="margin:0;font-size:14px"></p>
        <div class="field"><label for="summary">Your feedback for the student</label><textarea id="summary" rows="3" placeholder="What went well, what to practise"></textarea></div>
        <div class="field"><label for="moveDay">Test date</label><input type="date" id="moveDay"></div>
        <div class="foot"><button class="primary" id="doneBtn" type="button">Save and back to students</button><button class="ghost danger" id="delBtn" type="button">Delete</button></div>
@@ -1067,22 +918,7 @@ function syncSheet(first){
   const cc=$('#critChips'),html=chips.map(q=>`<button type="button" data-q="${esc(q)}" aria-pressed="${on.has(q)}"><i></i>${esc(q)}</button>`).join('');
   if(cc.innerHTML!==html)cc.innerHTML=html;
   const others=Object.entries(entries(t)).filter(([uid])=>uid!==S.me);
-  const rv=revealed(t.day);$('#gHidden').hidden=rv;$('#gShown').hidden=!rv;
-  if(!rv){$('#ringSmall').innerHTML=ring(t,44);
-    $('#gHiddenTxt').textContent=`Hidden until grades are revealed for ${fmtDay(t.day)}. You have marked ${sc.n} of ${sc.total}.`+(others.length?' Also marking: '+others.map(([uid,x])=>teacherName(uid)+' ('+(x._progress??scoreOf(x,t).n)+'/'+sc.total+')').join(', ')+'.':'')}
-  else{const g=gradeOf(t);$('#ringBig').innerHTML=ring(t,64);
-    $('#gLabel').textContent=g.complete?g.grade.l:'Unfinished';$('#gLabel').style.color=g.complete?`var(--${g.grade.col})`:'var(--mute)';
-    $('#gSub').textContent=g.marked?`${Math.round(g.final)}% final`+(g.complete?'':` · ${g.total-g.marked} skill${g.total-g.marked>1?'s':''} not marked by anyone`):'No skills marked yet';
-    $('#bands').innerHTML=GRADES.map(x=>`<span class="${g.complete&&x.k===g.grade.k?'on':''}" style="${g.complete&&x.k===g.grade.k?`color:var(--${x.col})`:''}">${x.l}</span>`).join('');
-    const line=(a,b)=>`<div class="sum-row"><span>${a}</span><b>${b}</b></div>`;
-    $('#perTeacher').innerHTML=`<div class="sum">
-      ${line(`Score · average of ${g.teachers.length} teacher${g.teachers.length===1?'':'s'} over ${g.marked} skill${g.marked===1?'':'s'}`,Math.round(g.score)+'%')}
-      ${line(`Critical errors${g.errors.length?': '+g.errors.map(esc).join('; '):''}`,g.deduction?'−'+g.deduction:'0')}
-      ${line('Final score',Math.round(g.final)+'%')}
-      ${g.coreFails.length?`<div class="sum-row warn"><span>Core skill under 50%: ${g.coreFails.map(c=>esc(c.t)).join('; ')}</span><b>Resit</b></div>`:''}
-    </div>
-    <div class="per-h">Each teacher</div>
-    ${g.teachers.map(u=>{const x=scoreOf(entries(t)[u],t);return `<div class="sum-row"><span>${esc(teacherName(u))}${u===S.me?' (you)':''} · ${x.n}/${x.total} marked${x.inc.length?' · '+x.inc.length+' error'+(x.inc.length>1?'s':''):''}</span><b>${Math.round(x.pct*100)}%</b></div>`}).join('')||'<p class="readout" style="margin:0">No marks yet.</p>'}`}
+  $('#progTxt').textContent=`You have marked ${sc.n} of ${sc.total} skills.`+(others.length?' Also marking: '+others.map(([uid,x])=>teacherName(uid)+' ('+(x._progress??scoreOf(x,t).n)+'/'+sc.total+')').join(', ')+'.':'');
   if(!canMark())app.querySelectorAll('.sheet button,.sheet textarea,.sheet input').forEach(x=>x.disabled=true);
 }
 
