@@ -372,6 +372,16 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .tm-pill.over{border-color:var(--no);background:var(--no-soft);color:var(--no)}
 .tm-mini{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--led);background:var(--led-soft);border-radius:5px;padding:1px 5px;margin-left:4px;vertical-align:2px}
 .tm-mini.over{color:var(--no);background:var(--no-soft)}
+.datebtn{border:0;cursor:pointer;position:relative;transition:transform .12s,box-shadow .2s;box-shadow:0 6px 16px -8px var(--led)}
+.datebtn:active{transform:scale(.95)}
+.datebtn[aria-expanded="true"]{box-shadow:0 0 0 3px var(--led-soft),0 6px 16px -8px var(--led)}
+.stripwrap{animation:stripIn .2s ease}
+@keyframes stripIn{from{opacity:0;transform:translateY(-6px)}}
+.dh-btns{display:flex;gap:6px;align-items:center}
+.monthbtn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--sunk);border-radius:999px;padding:4px 12px 4px 9px;font-size:12px;font-weight:700}
+.monthbtn svg{width:16px;height:16px}
+.monthbtn[aria-pressed="true"]{background:var(--led);border-color:var(--led);color:#fff}
+@media (prefers-reduced-motion:reduce){.stripwrap{animation:none}}
 .toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;font-weight:600;z-index:20;max-width:calc(100% - 32px)}
 .export{margin-top:10px;font-family:var(--mono);font-size:11px;min-height:120px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -637,10 +647,11 @@ function dateStrip(){
     <div class="dstrip" id="dstrip">${cells.join('')}</div>`;
 }
 function dhead(){const sel=new Date(S.day+'T12:00');
-  return `<button class="month" id="monthBtn" aria-expanded="${S.all}" aria-label="Show the month calendar">${sel.toLocaleDateString('en-GB',{month:'long',year:'numeric'})}<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg></button>${S.day!==today()?'<button class="todaybtn" id="todayBtn">Today</button>':''}`}
+  return `<span class="month">${sel.toLocaleDateString('en-GB',{month:'long',year:'numeric'})}</span>
+    <span class="dh-btns">${S.day!==today()?'<button class="todaybtn" id="todayBtn" type="button">Today</button>':''}<button class="monthbtn" id="monthBtn" type="button" aria-pressed="${S.all}" aria-label="Month calendar"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4.5" width="14" height="12.5" rx="2.5"/><path d="M3 8.5h14M7 2.5v4M13 2.5v4"/><path d="M6.5 11.5h1M9.5 11.5h1M12.5 11.5h1M6.5 14h1M9.5 14h1"/></svg>Month</button></span>`}
 function bindDhead(setDay){
   $('#todayBtn')?.addEventListener('click',()=>setDay(today()));
-  $('#monthBtn')?.addEventListener('click',()=>{S.all=!S.all;S.cal=null;$('#dhead').innerHTML=dhead();bindDhead(setDay);render()});
+  $('#monthBtn')?.addEventListener('click',()=>{S.all=!S.all;S.cal=null;$('#dhead').innerHTML=dhead();bindDhead(setDay);render();if(S.all)scrollTo({top:0,behavior:'smooth'})});
 }
 function stripCounts(byDay){document.querySelectorAll('.dcell').forEach(c=>{const n=(byDay[c.dataset.d]||[]).length;if(n){c.dataset.n=n;c.querySelector('.c').textContent=n}else{delete c.dataset.n;c.querySelector('.c').textContent=''}})}
 function renderBar(){
@@ -650,21 +661,24 @@ function renderBar(){
   $('#barInner').innerHTML=`<div class="barrow">${S.view==='test'||S.view==='account'||S.view==='grades'?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
    <div class="brand"><span class="eyebrow">${S.me&&nm?`<button class="whobtn" id="whoBtn" aria-label="Your teacher name">${esc(nm)}</button>`:'Catalyst Studios'} <span class="sync" id="sync" data-s="${S.sync}"><i class="dot"></i><span></span></span></span><b>Catalyst Operations Test - CAP 2026</b></div>
    ${S.view==='test'&&t&&timerOf(S.open)?`<button class="tm-pill" data-timer="${S.open}" id="tmPill" type="button" aria-label="Timer"><span class="tm-num">${timerOf(S.open).txt}</span></button>`:''}
-   ${S.view==='test'&&t&&!timerOf(S.open)?`<span class="datecard" title="Test date"><small>${td.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase()}</small><b>${td.getDate()}</b><span>${td.toLocaleDateString('en-GB',{month:'short'})}</span></span>`:''}</div>
-   ${S.view==='roster'?dateStrip():''}`;
+   ${S.view==='test'&&t&&!timerOf(S.open)?`<span class="datecard" title="Test date"><small>${td.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase()}</small><b>${td.getDate()}</b><span>${td.toLocaleDateString('en-GB',{month:'short'})}</span></span>`:''}
+   ${S.view==='roster'?(()=>{const sd=new Date(S.day+'T12:00');return `<button class="datecard datebtn" id="dateBtn" type="button" aria-expanded="${!!S.stripOpen}" aria-label="Test date ${fmtDay(S.day)}. Change date"><small>${S.day===today()?'TODAY':sd.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase()}</small><b>${sd.getDate()}</b><span>${sd.toLocaleDateString('en-GB',{month:'short'})}</span></button>`})():''}</div>
+   ${S.view==='roster'&&S.stripOpen?`<div class="stripwrap">${dateStrip()}</div>`:''}`;
   document.querySelector('.bar').hidden=S.view==='login';
   setSync(S.sync);
   $('#back')?.addEventListener('click',()=>go('roster'));
   $('#tmPill')?.addEventListener('click',()=>scrollTo({top:0,behavior:'smooth'}));
   $('#whoBtn')?.addEventListener('click',()=>go('account'));
-  const setDay=d=>{if(!d)return;S.day=d;S.cal=null;ls.set('ops.day',d);renderBar();render()};
+  // picking a day closes the week strip again
+  const setDay=d=>{if(!d)return;S.day=d;S.cal=null;S.all=false;S.stripOpen=false;ls.set('ops.day',d);renderBar();render()};
+  $('#dateBtn')?.addEventListener('click',()=>{S.stripOpen=!S.stripOpen;if(!S.stripOpen)S.all=false;renderBar();render()});
   bindDhead(setDay);
   const st=$('#dstrip');
   if(st){st.onclick=e=>{const c=e.target.closest('.dcell');if(!c)return;
-      if(c.dataset.d===S.day)return;S.day=c.dataset.d;S.cal=null;ls.set('ops.day',S.day);
+      if(c.dataset.d===S.day){setDay(S.day);return}
       // only the highlight moves: the strip stays exactly where the teacher scrolled it
       st.querySelectorAll('.dcell').forEach(x=>x.setAttribute('aria-pressed',x===c));
-      $('#dhead').innerHTML=dhead();bindDhead(setDay);render()};
+      setTimeout(()=>setDay(c.dataset.d),160)};
     const mon=st.children[14];st.style.scrollBehavior='auto';st.scrollLeft=mon.offsetLeft-st.offsetLeft;st.style.scrollBehavior=''}
   const h=document.querySelector('.bar').offsetHeight;document.documentElement.style.setProperty('--barh',h+'px');
 }
@@ -894,7 +908,7 @@ function renderRoster(){
 
    <div style="height:32px"></div>`;
   stripCounts(byDay);
-  $('#app').querySelectorAll('[data-cal]').forEach(b=>b.onclick=()=>{S.day=b.dataset.cal;S.cal=S.day.slice(0,7);S.all=false;ls.set('ops.day',S.day);renderBar();render();scrollTo(0,0)});
+  $('#app').querySelectorAll('[data-cal]').forEach(b=>b.onclick=()=>{S.day=b.dataset.cal;S.cal=S.day.slice(0,7);S.all=false;S.stripOpen=false;ls.set('ops.day',S.day);renderBar();render();scrollTo(0,0)});
   $('#app').querySelectorAll('[data-mo]').forEach(b=>b.onclick=()=>{const [y,m]=(S.cal||S.day.slice(0,7)).split('-').map(Number);const d=new Date(y,m-1+(+b.dataset.mo),1);S.cal=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');render()});
   $('#revealBtn')?.addEventListener('click',()=>{if(rev)setReveal(S.day,false);else{S.confirm=S.day;render()}});
   $('#revealYes')?.addEventListener('click',()=>setReveal(S.day,true));
