@@ -45,12 +45,12 @@ export function loadScript() {
   const SpreadsheetApp = {
     getActive: () => ({
       getSheetByName: n => { const s = book.sheets.find(s => s.name === n); return s ? lenient(s) : null; },
-      insertSheet: (n, i) => { const s = new Sheet(n); i === 0 ? book.sheets.unshift(s) : book.sheets.push(s); return lenient(s); },
+      insertSheet: (n, i) => { const s = new Sheet(n); typeof i === 'number' ? book.sheets.splice(i, 0, s) : book.sheets.push(s); return lenient(s); },
       getSheets: () => book.sheets,
       deleteSheet: s => { book.sheets = book.sheets.filter(x => x.name !== s.getName()); },
     }),
     getUi: () => { throw new Error('no ui here'); },
-    newDataValidation: chain, newConditionalFormatRule: chain, BandingTheme: {},
+    newDataValidation: chain, newConditionalFormatRule: chain, BandingTheme: {}, InterpolationType: { NUMBER: 'NUMBER' }, BorderStyle: {},
   };
   const props = new Map(), cache = new Map();
   const g = {

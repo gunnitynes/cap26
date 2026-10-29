@@ -21,7 +21,7 @@
  *   Students    one row per student and test date; type or paste names here (a date picker on the date column)
  *   Marks       one row per student per teacher, every skill readable; the last column is the page's own copy
  *   Days        tick "Grades revealed" to reveal a date (the page does this too)
- *   Results     the tally, written by the page when grades are revealed or downloaded
+ *   Grades      the overview: every student's combined grade, stages, progress and errors, rebuilt by the script
  */
 
 const PAGE_URL = 'https://gunnitynes.github.io/ops-test/';
@@ -46,6 +46,11 @@ const SKILLS = [
   ['c1', 'Usable cue mix'], ['c2', 'Pre vs post fader'], ['c3', 'Cue → headphone amp'], ['c4', 'Cue to a Live room'],
   ['s1', 'Shutdown order'], ['s2', 'Left as found'],
 ];
+// Core skills (a combined mark under 50% means Resit) and the six stages, as on the page.
+const CORE = { p1: 1, p2: 1, m3: 1, m4: 1, r1: 1, t1: 1, t3: 1, t4: 1, c1: 1, c2: 1, c3: 1, s1: 1 };
+const STAGES = [['p', 'Power'], ['m', 'Mic'], ['r', 'Route'], ['t', 'Record'], ['c', 'Cue'], ['s', 'Shut down']];
+const BANDS = [['Distinction', 90, '#0b43e0', '#dce6ff'], ['Merit', 75, '#0f7a57', '#d8f1e6'], ['Pass', 60, '#5a6276', '#eef0f4'], ['Resit', 0, '#bf2b2b', '#fbe0e0']];
+const ERR_POINTS = 10;
 
 const DATE_FMT = 'dd.mm.yyyy';
 const BLUE = '#0b43e0', INK = '#10131c', PAPER = '#f4f6fa', MUTE = '#5a6276';
@@ -59,9 +64,7 @@ const SHEETS = {
                 .concat(SKILLS.map(s => s[1])).concat(['Feedback', 'Updated', 'Student ID', 'Page data (do not edit)']),
               widths: [100, 170, 120, 100, 110, 220].concat(SKILLS.map(() => 92)).concat([260, 140, 110, 120]) },
   DAYS:     { name: 'Days', header: ['Test date', 'Grades revealed', 'By', 'At'], widths: [110, 130, 120, 150] },
-  RESULTS:  { name: 'Results', header: ['Test date', 'Student', 'Studio', 'Teachers', 'Skills marked', 'Score %', 'Critical errors',
-                                        'Deduction', 'Final %', 'Grade', 'Core skills under 50%', 'Status', 'Feedback', 'Updated'],
-              widths: [100, 170, 100, 170, 100, 80, 220, 90, 80, 110, 200, 100, 300, 140] },
+  GRADES:   { name: 'Grades', header: [] },
 };
 const T = { NAME: 0, PASS: 1, ROLE: 2, STATUS: 3, LAST: 4, HASH: 5, SALT: 6 };
 
@@ -72,6 +75,8 @@ function onOpen() {
     .addItem('Set up / tidy the sheet', 'setup')
     .addItem('Add or reset a teacher…', 'menuAddTeacher')
     .addItem('Remove a teacher…', 'menuRemoveTeacher')
+    .addSeparator()
+    .addItem('Refresh the Grades tab', 'buildGrades_')
     .addToUi();
 }
 
@@ -79,9 +84,11 @@ function onOpen() {
 function setup() {
   const ss = SpreadsheetApp.getActive();
   migrateTeachers_(); migrateStudents_(); migrateMarks_(); migrateDates_();
-  Object.keys(SHEETS).forEach(k => { if (k !== 'START') sheet_(SHEETS[k]); });
+  Object.keys(SHEETS).forEach(k => { if (k !== 'START' && k !== 'GRADES') sheet_(SHEETS[k]); });
+  const old = ss.getSheetByName('Results'); if (old) ss.deleteSheet(old);    // replaced by Grades, which the script keeps up to date
   buildStart_();
   style_();
+  buildGrades_();
   // tidy up the empty first sheet Google creates
   ['Sheet1', 'Tabelle1', 'Blatt1'].forEach(n => { const s = ss.getSheetByName(n); if (s && s.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(s); });
   refreshTeacherStatus_();
@@ -115,7 +122,7 @@ function buildStart_() {
     ['Students', 'Everyone booked for a test: date, name, studio. Type or paste here, or add them on the page.'],
     ['Marks', 'One row per student per teacher, every skill readable. The last column is the page\'s own copy; leave it alone.'],
     ['Days', 'Tick "Grades revealed" to show the grades for a date on the page. The page can do this too.'],
-    ['Results', 'The final tally per student. The page writes it when grades are revealed or downloaded.'],
+    ['Grades', 'The overview: every student\'s grade, progress, a colour per test stage and their critical errors. Kept up to date by itself.'],
     ['', ''],
     ['How the grade works', 'Pass 100 · Hint 75 · Got there 50 · Failed 0. Each skill is averaged over every teacher who marked it, every skill counts the same, each different critical error takes off 10, a Core skill under 50 means Resit. Distinction 90+, Merit 75–89, Pass 60–74, Resit under 60.'],
   ];
@@ -137,7 +144,7 @@ function buildStart_() {
 
 function style_() {
   Object.keys(SHEETS).forEach(k => {
-    if (k === 'START') return;
+    if (k === 'START' || k === 'GRADES') return;
     const def = SHEETS[k], sh = sheet_(def), n = def.header.length;
     sh.getRange(1, 1, 1, n).setValues([def.header]).setFontWeight('bold').setFontColor('#ffffff').setBackground(BLUE)
       .setVerticalAlignment('middle').setWrap(true);
@@ -174,20 +181,12 @@ function style_() {
   const d = sheet_(SHEETS.DAYS);
   d.getRange(2, 1, d.getMaxRows() - 1, 1).setNumberFormat(DATE_FMT).setHorizontalAlignment('left'); d.getRange(2, 2, d.getMaxRows() - 1, 1).insertCheckboxes();
   d.getRange(2, 4, d.getMaxRows() - 1, 1).setNumberFormat('dd.MM.yyyy HH:mm');
-  const r = sheet_(SHEETS.RESULTS);
-  r.getRange(2, 1, r.getMaxRows() - 1, 1).setNumberFormat(DATE_FMT).setHorizontalAlignment('left'); r.setFrozenColumns(2);
-  r.getRange(2, 14, r.getMaxRows() - 1, 1).setNumberFormat('dd.MM.yyyy HH:mm');
-  const gradeCol = r.getRange(2, 10, r.getMaxRows() - 1, 1);
   const rule = (range, text, bg, fg) => SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(text).setBackground(bg).setFontColor(fg).setBold(true).setRanges([range]).build();
-  r.setConditionalFormatRules([
-    rule(gradeCol, 'Distinction', '#dce6ff', BLUE), rule(gradeCol, 'Merit', '#d8f1e6', '#0f7a57'),
-    rule(gradeCol, 'Pass', '#eef0f4', INK), rule(gradeCol, 'Resit', '#fbe0e0', '#bf2b2b'),
-  ]);
   m.setConditionalFormatRules([
     rule(markRange, 'Pass', '#d8f1e6', '#0f7a57'), rule(markRange, 'Hint', '#fbeccf', '#a35f00'),
     rule(markRange, 'Got there', '#fde2d3', '#c2410c'), rule(markRange, 'Failed', '#fbe0e0', '#bf2b2b'),
   ]);
-  [t, st, m, d, r].forEach(s => s.setTabColor(INK));
+  [t, st, m, d].forEach(s => s.setTabColor(INK));
 }
 
 // ─────────────────────────────────────────────────────────────── typing in the Teachers tab
@@ -196,7 +195,7 @@ function style_() {
 function onEdit(e) {
   try {
     const sh0 = e && e.range && e.range.getSheet();
-    if (sh0 && sh0.getName() === SHEETS.STUDENTS.name && e.range.getRow() >= 2) { studentsTyped_(sh0, e.range.getRow(), e.range.getNumRows()); return; }
+    if (sh0 && sh0.getName() === SHEETS.STUDENTS.name && e.range.getRow() >= 2) { studentsTyped_(sh0, e.range.getRow(), e.range.getNumRows()); gradesDirty_(); return; }
   } catch (err) {}
   try {
     const sh = e && e.range && e.range.getSheet();
@@ -328,7 +327,7 @@ function route_(req) {
   const me = auth_(req.token);
   if (!me) return { ok: false, error: 'Please sign in again.', code: 'auth' };
   switch (a) {
-    case 'state':          withLock_(() => { ensureStudentIds_(); return {}; }); return state_(me);
+    case 'state':          withLock_(() => { ensureStudentIds_(); maybeBuildGrades_(); return {}; }); return state_(me);
     case 'addStudents':    return withLock_(() => addStudents_(me, req));
     case 'updateStudent':  return withLock_(() => updateStudent_(me, req));
     case 'saveEntry':      return withLock_(() => saveEntry_(me, req));
@@ -514,6 +513,7 @@ function state_(me) {
 }
 
 function addStudents_(me, req) {
+  gradesDirty_();
   const day = checkDay_(req.day); if (!day) return { ok: false, error: 'Pick a test date first.' };
   const names = (Array.isArray(req.names) ? req.names : []).map(n => clean_(n, 80)).filter(Boolean).slice(0, 60);
   if (!names.length) return { ok: false, error: 'Type at least one name.' };
@@ -525,6 +525,7 @@ function addStudents_(me, req) {
 }
 
 function updateStudent_(me, req) {
+  gradesDirty_();
   const s = students_().find(x => x.id === String(req.id));
   if (!s || s.removed) return { ok: false, error: 'That student is no longer on the list.' };
   const sh = sheet_(SHEETS.STUDENTS);
@@ -545,6 +546,7 @@ function updateStudent_(me, req) {
 
 /** Merges a patch into this teacher's own row. null removes a key. Only known fields and mark values get in. */
 function saveEntry_(me, req) {
+  gradesDirty_();
   const sid = String(req.sid || '');
   const s = students_().find(x => x.id === sid && !x.removed);
   if (!s) return { ok: false, error: 'That student is no longer on the list.' };
@@ -573,6 +575,7 @@ function marksRow_(s, teacher, data) {
 }
 
 function setReveal_(me, req) {
+  gradesDirty_();
   const day = checkDay_(req.day); if (!day) return { ok: false, error: 'That date is not valid.' };
   const sh = sheet_(SHEETS.DAYS), rows = sh.getDataRange().getValues();
   const row = [toDate_(day), !!req.on, me.name, new Date()];
@@ -583,22 +586,132 @@ function setReveal_(me, req) {
   return { ok: true };
 }
 
-/** The page sends the tally rows for one date; they replace that date's rows in Results. */
+/** The page asks for the overview after a reveal or a download: rebuild it now. */
 function publishResults_(me, req) {
-  const day = checkDay_(req.day); if (!day) return { ok: false, error: 'That date is not valid.' };
-  const sh = sheet_(SHEETS.RESULTS), width = SHEETS.RESULTS.header.length - 1;
-  const rows = (Array.isArray(req.rows) ? req.rows : []).slice(0, 300).map(r => {
-    const a = (Array.isArray(r) ? r : []).slice(0, width).map(v => typeof v === 'number' ? v : String(v == null ? '' : v).slice(0, 3000));
-    while (a.length < width) a.push('');
-    a[0] = toDate_(day); a.push(new Date()); return a;
+  buildGrades_();
+  return { ok: true };
+}
+
+// ─────────────────────────────────────────────────────────────── the Grades overview tab
+
+function gradesDirty_() { try { CacheService.getScriptCache().put('grades_dirty', '1', 21600); } catch (e) {} }
+/** Called on every page refresh: rebuilds at most every 20 seconds, and only after something changed. */
+function maybeBuildGrades_() {
+  const c = CacheService.getScriptCache();
+  if (!c.get('grades_dirty') || c.get('grades_recent')) return;
+  buildGrades_();
+}
+
+/** The same sum the page uses: each skill averaged over every teacher who marked it, the average of the skills,
+ *  minus 10 per different critical error, a core skill under 50% means Resit. */
+function gradeOf_(byTeacher) {
+  const teachers = Object.keys(byTeacher).filter(u => Object.keys(byTeacher[u].marks || {}).some(k => byTeacher[u].marks[k] in POINTS));
+  const per = SKILLS.map(([id]) => {
+    const v = teachers.map(u => byTeacher[u].marks[id]).filter(x => x in POINTS).map(x => POINTS[x]);
+    return { id, avg: v.length ? v.reduce((a, b) => a + b, 0) / v.length : null };
   });
-  const all = sh.getDataRange().getValues();
-  for (let i = all.length - 1; i >= 1; i--) if (day_(all[i][0]) === day) sh.deleteRow(i + 1);
-  if (rows.length) {
-    const start = sh.getLastRow() + 1;
-    sh.getRange(start, 1, rows.length, width + 1).setValues(rows);
+  const marked = per.filter(x => x.avg !== null);
+  const score = marked.length ? marked.reduce((a, x) => a + x.avg, 0) / marked.length * 100 : null;
+  const errors = [];
+  Object.keys(byTeacher).forEach(u => Object.keys(byTeacher[u].safety || {}).forEach(k => { const e = byTeacher[u].safety[k]; if (e && errors.indexOf(e.text) < 0) errors.push(e.text); }));
+  const final = score === null ? null : Math.max(0, score - errors.length * ERR_POINTS);
+  const coreFails = marked.filter(x => CORE[x.id] && x.avg < 0.5).map(x => SKILLS.find(s => s[0] === x.id)[1]);
+  const complete = marked.length === SKILLS.length;
+  const band = final === null ? null : coreFails.length ? BANDS[3] : BANDS.find(b => final >= b[1] - 1e-9);
+  const stages = STAGES.map(([p]) => { const xs = marked.filter(x => x.id[0] === p); return xs.length ? Math.round(xs.reduce((a, x) => a + x.avg, 0) / xs.length * 100) : ''; });
+  return { teachers, marked: marked.length, score, errors, final, coreFails, complete, band, stages };
+}
+
+/** Rewrites the Grades tab: a summary per grade at the top, then one row per student with bars and colours. */
+function buildGrades_() {
+  const ss = SpreadsheetApp.getActive();
+  let sh = ss.getSheetByName(SHEETS.GRADES.name);
+  if (!sh) sh = ss.insertSheet(SHEETS.GRADES.name, 1);
+  const cache = CacheService.getScriptCache();
+  cache.remove('grades_dirty'); cache.put('grades_recent', '1', 20);
+
+  const students = students_().filter(s => !s.removed).sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : a.name.localeCompare(b.name));
+  const marks = {}; marksRows_().forEach(m => { (marks[m.sid] = marks[m.sid] || {})[m.teacher] = m.data; });
+  const shown = {}; rows_(SHEETS.DAYS).forEach(r => { if (r[0]) shown[day_(r[0])] = r[1] === true || r[1] === 'yes'; });
+  const N = SKILLS.length, top = 9;
+  const head = ['Test date', 'Student', 'Studio', 'Teachers', 'Marked', 'Progress'].concat(STAGES.map(x => x[1]))
+    .concat(['Score', 'Errors', 'Final', '', 'Grade', 'Core skill under 50%', 'In the app', 'Critical errors']);
+  const W = head.length, C = { STAGE: 7, SCORE: 13, ERR: 14, FINAL: 15, BAR: 16, GRADE: 17 };
+
+  const counts = { Distinction: 0, Merit: 0, Pass: 0, Resit: 0, Unfinished: 0 };
+  const values = [], bars = [], groupStarts = [];
+  let prevDay = '';
+  students.forEach((s, i) => {
+    const g = gradeOf_(marks[s.id] || {});
+    const label = !g.marked ? 'Not started' : g.complete ? g.band[0] : 'Unfinished';
+    if (g.complete) counts[g.band[0]]++; else counts.Unfinished++;
+    if (s.day !== prevDay) { groupStarts.push(top + i); prevDay = s.day; }
+    values.push([toDate_(s.day), s.name, s.studio, g.teachers.join(', '), g.marked + '/' + N, '']
+      .concat(g.stages)
+      .concat([g.score === null ? '' : Math.round(g.score), g.errors.length ? -g.errors.length * ERR_POINTS : '', g.final === null ? '' : Math.round(g.final), '',
+               label, g.coreFails.join(', '), shown[s.day] ? 'Shown' : 'Hidden', g.errors.join('; ')]));
+    const col = g.complete ? g.band[2] : '#9aa3b5';
+    bars.push(['=SPARKLINE(' + g.marked + ',{"charttype","bar";"max",' + N + ';"color1","' + BLUE + '"})',
+               g.final === null ? '' : '=SPARKLINE(' + Math.round(g.final) + ',{"charttype","bar";"max",100;"color1","' + col + '"})']);
+  });
+
+  sh.clear();
+  try { sh.getBandings().forEach(b => b.remove()); } catch (e) {}
+  sh.setConditionalFormatRules([]);
+  const total = students.length || 1;
+  const stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd.MM.yyyy HH:mm');
+  sh.getRange(1, 1, 2, 1).setValues([['Grades'], ['Every student, combined over all teachers. Updated ' + stamp + '. "Hidden" means the app is not showing that date\'s grades yet.']]);
+  sh.getRange('A1').setFontSize(22).setFontWeight('bold').setFontColor(BLUE);
+  sh.getRange('A2').setFontColor(MUTE);
+  // the summary: one block per grade, with a bar showing its share of all students
+  const names = ['Distinction', 'Merit', 'Pass', 'Resit', 'Unfinished'];
+  const colours = [BANDS[0], BANDS[1], BANDS[2], BANDS[3], ['', 0, '#9aa3b5', PAPER]];
+  sh.getRange(4, 1, 2, 1).setValues([['Overview'], [students.length + (students.length === 1 ? ' student' : ' students')]]);
+  sh.getRange('A4').setFontWeight('bold'); sh.getRange('A5').setFontColor(MUTE);
+  names.forEach((n, i) => {
+    const c = 2 + i;
+    sh.getRange(4, c).setValue(n).setFontWeight('bold').setFontColor(colours[i][2]);
+    sh.getRange(5, c).setValue(counts[n]).setFontSize(24).setFontWeight('bold').setFontColor(colours[i][2]).setHorizontalAlignment('left');
+    sh.getRange(6, c).setFormula('=SPARKLINE(' + counts[n] + ',{"charttype","bar";"max",' + total + ';"color1","' + colours[i][2] + '"})');
+    sh.getRange(4, c, 3, 1).setBackground(colours[i][3]);
+  });
+  sh.setRowHeight(5, 40);
+
+  sh.getRange(top - 1, 1, 1, W).setValues([head]).setFontWeight('bold').setFontColor('#ffffff').setBackground(BLUE).setVerticalAlignment('middle').setWrap(true);
+  sh.setRowHeight(top - 1, 36);
+  if (values.length) {
+    sh.getRange(top, 1, values.length, W).setValues(values).setFontFamily('Arial').setFontSize(10).setVerticalAlignment('middle');
+    sh.getRange(top, 6, bars.length, 1).setFormulas(bars.map(b => [b[0]]));
+    sh.getRange(top, C.BAR, bars.length, 1).setFormulas(bars.map(b => [b[1]]));
+    sh.getRange(top, 1, values.length, 1).setNumberFormat(DATE_FMT).setHorizontalAlignment('left');
+    sh.getRange(top, 2, values.length, 1).setFontWeight('bold');
+    sh.getRange(top, C.STAGE, values.length, 6).setHorizontalAlignment('center').setNumberFormat('0');
+    sh.getRange(top, C.SCORE, values.length, 3).setHorizontalAlignment('center').setNumberFormat('0');
+    sh.getRange(top, C.FINAL, values.length, 1).setFontWeight('bold').setFontSize(12);
+    sh.getRange(top, C.GRADE, values.length, 1).setHorizontalAlignment('center').setFontWeight('bold');
+    sh.getRange(top, C.GRADE + 1, values.length, 3).setFontColor(MUTE).setWrap(true);
+    // a heavier line where a new test date starts
+    groupStarts.forEach(r => { try { sh.getRange(r, 1, 1, W).setBorder(true, null, null, null, null, null, INK, SpreadsheetApp.BorderStyle.SOLID_MEDIUM); } catch (e) {} });
+    for (let r = top; r < top + values.length; r++) sh.setRowHeight(r, 26);
+    const heat = range => SpreadsheetApp.newConditionalFormatRule()
+      .setGradientMinpointWithValue('#f4c7c3', SpreadsheetApp.InterpolationType.NUMBER, '0')
+      .setGradientMidpointWithValue('#fce8b2', SpreadsheetApp.InterpolationType.NUMBER, '60')
+      .setGradientMaxpointWithValue('#b7e1cd', SpreadsheetApp.InterpolationType.NUMBER, '100').setRanges([range]).build();
+    const gradeCol = sh.getRange(top, C.GRADE, values.length, 1);
+    const text = (t, bg, fg) => SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(t).setBackground(bg).setFontColor(fg).setBold(true).setRanges([gradeCol]).build();
+    sh.setConditionalFormatRules([
+      heat(sh.getRange(top, C.STAGE, values.length, 6)), heat(sh.getRange(top, C.SCORE, values.length, 1)), heat(sh.getRange(top, C.FINAL, values.length, 1)),
+      text('Distinction', BANDS[0][3], BANDS[0][2]), text('Merit', BANDS[1][3], BANDS[1][2]), text('Pass', BANDS[2][3], INK), text('Resit', BANDS[3][3], BANDS[3][2]),
+      text('Unfinished', PAPER, MUTE), text('Not started', '#ffffff', '#9aa3b5'),
+      SpreadsheetApp.newConditionalFormatRule().whenNumberLessThan(0).setFontColor(BANDS[3][2]).setBold(true).setRanges([sh.getRange(top, C.ERR, values.length, 1)]).build(),
+    ]);
+  } else {
+    sh.getRange(top, 1).setValue('No students yet. Add them in the Students tab or on the page.').setFontColor(MUTE);
   }
-  return { ok: true, rows: rows.length };
+  [110, 170, 90, 150, 64, 110].concat(STAGES.map(() => 66)).concat([58, 58, 58, 110, 104, 170, 84, 260]).forEach((w, i) => sh.setColumnWidth(i + 1, w));
+  sh.setFrozenRows(top - 1); sh.setFrozenColumns(2);
+  sh.setHiddenGridlines(true);
+  sh.setTabColor(BLUE);
 }
 
 // ─────────────────────────────────────────────────────────────── moving older layouts over (run by setup)
@@ -630,7 +743,7 @@ function migrateStudents_() {
 }
 /** Dates stored as text by the first version ('2026-11-04') become real dates, so the date picker and sorting work. */
 function migrateDates_() {
-  [SHEETS.STUDENTS, SHEETS.MARKS, SHEETS.DAYS, SHEETS.RESULTS].forEach(def => {
+  [SHEETS.STUDENTS, SHEETS.MARKS, SHEETS.DAYS].forEach(def => {
     const sh = SpreadsheetApp.getActive().getSheetByName(def.name);
     if (!sh || sh.getLastRow() < 2) return;
     const col = sh.getRange(2, 1, sh.getLastRow() - 1, 1), v = col.getValues();

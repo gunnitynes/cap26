@@ -308,6 +308,43 @@ details.guide[open] summary::after{content:"–"}
 .tlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
 .tlist li{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:15px}
 input[type=password]{background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;font-size:16px}
+.govr{display:flex;align-items:center;gap:14px;width:100%;margin-top:12px;text-align:left;border:1px solid var(--led);background:linear-gradient(135deg,var(--led-soft),transparent 70%),var(--panel);border-radius:var(--r);padding:14px}
+.govr b{display:block;font-size:16px}.govr small{display:block;color:var(--mute);font-size:12.5px}
+.govr>span:nth-child(2){flex:1;min-width:0}
+.govr-go{font-family:var(--mono);font-size:18px;color:var(--led)}
+.govr-bars{display:flex;align-items:flex-end;gap:3px;height:32px;width:34px;flex:none}
+.govr-bars i{flex:1;height:calc(var(--h)*100%);background:var(--led);border-radius:2px}
+.gview{display:flex;flex-direction:column;gap:14px;padding-block:16px 40px}
+.gv-head h2{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:2px 0}
+.gv-hidden{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--mute)}.gv-hidden b{color:var(--ink)}
+.gv-dist{display:flex;flex-direction:column;gap:12px}
+.dist{display:flex;height:22px;border-radius:7px;overflow:hidden;gap:2px}
+.dist i{display:block;min-width:6px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px}
+.legend span{display:inline-flex;align-items:center;gap:6px}.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.legend b{font-family:var(--mono)}
+.gv-h{font-size:15px;font-weight:800}
+.gv-stages{display:flex;flex-direction:column;gap:9px}
+.srow{display:grid;grid-template-columns:78px 1fr 42px;align-items:center;gap:10px;font-size:13.5px}
+.srow b{font-family:var(--mono);text-align:right;font-size:13px}
+.hbar{height:10px;border-radius:5px;background:var(--sunk);overflow:hidden;display:block}.hbar i{display:block;height:100%;border-radius:5px}
+.gv-sort{align-self:flex-start}
+.gcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.gcard{display:flex;flex-direction:column;gap:10px;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;width:100%}
+.gc-top{display:flex;justify-content:space-between;align-items:center;gap:8px}.gc-top b{font-size:16px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gc-prog{font-family:var(--mono);font-size:12px;color:var(--mute)}
+.gc-final{display:flex;align-items:center;gap:12px}
+.gc-num{font-family:var(--mono);font-size:30px;font-weight:700;line-height:1;min-width:48px}
+.track{position:relative;flex:1;height:12px;border-radius:6px;background:var(--sunk);overflow:visible;display:block}
+.track i{position:absolute;inset:0 auto 0 0;border-radius:6px}
+.track u{position:absolute;top:-3px;bottom:-3px;width:1.5px;background:var(--mute);opacity:.45}
+.gc-sub{font-size:12.5px;color:var(--mute);margin-top:-4px}
+.gc-stages{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.st{display:flex;flex-direction:column;align-items:center;gap:4px}
+.st-col{height:38px;width:100%;max-width:26px;background:var(--sunk);border-radius:5px;display:flex;align-items:flex-end;overflow:hidden}
+.st-col i{display:block;width:100%;border-radius:5px}
+.st small{font-family:var(--mono);font-size:9.5px;color:var(--mute);letter-spacing:.04em}
+.gc-flag{font-size:12.5px;color:var(--no);font-weight:600}
 .toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;font-weight:600;z-index:20;max-width:calc(100% - 32px)}
 .export{margin-top:10px;font-family:var(--mono);font-size:11px;min-height:120px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -581,7 +618,7 @@ function renderBar(){
   const t=S.view==='test'&&view(S.open);
   const nm=S.view==='login'?'':S.me;
   const td=t&&new Date(t.day+'T12:00');
-  $('#barInner').innerHTML=`<div class="barrow">${S.view==='test'||S.view==='account'?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
+  $('#barInner').innerHTML=`<div class="barrow">${S.view==='test'||S.view==='account'||S.view==='grades'?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
    <div class="brand"><span class="eyebrow">${S.me&&nm?`<button class="whobtn" id="whoBtn" aria-label="Your teacher name">${esc(nm)}</button>`:'Catalyst Studios'} <span class="sync" id="sync" data-s="${S.sync}"><i class="dot"></i><span></span></span></span><b>Catalyst Operations Test - CAP 2026</b></div>
    ${S.view==='test'&&t?`<span class="datecard" title="Test date"><small>${td.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase()}</small><b>${td.getDate()}</b><span>${td.toLocaleDateString('en-GB',{month:'short'})}</span></span>`:''}</div>
    ${S.view==='roster'?dateStrip():''}`;
@@ -601,8 +638,8 @@ function renderBar(){
   const h=document.querySelector('.bar').offsetHeight;document.documentElement.style.setProperty('--barh',h+'px');
 }
 function go(v,id){S.view=v;S.open=id||null;renderBar();render();scrollTo(0,0);wake(v==='test')}
-function refresh(){if(S.view==='test')syncSheet();else if(S.view==='roster')render();else if(S.view==='account')renderAccount(true)}
-function render(){S.view==='login'?renderLogin():S.view==='account'?renderAccount():S.view==='test'&&view(S.open)?renderSheet():renderRoster()}
+function refresh(){if(S.view==='test')syncSheet();else if(S.view==='roster'||S.view==='grades')render();else if(S.view==='account')renderAccount(true)}
+function render(){S.view==='login'?renderLogin():S.view==='account'?renderAccount():S.view==='grades'?renderGrades():S.view==='test'&&view(S.open)?renderSheet():renderRoster()}
 
 function renderLogin(){
   const last=ls.get('ops.lastName','');
@@ -702,6 +739,50 @@ function renderAccount(quiet){
     toast(password?(isAdmin?'Password set for '+j.name:j.name+' can sign in once with that code'):j.name+' added. Give them a code to sign in');S.teachers[j.name]={name:j.name};renderAccount()};
 }
 
+/* ---- Grade overview: the whole date at a glance — distribution, the class by stage, and a card per student */
+const GCOL={dist:'led',merit:'ok',passg:'ink',resitg:'no'};
+const SHORT=['Power','Mic','Route','Rec','Cue','Down'];   // fits under a narrow bar
+function stageScores(t){const g=gradeOf(t);return STAGES.map(s=>{const xs=g.per.filter(x=>x.c.s===s.id&&x.avg!==null);return xs.length?Math.round(xs.reduce((a,x)=>a+x.avg,0)/xs.length*100):null})}
+function renderGrades(){
+  const list=allTests().filter(t=>t.day===S.day),rev=revealed(S.day);
+  const rows=list.map(t=>({t,g:gradeOf(t),st:stageScores(t)}));
+  const sort=S.gsort||'final';
+  // finished students first (highest final first), then unfinished, then not started
+  const rank=g=>g.complete?2:g.marked?1:0;
+  rows.sort(sort==='name'?(a,b)=>a.t.name.localeCompare(b.t.name):(a,b)=>rank(b.g)-rank(a.g)||(b.g.final||0)-(a.g.final||0));
+  const cnt={dist:0,merit:0,passg:0,resitg:0,open:0};rows.forEach(({g})=>{if(g.complete)cnt[g.grade.k]++;else cnt.open++});
+  const avg=STAGES.map((s,i)=>{const v=rows.map(r=>r.st[i]).filter(x=>x!==null);return v.length?Math.round(v.reduce((a,b)=>a+b,0)/v.length):null});
+  const pct=v=>v===null?'–':v+'%';
+  const bar=(v,col)=>`<span class="hbar"><i style="width:${v||0}%;background:var(--${col})"></i></span>`;
+  const card=({t,g,st})=>{
+    const col=g.complete?GCOL[g.grade.k]:'mute',label=!g.marked?'Not started':g.complete?g.grade.l:'Unfinished';
+    return `<button class="gcard" data-open="${t.id}" type="button">
+      <div class="gc-top"><b>${esc(t.name)}</b>${rev?`<span class="pill ${g.complete?g.grade.k:'live'}">${label}</span>`:`<span class="gc-prog">${g.marked}/${g.total}</span>`}</div>
+      ${rev?`<div class="gc-final"><span class="gc-num" style="color:var(--${col})">${g.marked?Math.round(g.final):'–'}</span>
+        <span class="track"><i style="width:${g.marked?Math.round(g.final):0}%;background:var(--${col})"></i><u style="left:60%"></u><u style="left:75%"></u><u style="left:90%"></u></span></div>
+      <div class="gc-sub">${!g.marked?'No marks yet':!g.complete?`So far: ${g.marked} of ${g.total} skills marked`:`Score ${Math.round(g.score)}${g.deduction?` − ${g.deduction} for ${g.errors.length} critical error${g.errors.length>1?'s':''}`:''}`}</div>`
+      :`<span class="track"><i style="width:${Math.round(g.marked/g.total*100)}%;background:var(--led)"></i></span>`}
+      ${rev?`<div class="gc-stages">${STAGES.map((s,i)=>`<span class="st"><span class="st-col"><i style="height:${st[i]===null?0:Math.max(6,st[i])}%;background:${st[i]===null?'var(--line)':st[i]>=75?'var(--ok)':st[i]>=50?'var(--hint)':'var(--no)'}"></i></span><small>${SHORT[i]}</small></span>`).join('')}</div>`:''}
+      ${rev&&g.coreFails.length?`<div class="gc-flag">Core skill under 50%: ${g.coreFails.map(c=>esc(c.t)).join('; ')}</div>`:''}
+    </button>`};
+  $('#app').innerHTML=`<div class="gview">
+    <div class="gv-head"><span class="eyebrow">Grade overview</span><h2>${fmtDay(S.day)}</h2><span class="readout" style="margin:0">${list.length} student${list.length===1?'':'s'} · combined over all teachers</span></div>
+    ${!list.length?`<div class="empty"><b>No students on ${fmtDay(S.day)}</b>Pick another date on the student list.</div>`:''}
+    ${list.length&&!rev?`<div class="card gv-hidden"><b>Grades are hidden for this date.</b><span>Below is how far marking has got. Reveal the grades on the student list when the day is done.</span></div>`:''}
+    ${list.length&&rev?`<section class="card gv-dist">
+        <div class="dist">${[['dist','Distinction'],['merit','Merit'],['passg','Pass'],['resitg','Resit'],['open','Unfinished']].filter(([k])=>cnt[k]).map(([k])=>`<i style="flex:${cnt[k]};background:var(--${k==='open'?'line':GCOL[k]})"></i>`).join('')}</div>
+        <div class="legend">${[['dist','Distinction'],['merit','Merit'],['passg','Pass'],['resitg','Resit'],['open','Unfinished']].map(([k,l])=>`<span><i style="background:var(--${k==='open'?'line':GCOL[k]})"></i>${l}<b>${cnt[k]}</b></span>`).join('')}</div>
+      </section>
+      <section class="card gv-stages"><b class="gv-h">The class by stage</b>
+        ${STAGES.map((s,i)=>`<div class="srow"><span>${esc(s.short)}</span>${bar(avg[i],avg[i]===null?'line':avg[i]>=75?'ok':avg[i]>=50?'hint':'no')}<b>${pct(avg[i])}</b></div>`).join('')}
+      </section>
+      <div class="seg gv-sort" role="group" aria-label="Sort"><button type="button" data-sort="final" aria-pressed="${sort==='final'}">Highest first</button><button type="button" data-sort="name" aria-pressed="${sort==='name'}">A–Z</button></div>`:''}
+    <div class="gcards">${rows.map(card).join('')}</div>
+  </div>`;
+  $('#app').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>go('test',b.dataset.open));
+  $('#app').querySelectorAll('[data-sort]').forEach(b=>b.onclick=()=>{S.gsort=b.dataset.sort;renderGrades()});
+}
+
 function ring(t,size=44){
   const sc=scoreOf(mine(t),t),done=sc.n,f=sc.total?done/sc.total:0,r=18,c=2*Math.PI*r,st=statusOf(t);
   const col=st.grade?`var(--${st.grade.col})`:st.k==='done'?'var(--ink)':'var(--led)';
@@ -745,6 +826,7 @@ function renderRoster(){
        <p>Every teacher will see the combined grades for this date.${unfinished?` ${unfinished} student${unfinished>1?'s are':' is'} not fully marked yet and will show as Unfinished.`:''} You can hide them again.</p>
        <div class="foot"><button class="primary" id="revealYes" type="button">Reveal grades</button><button class="ghost" id="revealNo" type="button">Cancel</button></div></div>`
      :`<div class="gate"><p>${rev?`<b>Grades shown</b> for ${fmtDay(S.day)}.`:`<b>Grades hidden.</b> You have fully marked ${marked} of ${list.length}.`}</p><button class="ghost" id="revealBtn" type="button" ${!canMark()?'disabled':''}>${rev?'Hide grades':'Reveal grades'}</button></div>`}
+   ${list.length?`<button class="govr" id="govBtn" type="button"><span class="govr-bars" aria-hidden="true"><i style="--h:.55"></i><i style="--h:.9"></i><i style="--h:.7"></i><i style="--h:.35"></i></span><span><b>Grade overview</b><small>${rev?'Every student at a glance, by stage':'Progress so far · grades hidden until revealed'}</small></span><span class="govr-go">→</span></button>`:''}
    ${rev&&list.length?`<section class="card tally" aria-label="Results">
        <div class="tally-h"><b>Results</b><span>${fmtDay(S.day)} · ${list.length} student${list.length>1?'s':''}</span></div>
        <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Student</th><th>Final</th><th>Grade</th></tr></thead><tbody>
@@ -791,6 +873,7 @@ function renderRoster(){
   $('#app').querySelectorAll('[data-mo]').forEach(b=>b.onclick=()=>{const [y,m]=(S.cal||S.day.slice(0,7)).split('-').map(Number);const d=new Date(y,m-1+(+b.dataset.mo),1);S.cal=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');render()});
   $('#revealBtn')?.addEventListener('click',()=>{if(rev)setReveal(S.day,false);else{S.confirm=S.day;render()}});
   $('#revealYes')?.addEventListener('click',()=>setReveal(S.day,true));
+  $('#govBtn')?.addEventListener('click',()=>go('grades'));
   $('#revealNo')?.addEventListener('click',()=>{S.confirm=null;render()});
   $('#dlDay')?.addEventListener('click',()=>offerFile(`ops-test-results-${S.day}.csv`,resultsCSV(list)));
   $('#cpDay')?.addEventListener('click',()=>copyText(resultsCSV(list)));
