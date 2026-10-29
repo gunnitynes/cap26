@@ -287,6 +287,7 @@ details.guide[open] summary::after{content:"–"}
 .login{display:flex;flex-direction:column;gap:12px;padding:18px;border-color:var(--led)}
 .login-h{font-size:20px;font-weight:800;letter-spacing:-.01em}
 .err{color:var(--no);margin:0}
+.info{margin:0;color:var(--ink);background:var(--led-soft);border-radius:8px;padding:8px 10px}
 .acct{display:flex;flex-direction:column;gap:6px;padding:18px}
 .acct .ghost{align-self:flex-start;margin-top:8px}
 .how{display:flex;flex-direction:column;gap:12px}
@@ -614,10 +615,13 @@ function renderLogin(){
 
     <form class="card login" id="loginForm" autocomplete="on">
       <b class="login-h">Sign in</b>
-      <div class="field"><label for="lName">Your name</label><input type="text" id="lName" name="username" autocomplete="username" autocapitalize="words" value="${esc(last)}" placeholder="As Gunnar set it up for you"></div>
-      <div class="field"><label for="lPass">Password</label><input type="password" id="lPass" name="password" autocomplete="current-password" placeholder="The password you were given"></div>
+      <p class="readout info" id="lInfo" hidden></p>
+      <div class="field"><label for="lName">Your name</label><input type="text" id="lName" name="username" autocomplete="username" autocapitalize="words" value="${esc(last)}" placeholder="As it is written in the Teachers tab"></div>
+      <div class="field"><label for="lPass" id="lPassLbl">Password</label><input type="password" id="lPass" name="password" autocomplete="current-password" placeholder="Your password"></div>
+      <div class="field" id="lConfWrap" hidden><label for="lConf">Type the same password again</label><input type="password" id="lConf" autocomplete="new-password"></div>
       <button class="primary" type="submit" id="lBtn">Sign in</button>
       <p class="readout err" id="lErr" hidden></p>
+      <p class="readout" style="margin:0">First time? Type your name and leave the password empty. If you have no password yet, you choose one now.</p>
       ${S.demo?'<p class="readout">Preview: any name and password opens the example students.</p>':''}
     </form>
 
@@ -650,22 +654,31 @@ function renderLogin(){
       <ul class="facts">
         <li><b>Install it.</b> On iPhone: Share ▸ Add to Home Screen. It then opens full screen like an app.</li>
         <li><b>Bad wifi is fine.</b> Marks wait on your phone and save as soon as the connection is back. The dot next to your name turns green when everything is saved.</li>
-        <li><b>Forgot your password?</b> Ask Gunnar to reset it. You can change it yourself once you are signed in.</li>
+        <li><b>Forgot your password?</b> Ask the test organiser to clear it in the Teachers tab of the spreadsheet, then choose a new one here. You can also change it yourself once you are signed in.</li>
       </ul>
     </section>
   </div>`;
   const f=$('#loginForm');
   if(!last)$('#lName').focus();
+  let activating=false;
+  const setMode=on=>{activating=on;$('#lConfWrap').hidden=!on;$('#lPassLbl').textContent=on?'Choose a password (6 characters or more)':'Password';
+    $('#lPass').autocomplete=on?'new-password':'current-password';$('#lBtn').textContent=on?'Set password and sign in':'Sign in'};
+  $('#lName').oninput=()=>{if(activating){setMode(false);$('#lInfo').hidden=true}};
   f.onsubmit=async e=>{e.preventDefault();
-    const name=$('#lName').value.trim(),password=$('#lPass').value,err=$('#lErr'),btn=$('#lBtn');
-    err.hidden=true;if(!name||!password){err.textContent='Type your name and password.';err.hidden=false;return}
+    const name=$('#lName').value.trim(),password=$('#lPass').value,err=$('#lErr'),info=$('#lInfo'),btn=$('#lBtn');
+    err.hidden=true;if(!name){err.textContent='Type your name.';err.hidden=false;return}
     if(S.demo){go('roster');return}
-    btn.disabled=true;btn.textContent='Signing in…';
-    const j=await api('login',{name,password});
-    btn.disabled=false;btn.textContent='Sign in';
+    const label=btn.textContent;btn.disabled=true;btn.textContent=activating?'Setting your password…':'Signing in…';
+    const j=await api('login',activating?{name,password,confirm:$('#lConf').value}:{name,password});
+    btn.disabled=false;btn.textContent=label;
+    if(!j.ok&&j.code==='activate'){
+      // the name exists but has no password yet: this is the teacher's first sign-in
+      if(!activating){setMode(true);info.innerHTML=`Welcome, <b>${esc(j.name)}</b>. This is your first sign-in, so choose your own password.`;info.hidden=false;
+        if(password){$('#lConf').focus()}else{$('#lPass').focus()}return}
+      err.textContent=j.error;err.hidden=false;return}
     if(!j.ok){err.textContent=j.error;err.hidden=false;return}
     S.token=j.token;S.me=j.name;S.role=j.role;ls.set('ops.token',S.token);ls.set('ops.me',S.me);ls.set('ops.role',S.role);ls.set('ops.lastName',j.name);
-    S.view='roster';renderBar();render();await load();toast('Signed in as '+j.name);
+    S.view='roster';renderBar();render();await load();toast(j.activated?'Password set. Welcome, '+j.name:'Signed in as '+j.name);
   };
 }
 
@@ -691,7 +704,7 @@ function renderAccount(quiet){
       <b class="login-h">Teachers</b>
       <ul class="tlist">${names.map(n=>`<li><span>${esc(n)}${n===S.me?' (you)':''}</span>${n===S.me?'':`<button class="more" type="button" data-rm="${esc(n)}">Remove</button>`}</li>`).join('')}</ul>
       <div class="field"><label for="tName">Add a teacher, or reset a password</label><input type="text" id="tName" placeholder="Name they sign in with" autocapitalize="words"></div>
-      <div class="field"><label for="tPass">Password for them (6 characters or more)</label><input type="text" id="tPass" placeholder="Tell them in person" autocomplete="off"></div>
+      <div class="field"><label for="tPass">Password for them, or leave empty so they choose it</label><input type="text" id="tPass" placeholder="6 characters or more, or empty" autocomplete="off"></div>
       <label class="check"><input type="checkbox" id="tAdmin"> Admin (can manage teachers)</label>
       <button class="primary" type="submit">Save teacher</button>
       <p class="readout err" id="tErr" hidden></p>
@@ -714,7 +727,7 @@ function renderAccount(quiet){
     if(S.demo){toast('Preview only');return}
     const j=await api('addTeacher',{name,password,role:$('#tAdmin').checked?'admin':'teacher'});
     if(!j.ok){err.textContent=j.error;err.hidden=false;return}
-    toast(j.reset?'Password reset for '+j.name:j.name+' can now sign in');S.teachers[j.name]={name:j.name};renderAccount()};
+    toast(password?(j.reset?'Password reset for '+j.name:j.name+' can now sign in'):j.name+' chooses a password at first sign-in');S.teachers[j.name]={name:j.name};renderAccount()};
 }
 
 function ring(t,size=44){
