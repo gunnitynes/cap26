@@ -15,9 +15,9 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   sh.getRange(2, 1, 1, 5).setValues([['Gunni', '', 'test-pass-1', '', '']]);
   g.setup();
   const t = tab(book, 'Teachers').data;
-  assert.deepEqual(t[0].slice(0, 5), ['Name', 'Password', 'Role', 'Status', 'Last sign-in']);
+  assert.deepEqual(t[0].slice(0, 5), ['Name', 'Sign-in code', 'Role', 'Status', 'Last sign-in']);
   assert.equal(t[1][0], 'Gunni'); assert.equal(t[1][1], '●●●●●● set'); assert.equal(t[1][2], 'admin');
-  assert.match(String(t[1][3]), /^Ready/);
+  assert.match(String(t[1][3]), /^Admin: signs in/);
   assert.ok(!JSON.stringify(t).includes('test-pass-1'), 'the typed password must not stay in the sheet');
   ok('old layout moved over; the hand-typed password is hidden and Gunni is admin');
   const r = call(g, { action: 'login', name: ' gunni ', password: 'test-pass-1' });
@@ -29,7 +29,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   ok('"Start here" is the first tab');
 }
 
-// 2. Typing a password straight into the new layout (what onEdit sees).
+// 2. Typing in the Teachers tab: an admin password, and single-use codes for teachers (what onEdit sees).
 {
   const { g, book } = loadScript();
   g.setup();
@@ -38,36 +38,49 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   g.onEdit({ range: sh.getRange(2, 2) });
   sh.getRange(3, 1, 1, 2).setValues([['Mira', 'abc']]);
   g.onEdit({ range: sh.getRange(3, 2) });
-  sh.getRange(4, 1).setValue('Anna');
-  g.onEdit({ range: sh.getRange(4, 1) });
-  const t = tab(book, 'Teachers').data;
-  assert.equal(t[1][1], '●●●●●● set'); assert.equal(t[1][2], 'admin'); assert.match(String(t[1][3]), /^Ready/);
-  assert.match(String(t[2][3]), /too short/);
-  assert.match(String(t[3][3]), /^Waiting/);
-  ok('typed passwords are hidden at once; too short and empty ones are explained in Status');
-  assert.equal(call(g, { action: 'login', name: 'gunni', password: 'test-pass-1' }).ok, true);
-  ok('sign-in works right after typing it in the sheet');
-
-  // 3. First sign-in for a name with no password.
-  let r = call(g, { action: 'login', name: 'anna', password: '' });
-  assert.equal(r.code, 'activate'); assert.equal(r.name, 'Anna');
-  r = call(g, { action: 'login', name: 'anna', password: 'anna2026', confirm: 'anna2027' });
-  assert.equal(r.ok, false); assert.equal(r.code, 'activate');
-  r = call(g, { action: 'login', name: 'anna', password: 'anna2026', confirm: 'anna2026' });
-  assert.equal(r.ok, true); assert.equal(r.activated, true); assert.equal(r.role, 'teacher');
-  assert.match(String(tab(book, 'Teachers').data[3][3]), /^Ready/);
-  ok('a teacher with no password chooses one (typed twice) and is signed in');
-  assert.equal(call(g, { action: 'login', name: 'anna', password: 'anna2026' }).ok, true);
-  assert.equal(call(g, { action: 'login', name: 'anna', password: 'other123', confirm: 'other123' }).ok, false);
-  ok('once chosen, nobody else can choose it again');
-
-  // 4. Clearing a password lets the teacher choose a new one and signs them out.
-  const tok = call(g, { action: 'login', name: 'anna', password: 'anna2026' }).token;
-  sh.getRange(4, 2).setValue('');                 // only the visible cell, as a teacher would
+  sh.getRange(4, 1, 1, 2).setValues([['Anna', '4821']]);
   g.onEdit({ range: sh.getRange(4, 2) });
+  sh.getRange(5, 1).setValue('Jon');
+  g.onEdit({ range: sh.getRange(5, 1) });
+  const t = tab(book, 'Teachers').data;
+  assert.equal(t[1][1], '●●●●●● set'); assert.equal(t[1][2], 'admin'); assert.match(String(t[1][3]), /^Admin/);
+  assert.equal(t[2][2], 'teacher'); assert.match(String(t[2][3]), /too short/);
+  assert.equal(t[3][1], '●●●● code ready'); assert.match(String(t[3][3]), /^Code ready/);
+  assert.match(String(t[4][3]), /^No code yet/);
+  assert.ok(!JSON.stringify(t).includes('4821'));
+  ok('the first row is admin with a password; teachers get codes, hidden at once; Status explains each row');
+  assert.equal(call(g, { action: 'login', name: 'gunni', password: 'test-pass-1' }).ok, true);
+  ok('the admin signs in with the password');
+
+  // 3. A teacher's code works once and the phone stays signed in.
+  let r = call(g, { action: 'login', name: 'anna', password: '4822' });
+  assert.equal(r.ok, false);
+  r = call(g, { action: 'login', name: ' Anna ', password: ' 4821 ' });
+  assert.equal(r.ok, true); assert.equal(r.role, 'teacher'); assert.ok(r.days > 300);
+  const annaTok = r.token;
+  assert.match(String(tab(book, 'Teachers').data[3][1]), /^used /); assert.match(String(tab(book, 'Teachers').data[3][3]), /^Signed in on a phone/);
+  ok('a teacher signs in with name + code; the code is marked used and the phone stays signed in for the year');
+  assert.equal(call(g, { action: 'login', name: 'anna', password: '4821' }).ok, false);
+  ok('the same code cannot be used a second time');
+  assert.equal(call(g, { action: 'state', token: annaTok }).ok, true);
+  ok('the first phone keeps working after its code is used up');
+  assert.equal(call(g, { action: 'login', name: 'jon', password: '1234' }).ok, false);
+  assert.match(call(g, { action: 'login', name: 'jon', password: '' }).error, /no sign-in code/);
+  ok('a teacher without a code is told to ask for one (no password ever)');
+  sh.getRange(4, 2).setValue('7777'); g.onEdit({ range: sh.getRange(4, 2) });
+  const r2 = call(g, { action: 'login', name: 'anna', password: '7777' });
+  assert.equal(r2.ok, true); assert.equal(call(g, { action: 'state', token: annaTok }).ok, true);
+  ok('a new code adds a second phone without signing out the first');
+  assert.equal(call(g, { action: 'changePassword', token: r2.token, current: '7777', next: 'whatever1' }).ok, false);
+  ok('teachers cannot set a password');
+
+  // 4. Clearing the admin password signs the admin out and lets them choose a new one.
+  const tok = call(g, { action: 'login', name: 'gunni', password: 'test-pass-1' }).token;
+  sh.getRange(2, 2).setValue(''); g.onEdit({ range: sh.getRange(2, 2) });
   assert.equal(call(g, { action: 'state', token: tok }).code, 'auth');
-  assert.equal(call(g, { action: 'login', name: 'anna', password: '' }).code, 'activate');
-  ok('clearing a password in the sheet signs them out and lets them choose a new one');
+  assert.equal(call(g, { action: 'login', name: 'gunni', password: '' }).code, 'activate');
+  assert.equal(call(g, { action: 'login', name: 'gunni', password: 'test-pass-1', confirm: 'test-pass-1' }).ok, true);
+  ok('clearing the admin password signs them out; they choose a new one at next sign-in');
 
   // 5. A teacher marks, the readable Marks row and the hidden copy agree.
   const gt = call(g, { action: 'login', name: 'gunni', password: 'test-pass-1' }).token;

@@ -279,11 +279,25 @@ details.guide[open] summary::after{content:"–"}
 .sum-row.warn span,.sum-row.warn b{color:var(--no)}
 .per-h{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin-top:14px}
 .landing{display:flex;flex-direction:column;gap:18px;padding-block:18px 40px}
-.hero{display:flex;flex-direction:column;gap:12px;padding-top:6px}
-.hero h1{font-size:clamp(28px,8vw,40px);line-height:1.05;font-weight:800;letter-spacing:-.025em;margin:0}
-.hero p{margin:0;font-size:16px;color:var(--mute);max-width:46ch}
-.mini{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:10px;box-shadow:0 10px 30px -18px var(--led);pointer-events:none}
-.mini-q{font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px}
+.door{min-height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;justify-content:center;gap:28px;padding-block:28px;max-width:420px;margin:0 auto;position:relative}
+.door::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:repeating-linear-gradient(90deg,transparent 0 47px,color-mix(in srgb,var(--line) 55%,transparent) 47px 48px);
+  -webkit-mask:linear-gradient(180deg,transparent,#000 30%,#000 70%,transparent);mask:linear-gradient(180deg,transparent,#000 30%,#000 70%,transparent)}
+.door-top{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+.door-mark{width:64px;height:64px;filter:drop-shadow(0 12px 24px color-mix(in srgb,var(--led) 45%,transparent))}
+.door-mark .cap{transition:transform .9s cubic-bezier(.2,.8,.2,1)}
+.door-mark .c1{animation:fade1 1.2s .1s both}.door-mark .c2{animation:fade2 1.2s .2s both}.door-mark .c3{animation:fade3 1.2s .3s both}
+@keyframes fade1{from{transform:translateY(-120px)}}@keyframes fade2{from{transform:translateY(90px)}}@keyframes fade3{from{transform:translateY(-60px)}}
+.door-h{font-size:clamp(46px,15vw,64px);line-height:.92;font-weight:800;letter-spacing:-.035em;margin:4px 0 0}
+.door-form{display:flex;flex-direction:column;gap:12px}
+.door-field{display:flex;flex-direction:column;gap:6px}
+.door-field span{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.door-field input{font-size:18px;padding:14px 16px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
+.door-field input:focus{border-color:var(--led);outline:none;box-shadow:0 0 0 3px var(--led-soft)}
+.masked{-webkit-text-security:disc;font-family:var(--mono)}
+.door-btn{padding:16px;font-size:17px;border-radius:14px;margin-top:4px}
+.door-foot{margin:0;font-size:13px;color:var(--mute);line-height:1.5}
+@media (prefers-reduced-motion:reduce){.door-mark .cap{animation:none}}
 .login{display:flex;flex-direction:column;gap:12px;padding:18px;border-color:var(--led)}
 .login-h{font-size:20px;font-weight:800;letter-spacing:-.01em}
 .err{color:var(--no);margin:0}
@@ -291,24 +305,6 @@ details.guide[open] summary::after{content:"–"}
 .info{margin:0;color:var(--ink);background:var(--led-soft);border-radius:8px;padding:8px 10px}
 .acct{display:flex;flex-direction:column;gap:6px;padding:18px}
 .acct .ghost{align-self:flex-start;margin-top:8px}
-.how{display:flex;flex-direction:column;gap:12px}
-.how h2{font-size:18px;font-weight:800;letter-spacing:-.01em}
-.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;counter-reset:st}
-.steps li{counter-increment:st;display:grid;grid-template-columns:34px 1fr;column-gap:10px;padding:10px 0;border-top:1px solid var(--line)}
-.steps li::before{content:counter(st,decimal-leading-zero);grid-row:span 2;font-family:var(--mono);font-size:12px;font-weight:700;color:var(--led);padding-top:3px}
-.steps b{font-size:15px}.steps span{font-size:14px;color:var(--mute)}
-.formula{display:flex;align-items:center;gap:8px}
-.formula div{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0}
-.formula div b{font-family:var(--mono);font-size:24px;line-height:1}
-.formula div span{font-size:11px;color:var(--mute);text-align:center}
-.formula i{font-style:normal;font-family:var(--mono);font-size:18px;color:var(--mute)}
-.formula .f-final{border-color:var(--ok);background:var(--ok-soft)}.formula .f-final b{color:var(--ok)}
-.scale{display:flex;height:26px;border-radius:8px;overflow:hidden;font-family:var(--mono);font-size:10px;font-weight:700}
-.scale span{flex:var(--w);display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden}
-.scale span:nth-child(1){background:var(--no-soft);color:var(--no)}.scale span:nth-child(2){background:var(--sunk);color:var(--ink)}
-.scale span:nth-child(3){background:var(--ok-soft);color:var(--ok)}.scale span:nth-child(4){background:var(--led-soft);color:var(--led)}
-.facts{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--mute)}
-.facts b{color:var(--ink)}
 .tlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
 .tlist li{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:15px}
 input[type=password]{background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;font-size:16px}
@@ -610,68 +606,28 @@ function render(){S.view==='login'?renderLogin():S.view==='account'?renderAccoun
 
 function renderLogin(){
   const last=ls.get('ops.lastName','');
-  $('#app').innerHTML=`<div class="landing">
-    <section class="hero">
-      <span class="eyebrow">Catalyst Berlin · Music Studios · CAP 2026</span>
-      <h1>Mark the studio operations test on your phone.</h1>
-      <p>One sheet per student, the same 18 skills for everyone, and a grade worked out the same way every time. Your marks stay yours until the test day is over.</p>
-      <div class="mini" aria-hidden="true">
-        <div class="mini-q">Understands phantom power <span class="tag core">Core</span></div>
-        <div class="marks"><button type="button" data-v="y" aria-pressed="true" tabindex="-1"><i></i>Pass</button><button type="button" data-v="h" aria-pressed="false" tabindex="-1"><i></i>Hint</button><button type="button" data-v="g" aria-pressed="false" tabindex="-1"><i></i>Got there</button><button type="button" data-v="n" aria-pressed="false" tabindex="-1"><i></i>Failed</button></div>
-      </div>
-    </section>
-
-    <form class="card login" id="loginForm" autocomplete="on">
-      <b class="login-h">Sign in</b>
+  $('#app').innerHTML=`<div class="door">
+    <div class="door-top">
+      <svg class="door-mark" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="var(--led)"/><g fill="none" stroke="#fff" stroke-width="34" stroke-linecap="round"><path d="M150 140v232M256 140v232M362 140v232"/></g><g fill="#fff"><rect class="cap c1" x="118" y="290" width="64" height="40" rx="12"/><rect class="cap c2" x="224" y="180" width="64" height="40" rx="12"/><rect class="cap c3" x="330" y="250" width="64" height="40" rx="12"/></g></svg>
+      <span class="eyebrow">Catalyst Berlin · CAP 2026</span>
+      <h1 class="door-h">Operations<br>Test</h1>
+    </div>
+    <form class="door-form" id="loginForm" autocomplete="off">
       <p class="readout info" id="lInfo" hidden></p>
-      <div class="field"><label for="lName">Your name</label><input type="text" id="lName" name="username" autocomplete="username" autocapitalize="words" value="${esc(last)}" placeholder="As it is written in the Teachers tab"></div>
-      <div class="field"><label for="lPass" id="lPassLbl">Password</label><input type="password" id="lPass" name="password" autocomplete="current-password" placeholder="Your password"></div>
-      <div class="field" id="lConfWrap" hidden><label for="lConf">Type the same password again</label><input type="password" id="lConf" autocomplete="new-password">
-        <span class="hint">Pick one you use nowhere else. Three random words work well, like <i>lamp-river-cello</i>. Your phone may warn you if a password has appeared in a data leak elsewhere.</span></div>
-      <button class="primary" type="submit" id="lBtn">Sign in</button>
+      <label class="door-field"><span>Name</span><input type="text" id="lName" autocomplete="off" autocapitalize="words" spellcheck="false" value="${esc(last)}" placeholder="Your name"></label>
+      <label class="door-field"><span id="lPassLbl">Sign-in code</span><input type="text" id="lPass" class="masked" autocomplete="one-time-code" autocapitalize="off" spellcheck="false" placeholder="From the test organiser"></label>
+      <label class="door-field" id="lConfWrap" hidden><span>Same password again</span><input type="text" id="lConf" class="masked" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <button class="primary door-btn" type="submit" id="lBtn">Sign in</button>
       <p class="readout err" id="lErr" hidden></p>
-      <p class="readout" style="margin:0">First time? Type your name and leave the password empty. If you have no password yet, you choose one now.</p>
-      ${S.demo?'<p class="readout">Preview: any name and password opens the example students.</p>':''}
+      ${S.demo?'<p class="readout">Preview: any name opens the example students.</p>':''}
     </form>
-
-    <section class="how">
-      <h2>How a test day runs</h2>
-      <ol class="steps">
-        <li><b>Pick the date</b><span>Swipe the week strip at the top and tap the test day. Students already added for that day are there for every teacher.</span></li>
-        <li><b>Add your students</b><span>Paste the names, one per line. Anyone on the team can add them, ahead of time if you like.</span></li>
-        <li><b>Mark as they work</b><span>Tap Pass, Hint, Got there or Failed for each skill. Tap a critical error the moment it happens. Every tap saves by itself.</span></li>
-        <li><b>Reveal and download</b><span>When the day is done, reveal the grades. Everyone sees the results table, and it is copied into the results spreadsheet too.</span></li>
-      </ol>
-    </section>
-
-    <section class="how">
-      <h2>How the grade is worked out</h2>
-      <div class="formula">
-        <div><b>94</b><span>score</span></div><i>−</i><div><b>10</b><span>per critical error</span></div><i>=</i><div class="f-final"><b>84</b><span>final · Merit</span></div>
-      </div>
-      <div class="scale"><span style="--w:60">Resit</span><span style="--w:15">Pass 60</span><span style="--w:15">Merit 75</span><span style="--w:10">Dist. 90</span></div>
-      <ul class="facts">
-        <li>Each skill's mark is the average of every teacher who marked it, and every skill counts the same.</li>
-        <li>A critical error counts once, however many teachers logged it.</li>
-        <li>A Core skill that averages under 50 means Resit.</li>
-        <li>Grades stay hidden from everyone until the day is revealed.</li>
-      </ul>
-    </section>
-
-    <section class="how">
-      <h2>Good to know</h2>
-      <ul class="facts">
-        <li><b>Install it.</b> On iPhone: Share ▸ Add to Home Screen. It then opens full screen like an app.</li>
-        <li><b>Bad wifi is fine.</b> Marks wait on your phone and save as soon as the connection is back. The dot next to your name turns green when everything is saved.</li>
-        <li><b>Forgot your password?</b> Ask the test organiser to clear it in the Teachers tab of the spreadsheet, then choose a new one here. You can also change it yourself once you are signed in.</li>
-      </ul>
-    </section>
+    <p class="door-foot">The code works once. After that this phone stays signed in.<br>New phone? Ask the test organiser for a new code.</p>
   </div>`;
   const f=$('#loginForm');
   if(!last&&!touchDevice)$('#lName').focus();
   let activating=false;
-  const setMode=on=>{activating=on;$('#lConfWrap').hidden=!on;$('#lPassLbl').textContent=on?'Choose a password (6 characters or more)':'Password';
-    $('#lPass').autocomplete=on?'new-password':'current-password';$('#lBtn').textContent=on?'Set password and sign in':'Sign in'};
+  const setMode=on=>{activating=on;$('#lConfWrap').hidden=!on;$('#lPassLbl').textContent=on?'Choose a password (6 characters or more)':'Sign-in code';
+    $('#lBtn').textContent=on?'Set password and sign in':'Sign in'};
   $('#lName').oninput=()=>{if(activating){setMode(false);$('#lInfo').hidden=true}};
   f.onsubmit=async e=>{e.preventDefault();
     const name=$('#lName').value.trim(),password=$('#lPass').value,err=$('#lErr'),info=$('#lInfo'),btn=$('#lBtn');
@@ -682,12 +638,14 @@ function renderLogin(){
     btn.disabled=false;btn.textContent=label;
     if(!j.ok&&j.code==='activate'){
       // the name exists but has no password yet: this is the teacher's first sign-in
-      if(!activating){setMode(true);info.innerHTML=`Welcome, <b>${esc(j.name)}</b>. This is your first sign-in, so choose your own password.`;info.hidden=false;
+      if(!activating){setMode(true);info.innerHTML=`Welcome, <b>${esc(j.name)}</b>. As admin you sign in with a password. Choose it now.`;info.hidden=false;
         if(!touchDevice){(password?$('#lConf'):$('#lPass')).focus()}return}
       err.textContent=j.error;err.hidden=false;return}
     if(!j.ok){err.textContent=j.error;err.hidden=false;return}
     S.token=j.token;S.me=j.name;S.role=j.role;ls.set('ops.token',S.token);ls.set('ops.me',S.me);ls.set('ops.role',S.role);ls.set('ops.lastName',j.name);
-    S.view='roster';renderBar();render();await load();toast(j.activated?'Password set. Welcome, '+j.name:'Signed in as '+j.name);
+    ls.set('ops.until',Date.now()+(j.days||60)*864e5);
+    S.view='roster';renderBar();render();await load();
+    toast(j.activated?'Password set. Welcome, '+j.name:j.role==='admin'?'Signed in as '+j.name:'Welcome, '+j.name+'. This phone stays signed in.');
   };
 }
 
@@ -698,10 +656,11 @@ function renderAccount(quiet){
     <section class="card acct">
       <span class="eyebrow">Signed in as</span>
       <b class="login-h">${esc(S.me)}</b>
-      <span class="readout" style="margin:0">${admin?'Admin: you can add and remove teachers.':'Teacher'}</span>
+      <span class="readout" style="margin:0">${admin?'Admin: you can add teachers and give them sign-in codes.':`This phone stays signed in until ${new Date(ls.get('ops.until',Date.now()+400*864e5)).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}.`}</span>
+      ${admin?'':'<span class="hint">If you sign out, you need a new code from the test organiser to sign in again.</span>'}
       <button class="ghost" id="outBtn" type="button">Sign out</button>
     </section>
-    <form class="card login" id="pwForm" autocomplete="off">
+    ${admin?`<form class="card login" id="pwForm" autocomplete="off">
       <b class="login-h">Change your password</b>
       <input type="text" name="username" value="${esc(S.me)}" autocomplete="username" hidden>
       <div class="field"><label for="pwOld">Current password</label><input type="password" id="pwOld" autocomplete="current-password"></div>
@@ -709,19 +668,21 @@ function renderAccount(quiet){
         <span class="hint">Pick one you use nowhere else. Three random words work well, like <i>lamp-river-cello</i>. If your phone warns that a password was "found in a data breach", change it here.</span></div>
       <button class="primary" type="submit">Change password</button>
       <p class="readout err" id="pwErr" hidden></p>
-    </form>
+    </form>`:''}
     ${admin?`<form class="card login" id="tForm" autocomplete="off">
       <b class="login-h">Teachers</b>
       <ul class="tlist">${names.map(n=>`<li><span>${esc(n)}${n===S.me?' (you)':''}</span>${n===S.me?'':`<button class="more" type="button" data-rm="${esc(n)}">Remove</button>`}</li>`).join('')}</ul>
-      <div class="field"><label for="tName">Add a teacher, or reset a password</label><input type="text" id="tName" placeholder="Name they sign in with" autocapitalize="words"></div>
-      <div class="field"><label for="tPass">Password for them, or leave empty so they choose it</label><input type="text" id="tPass" placeholder="6 characters or more, or empty" autocomplete="off"></div>
-      <label class="check"><input type="checkbox" id="tAdmin"> Admin (can manage teachers)</label>
+      <div class="field"><label for="tName">Add a teacher, or give one a new code</label><input type="text" id="tName" placeholder="Name they sign in with" autocapitalize="words"></div>
+      <div class="field"><label for="tPass">Sign-in code (works once, on one phone)</label><input type="text" id="tPass" placeholder="4 characters or more, e.g. 4821" autocomplete="off"></div>
+      <label class="check"><input type="checkbox" id="tAdmin"> Admin (signs in with a permanent password instead)</label>
       <button class="primary" type="submit">Save teacher</button>
       <p class="readout err" id="tErr" hidden></p>
     </form>`:''}
   </div>`;
-  $('#outBtn').onclick=()=>signOut();
-  $('#pwForm').onsubmit=async e=>{e.preventDefault();const err=$('#pwErr');err.hidden=true;
+  let outArm=0;$('#outBtn').onclick=()=>{
+    if(!admin&&Date.now()-outArm>4000){outArm=Date.now();$('#outBtn').textContent='Sign out? You will need a new code';return}
+    signOut()};
+  if(admin)$('#pwForm').onsubmit=async e=>{e.preventDefault();const err=$('#pwErr');err.hidden=true;
     if(S.demo){toast('Preview only');return}
     const j=await api('changePassword',{current:$('#pwOld').value,next:$('#pwNew').value});
     if(!j.ok){err.textContent=j.error;err.hidden=false;return}
@@ -737,7 +698,8 @@ function renderAccount(quiet){
     if(S.demo){toast('Preview only');return}
     const j=await api('addTeacher',{name,password,role:$('#tAdmin').checked?'admin':'teacher'});
     if(!j.ok){err.textContent=j.error;err.hidden=false;return}
-    toast(password?(j.reset?'Password reset for '+j.name:j.name+' can now sign in'):j.name+' chooses a password at first sign-in');S.teachers[j.name]={name:j.name};renderAccount()};
+    const isAdmin=$('#tAdmin').checked;
+    toast(password?(isAdmin?'Password set for '+j.name:j.name+' can sign in once with that code'):j.name+' added. Give them a code to sign in');S.teachers[j.name]={name:j.name};renderAccount()};
 }
 
 function ring(t,size=44){

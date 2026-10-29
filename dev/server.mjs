@@ -1,7 +1,7 @@
 // Runs ../apps-script/Code.gs on this computer with stand-ins for Google's services, and serves ../docs/
 // with the API at /api, so the whole thing can be tried before anything is deployed.
 //   node dev/server.mjs [port]      then open http://localhost:8787/?api=/api
-// Starts with an admin (Gunnar / catalyst) and Anna, who has no password yet and chooses one at first sign-in.
+// Starts with an admin (Gunnar / catalyst) and a teacher, Anna, whose single-use code is 1234.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,7 +16,7 @@ import { loadScript } from './google-mock.mjs';
 const { g, book } = loadScript();
 g.setup();
 g.setTeacher_('Gunnar', 'catalyst', 'admin');
-g.setTeacher_('Anna', '', null, true);            // no password yet: she chooses one at first sign-in
+g.setTeacher_('Anna', '1234', 'teacher');         // a teacher: sign-in code 1234, works once
 const call = body => JSON.parse(g.doPost({ postData: { contents: body } }).s);
 
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json' };

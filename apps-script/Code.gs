@@ -6,9 +6,11 @@
  *   The page (on GitHub Pages) talks only to this script, and this script keeps everything in this Sheet.
  *   Teachers need no Google account to mark: they sign in on the page with their name and a password.
  *
- *   Adding a teacher: type their name in the Teachers tab.
- *     · type a password next to it  → it is hidden the moment you press Enter, and they can sign in
- *     · or leave the password empty → they choose their own the first time they sign in
+ *   Adding a teacher: type their name in the Teachers tab and a sign-in code next to it (4+ characters, e.g. 4821).
+ *     · the code is hidden the moment you press Enter
+ *     · they type their name and the code once on their phone; the code is then used up and that phone stays signed in
+ *     · new phone, or browser data cleared? type a new code for them
+ *   Admins (you) have a permanent password in the same column instead of a code.
  *
  *   The page only shows a teacher their own marks until the grades for a date are revealed.
  *   (Anyone who can open this Sheet can of course see every tab.)
@@ -23,11 +25,15 @@
  */
 
 const PAGE_URL = 'https://gunnitynes.github.io/ops-test/';
-const SESSION_DAYS = 60;
+const SESSION_DAYS = 60;        // an admin's sign-in on one phone
+const TEACHER_DAYS = 400;       // a teacher's phone, once its code is used: the whole school year
 const HASH_ROUNDS = 400;
 const MAX_TRIES = 8;           // wrong passwords per name before a 10-minute pause
-const MIN_PASSWORD = 6;
-const SET = '●●●●●● set';      // what the Password column shows once a password is stored
+const MIN_PASSWORD = 6;         // admins
+const MIN_CODE = 4;             // teachers' single-use codes
+const SET = '●●●●●● set';      // an admin password is stored
+const READY = '●●●● code ready'; // a teacher's code is stored and not used yet
+const isMarker_ = v => { v = String(v || ''); return v === SET || v === READY || v.indexOf('used ') === 0; };
 const POINTS = { y: 1, h: 0.75, g: 0.5, n: 0 };
 const MARK_LABEL = { y: 'Pass', h: 'Hint', g: 'Got there', n: 'Failed' };
 
@@ -45,8 +51,8 @@ const DATE_FMT = 'dd.mm.yyyy';
 const BLUE = '#0b43e0', INK = '#10131c', PAPER = '#f4f6fa', MUTE = '#5a6276';
 const SHEETS = {
   START:    { name: 'Start here', header: [] },
-  TEACHERS: { name: 'Teachers', header: ['Name', 'Password', 'Role', 'Status', 'Last sign-in', 'hash', 'salt'],
-              widths: [180, 150, 100, 330, 150, 60, 60] },
+  TEACHERS: { name: 'Teachers', header: ['Name', 'Sign-in code', 'Role', 'Status', 'Last sign-in', 'hash', 'salt'],
+              widths: [180, 170, 100, 380, 150, 60, 60] },
   STUDENTS: { name: 'Students', header: ['Test date', 'Student', 'Studio', 'Added by', 'Added at', 'Removed', 'ID'],
               widths: [100, 200, 110, 120, 140, 220, 110] },
   MARKS:    { name: 'Marks', header: ['Test date', 'Student', 'Teacher', 'Skills marked', 'Teacher score %', 'Critical errors']
@@ -94,18 +100,18 @@ function buildStart_() {
     ['The page', PAGE_URL],
     ['', ''],
     ['Add a teacher', '1. Open the Teachers tab and type their name in a new row.'],
-    ['', '2. Type a password next to it (6 characters or more). It is hidden as soon as you press Enter.'],
-    ['', '   Or leave the password empty: they choose their own the first time they sign in on the page.'],
-    ['', '3. Check the Status column. "Ready" means they can sign in.'],
+    ['', '2. Type a sign-in code next to it: any 4 characters or more, for example 4821. It is hidden as soon as you press Enter.'],
+    ['', '3. Give them the code. They type their name and the code once on their phone. The code is then used up and that phone stays signed in.'],
+    ['New phone?', 'Type a new code over the old one. Each code works once, on one phone.'],
+    ['Your own sign-in', 'Admins (Role: admin) use a permanent password in the same column instead of a code.'],
     ['Add students', 'Open the Students tab. Type the test date, the student\'s name and the studio, one student per row.'],
     ['', 'Pasting a whole list? Paste the names into the Student column and type the date once at the top: rows below take the date and studio from the row above.'],
     ['', 'They appear on the page within a few seconds. Teachers can also add students on the page itself.'],
     ['Remove a student', 'Type anything (for example "absent") in their Removed column. Their row stays, so nothing is lost.'],
-    ['Forgot a password?', 'Type a new one over the dots in the Password column, or clear it so they choose a new one.'],
     ['Remove a teacher', 'Delete their row in Teachers. Their marks stay in Marks.'],
     ['', ''],
     ['What the tabs hold', ''],
-    ['Teachers', 'Who can sign in. Passwords are stored scrambled and never shown.'],
+    ['Teachers', 'Who can sign in, with their single-use code (or admin password). Codes are stored scrambled and never shown.'],
     ['Students', 'Everyone booked for a test: date, name, studio. Type or paste here, or add them on the page.'],
     ['Marks', 'One row per student per teacher, every skill readable. The last column is the page\'s own copy; leave it alone.'],
     ['Days', 'Tick "Grades revealed" to show the grades for a date on the page. The page can do this too.'],
@@ -197,12 +203,12 @@ function onEdit(e) {
     if (!sh || sh.getName() !== SHEETS.TEACHERS.name || e.range.getRow() < 2) return;
     const top = e.range.getRow(), rows = e.range.getNumRows();
     const col = e.range.getColumn ? e.range.getColumn() : T.PASS + 1, cols = e.range.getNumColumns ? e.range.getNumColumns() : 1;
-    const touchedPassword = col <= T.PASS + 1 && col + cols - 1 >= T.PASS + 1;
+    const touchedCode = col <= T.PASS + 1 && col + cols - 1 >= T.PASS + 1;
     for (let r = top; r < top + rows; r++) {
-      // an emptied Password cell means "forget the old password": they choose a new one at next sign-in
-      if (touchedPassword && !String(sh.getRange(r, T.PASS + 1).getValue() || '') && sh.getRange(r, T.HASH + 1).getValue()) {
+      // an emptied code cell forgets the stored code or password (and signs an admin out everywhere)
+      if (touchedCode && !String(sh.getRange(r, T.PASS + 1).getValue() || '') && sh.getRange(r, T.HASH + 1).getValue()) {
         sh.getRange(r, T.HASH + 1, 1, 2).setValues([['', '']]);
-        try { endSessions_(sh.getRange(r, T.NAME + 1).getValue()); } catch (err) {}
+        if (String(sh.getRange(r, T.ROLE + 1).getValue()) === 'admin') { try { endSessions_(sh.getRange(r, T.NAME + 1).getValue()); } catch (err) {} }
       }
       storeTypedPassword_(sh, r);
     }
@@ -210,16 +216,18 @@ function onEdit(e) {
   } catch (err) {}
 }
 
+/** A code (teachers) or password (admins) typed in the Teachers tab is scrambled into the hidden columns at once. */
 function storeTypedPassword_(sh, r) {
   const row = sh.getRange(r, 1, 1, 7).getValues()[0];
   const typed = String(row[T.PASS] || '');
-  if (!typed || typed === SET) return;
-  if (typed.length < MIN_PASSWORD) return;              // the Status column explains
+  if (!typed || isMarker_(typed)) return;
+  let role = String(row[T.ROLE] || '');
+  if (!role) { role = isFirstTeacher_(sh, r) ? 'admin' : 'teacher'; sh.getRange(r, T.ROLE + 1).setValue(role); }
+  if (typed.length < (role === 'admin' ? MIN_PASSWORD : MIN_CODE)) return;   // the Status column explains
   const salt = Utilities.getUuid().replace(/-/g, '');
   sh.getRange(r, T.HASH + 1, 1, 2).setValues([[hash_(typed, salt), salt]]);
-  sh.getRange(r, T.PASS + 1).setValue(SET);
-  if (!row[T.ROLE]) sh.getRange(r, T.ROLE + 1).setValue(isFirstTeacher_(sh, r) ? 'admin' : 'teacher');
-  try { endSessions_(row[T.NAME]); } catch (e) {}   // a new password signs the old one out everywhere
+  sh.getRange(r, T.PASS + 1).setValue(role === 'admin' ? SET : READY);
+  if (role === 'admin') { try { endSessions_(row[T.NAME]); } catch (e) {} }   // a new admin password signs the old one out
 }
 
 function isFirstTeacher_(sh, r) { return sh.getRange(2, 1, Math.max(1, r - 2), 1).getValues().every(v => !v[0]) || r === 2; }
@@ -233,9 +241,12 @@ function refreshTeacherStatus_() {
     if (!name) return [pass ? 'Type a name in column A' : ''];
     if (seen[key]) return ['Same name as another row: give one of them a different name'];
     seen[key] = 1;
-    if (pass && pass !== SET && pass.length < MIN_PASSWORD) return ['Password too short: use ' + MIN_PASSWORD + ' characters or more'];
-    if (row[T.HASH]) return ['Ready: can sign in'];
-    return ['Waiting: chooses a password at first sign-in'];
+    const admin = String(row[T.ROLE]) === 'admin', min = admin ? MIN_PASSWORD : MIN_CODE;
+    if (pass && !isMarker_(pass) && pass.length < min) return [(admin ? 'Password' : 'Code') + ' too short: use ' + min + ' characters or more'];
+    if (admin) return [row[T.HASH] ? 'Admin: signs in with their password' : 'Admin: chooses a password at first sign-in'];
+    if (row[T.HASH]) return ['Code ready: works once, on one phone'];
+    if (pass.indexOf('used ') === 0) return ['Signed in on a phone. Type a new code to add another phone'];
+    return ['No code yet: type one so they can sign in'];
   });
   sh.getRange(2, T.STATUS + 1, out.length, 1).setValues(out);
 }
@@ -278,10 +289,10 @@ function menuAddTeacher() {
   const ui = SpreadsheetApp.getUi();
   const n = ui.prompt('Add or reset a teacher', 'Teacher name, as they will type it to sign in:', ui.ButtonSet.OK_CANCEL);
   if (n.getSelectedButton() !== ui.Button.OK) return;
-  const p = ui.prompt('Password for ' + n.getResponseText().trim(), 'At least 6 characters. Leave empty to let them choose it at first sign-in.', ui.ButtonSet.OK_CANCEL);
+  const p = ui.prompt('Sign-in code for ' + n.getResponseText().trim(), 'Any 4 characters or more, e.g. 4821. It works once, on one phone.', ui.ButtonSet.OK_CANCEL);
   if (p.getSelectedButton() !== ui.Button.OK) return;
-  const r = setTeacher_(n.getResponseText(), p.getResponseText(), null, true);
-  ui.alert(r.ok ? (r.name + (p.getResponseText() ? ' can now sign in.' : ' chooses a password at first sign-in.')) : r.error);
+  const r = setTeacher_(n.getResponseText(), p.getResponseText(), null, false);
+  ui.alert(r.ok ? (r.name + ' can sign in once with that code.') : r.error);
 }
 
 function menuRemoveTeacher() {
@@ -335,50 +346,61 @@ function route_(req) {
 // ─────────────────────────────────────────────────────────────── sign-in
 
 /**
- * Three cases, all from the same form on the page:
- *   the name has a password       → check it
- *   the name has no password yet  → first sign-in: the page asks for it twice (confirm) and it is stored
- *   the name is not in Teachers   → say so plainly
+ * One form on the page, two kinds of people:
+ *   a teacher types their name and the single-use code from the Teachers tab → the code is used up,
+ *     and this phone stays signed in for the school year (TEACHER_DAYS)
+ *   an admin types their name and their password (or chooses one at their first sign-in)
  */
 function login_(name, password, confirm) {
-  name = clean_(name, 40); password = String(password || '');
+  name = clean_(name, 40); password = String(password || '').trim();
   if (!name) return { ok: false, error: 'Type your name.' };
   const cache = CacheService.getScriptCache(), key = 'fail_' + norm_(name).replace(/[^a-z0-9]/g, '_');
   const fails = Number(cache.get(key) || 0);
-  if (fails >= MAX_TRIES) return { ok: false, error: 'Too many wrong passwords. Wait 10 minutes and try again.' };
+  if (fails >= MAX_TRIES) return { ok: false, error: 'Too many wrong tries. Wait 10 minutes and try again.' };
   const sh = sheet_(SHEETS.TEACHERS);
   const t = teachers_().find(x => norm_(x.name) === norm_(name));
   if (!t) return { ok: false, error: 'There is no teacher called "' + name + '" yet. Ask the test organiser to add you in the Teachers tab, or check the spelling.', code: 'unknown' };
-  if (t.typed && t.typed !== SET && !t.hash) {                // typed in the sheet and not yet scrambled
-    if (t.typed.length >= MIN_PASSWORD) storeTypedPassword_(sh, t.row);
-    t.hash = sh.getRange(t.row, T.HASH + 1).getValue(); t.salt = sh.getRange(t.row, T.SALT + 1).getValue();
+  if (t.typed && !isMarker_(t.typed) && !t.hash) {            // typed in the sheet and not yet scrambled
+    storeTypedPassword_(sh, t.row);
+    t.hash = String(sh.getRange(t.row, T.HASH + 1).getValue() || ''); t.salt = String(sh.getRange(t.row, T.SALT + 1).getValue() || '');
+  }
+  if (t.role !== 'admin') {
+    if (!t.hash) return { ok: false, error: 'There is no sign-in code waiting for you. Ask the test organiser for one.' };
+    if (!password) return { ok: false, error: 'Type the sign-in code you were given.' };
+    if (hash_(password, t.salt) !== t.hash) { cache.put(key, String(fails + 1), 600); return { ok: false, error: 'That code is not right. Check it with the test organiser.' }; }
+    cache.remove(key);
+    // used up: the next phone needs a new code
+    sh.getRange(t.row, T.HASH + 1, 1, 2).setValues([['', '']]);
+    sh.getRange(t.row, T.PASS + 1).setValue('used ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd.MM.yyyy HH:mm'));
+    refreshTeacherStatus_();
+    return startSession_(t, false, TEACHER_DAYS);
   }
   if (!t.hash) {
     if (!password) return { ok: false, error: 'Choose a password for your first sign-in.', code: 'activate', name: t.name };
     if (password.length < MIN_PASSWORD) return { ok: false, error: 'Use ' + MIN_PASSWORD + ' characters or more.', code: 'activate', name: t.name };
     if (confirm === undefined || confirm === null) return { ok: false, error: 'First sign-in: type the same password again to confirm it.', code: 'activate', name: t.name };
-    if (String(confirm) !== password) return { ok: false, error: 'The two passwords are different. Try again.', code: 'activate', name: t.name };
+    if (String(confirm).trim() !== password) return { ok: false, error: 'The two passwords are different. Try again.', code: 'activate', name: t.name };
     const salt = Utilities.getUuid().replace(/-/g, '');
     sh.getRange(t.row, T.HASH + 1, 1, 2).setValues([[hash_(password, salt), salt]]);
     sh.getRange(t.row, T.PASS + 1).setValue(SET);
     if (!t.roleSet) sh.getRange(t.row, T.ROLE + 1).setValue(t.role);
     refreshTeacherStatus_();
-    return startSession_(t, true);
+    return startSession_(t, true, SESSION_DAYS);
   }
   if (!password) return { ok: false, error: 'Type your password.' };
   if (hash_(password, t.salt) !== t.hash) {
     cache.put(key, String(fails + 1), 600);
-    return { ok: false, error: 'That password is not right. Forgot it? Ask the test organiser to reset it in the Teachers tab.' };
+    return { ok: false, error: 'That password is not right.' };
   }
   cache.remove(key);
-  return startSession_(t, false);
+  return startSession_(t, false, SESSION_DAYS);
 }
 
-function startSession_(t, activated) {
+function startSession_(t, activated, days) {
   const token = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
-  PropertiesService.getScriptProperties().setProperty('s_' + token, JSON.stringify({ name: t.name, exp: Date.now() + SESSION_DAYS * 864e5 }));
+  PropertiesService.getScriptProperties().setProperty('s_' + token, JSON.stringify({ name: t.name, exp: Date.now() + (days || SESSION_DAYS) * 864e5 }));
   try { sheet_(SHEETS.TEACHERS).getRange(t.row, T.LAST + 1).setValue(new Date()); } catch (e) {}
-  return { ok: true, token, name: t.name, role: t.role, activated };
+  return { ok: true, token, name: t.name, role: t.role, activated, days: days || SESSION_DAYS };
 }
 
 function auth_(token) {
@@ -389,25 +411,27 @@ function auth_(token) {
   const s = JSON.parse(raw);
   if (s.exp < Date.now()) { props.deleteProperty('s_' + token); return null; }
   const t = teachers_().find(x => norm_(x.name) === norm_(s.name));
-  if (!t || !t.hash) { props.deleteProperty('s_' + token); return null; }
+  if (!t || (t.role === 'admin' && !t.hash)) { props.deleteProperty('s_' + token); return null; }
   return { name: t.name, role: t.role, token };
 }
 
 function admin_(me) { return me.role === 'admin' ? null : { ok: false, error: 'Only an admin can do that.' }; }
 
-/** Adds a teacher or resets one. An empty password means "they choose it at first sign-in". */
+/** Adds a teacher or gives them a new code; for an admin the value is their password. */
 function setTeacher_(name, password, role, allowEmpty) {
-  name = clean_(name, 40); password = String(password || '');
+  name = clean_(name, 40); password = String(password || '').trim();
   if (!name) return { ok: false, error: 'Type a name.' };
-  if (password && password.length < MIN_PASSWORD) return { ok: false, error: 'The password needs at least ' + MIN_PASSWORD + ' characters.' };
-  if (!password && !allowEmpty) return { ok: false, error: 'Type a password.' };
   const sh = sheet_(SHEETS.TEACHERS), rows = teachers_();
   const found = rows.find(x => norm_(x.name) === norm_(name));
+  const finalRole = role || (found && found.role) || (rows.length ? 'teacher' : 'admin');
+  const min = finalRole === 'admin' ? MIN_PASSWORD : MIN_CODE;
+  if (password && password.length < min) return { ok: false, error: (finalRole === 'admin' ? 'The password' : 'The code') + ' needs at least ' + min + ' characters.' };
+  if (!password && !allowEmpty) return { ok: false, error: finalRole === 'admin' ? 'Type a password.' : 'Type a sign-in code.' };
   const r = found ? found.row : Math.max(2, sh.getLastRow() + 1);
   const salt = password ? Utilities.getUuid().replace(/-/g, '') : '';
-  const finalRole = role || (found && found.role) || (rows.length ? 'teacher' : 'admin');
-  sh.getRange(r, 1, 1, 7).setValues([[name, password ? SET : '', finalRole, '', found ? found.last : '', password ? hash_(password, salt) : '', salt]]);
-  endSessions_(name);
+  const shown = password ? (finalRole === 'admin' ? SET : READY) : (found ? found.typed : '');
+  sh.getRange(r, 1, 1, 7).setValues([[name, shown, finalRole, '', found ? found.last : '', password ? hash_(password, salt) : '', salt]]);
+  if (finalRole === 'admin') endSessions_(name);
   refreshTeacherStatus_();
   return { ok: true, name, reset: !!found };
 }
@@ -423,6 +447,7 @@ function removeTeacher_(name) {
 function changePassword_(me, req) {
   const t = teachers_().find(x => norm_(x.name) === norm_(me.name));
   if (!t || hash_(String(req.current || ''), t.salt) !== t.hash) return { ok: false, error: 'Your current password is not right.' };
+  if (t.role !== 'admin') return { ok: false, error: 'Teachers sign in with a code, not a password.' };
   const r = setTeacher_(me.name, req.next, t.role, false);
   if (!r.ok) return r;
   return login_(me.name, req.next);
@@ -485,7 +510,7 @@ function state_(me) {
   });
   return { ok: true, me: { name: me.name, role: me.role },
     students: students.map(s => ({ id: s.id, day: s.day, name: s.name, studio: s.studio, addedBy: s.addedBy, createdAt: s.createdAt })),
-    entries, days, teachers: teachers_().filter(t => t.hash).map(t => t.name) };
+    entries, days, teachers: teachers_().map(t => t.name) };
 }
 
 function addStudents_(me, req) {
@@ -585,7 +610,7 @@ function headerOf_(name) {
 }
 function migrateTeachers_() {
   const o = headerOf_(SHEETS.TEACHERS.name);
-  if (!o || o.head[1] === 'Password') return;
+  if (!o || o.head[1] === 'Password' || o.head[1] === 'Sign-in code') return;   // already the current layout
   // v1 layout: Name | Role | Password hash | Salt | Added. A value without a salt was typed by hand: it is a password.
   const rows = o.rows.filter(r => r[0]).map(r => {
     const hasSalt = !!r[3];
