@@ -17,11 +17,16 @@ Your co-teachers need no Google or claude.ai account, only the link, their name 
    - Who has access: **Anyone**
 
    Press **Deploy** and copy the address that ends in `/exec`.
-5. Go back to the Sheet and reload it. A menu **Ops Test** appears. Use **Ops Test ▸ Add or reset a teacher…**:
-   - add yourself first and answer **Yes** to Admin;
-   - then add each co-teacher with a password of 6 or more characters.
+5. Back in the Sheet, run **Ops Test ▸ Set up / tidy the sheet** once. It builds and styles every tab, and adds a **Start here** tab that explains everything.
 
-   You can also add teachers later from the page itself: tap your name ▸ Teachers.
+## Adding teachers
+
+This is done in the **Teachers** tab. Anyone you share the Sheet with can do it.
+
+- **Name and password:** type a name and a password of 6 or more characters. The password turns into "●●●●●● set" the moment you press Enter, and the teacher can sign in.
+- **Name only:** the first time that teacher signs in on the page, they choose their own password, typed twice.
+- **Forgotten password:** clear the dots. The teacher is signed out everywhere and chooses a new password next time.
+- **Status column:** says whether each person is Ready, Waiting, or has a password that is too short.
 
 "Anyone" access means anyone can reach the script. Without a valid name and password it answers nothing but "Please sign in again".
 
@@ -45,9 +50,10 @@ Saving the script is not enough. Use **Deploy ▸ Manage deployments ▸ ✎ Edi
 
 | Tab | What it holds |
 | --- | --- |
-| Teachers | Name, role, and the password as a salted hash. The password itself is never stored. |
+| Start here | The page link, how to add teachers, what each tab holds, how grades work. |
+| Teachers | Name, password (shown as dots), role, status, last sign-in. The scrambled password sits in two hidden columns. |
 | Students | One row per student and test date. Removing a student marks the row "Deleted" (with who and when), so nothing is lost. |
-| Marks | One row per student per teacher, as JSON. |
+| Marks | One row per student per teacher. Every skill is shown in words with colours, plus score, critical errors and feedback. A hidden last column holds the page's own copy. |
 | Days | Which test dates have their grades revealed. |
 | Results | The tally. The page writes it whenever grades are revealed or downloaded. |
 
@@ -57,4 +63,6 @@ Saving the script is not enough. Use **Deploy ▸ Manage deployments ▸ ✎ Edi
 node dev/server.mjs
 ```
 
-Then open `http://localhost:8787/?api=/api` and sign in as Gunnar with the password `catalyst`. This runs the same `Code.gs` with stand-ins for Google's services.
+Then open `http://localhost:8787/?api=/api` and sign in as Gunnar with the password `catalyst`. Anna has no password yet, so signing in as her tries out the first sign-in. This runs the same `Code.gs` with stand-ins for Google's services.
+
+`node dev/test.mjs` runs the automatic checks for sign-in and the Sheet.
