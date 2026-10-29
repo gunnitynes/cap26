@@ -287,6 +287,7 @@ details.guide[open] summary::after{content:"–"}
 .login{display:flex;flex-direction:column;gap:12px;padding:18px;border-color:var(--led)}
 .login-h{font-size:20px;font-weight:800;letter-spacing:-.01em}
 .err{color:var(--no);margin:0}
+.hint{font-size:12.5px;color:var(--mute);line-height:1.4}
 .info{margin:0;color:var(--ink);background:var(--led-soft);border-radius:8px;padding:8px 10px}
 .acct{display:flex;flex-direction:column;gap:6px;padding:18px}
 .acct .ghost{align-self:flex-start;margin-top:8px}
@@ -369,6 +370,13 @@ const GRADES=[{k:'dist',l:'Distinction',min:.9,col:'led'},{k:'merit',l:'Merit',m
 
 /* ------------------------------------------------------------------ helpers */
 const $=s=>document.querySelector(s);
+const touchDevice=matchMedia('(pointer: coarse)').matches;
+/* iPhone home-screen apps: a tap on a field that is already focused (but has no keyboard) does nothing.
+   Blur and refocus inside the tap so the keyboard always comes up. */
+document.addEventListener('touchend',e=>{
+  const f=e.target.closest&&e.target.closest('input[type=text],input[type=password],input[type=date],input[type=number],textarea');
+  if(f&&document.activeElement===f){f.blur();f.focus()}
+},{passive:true});
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 const fmtDay=d=>{try{return new Date(d+'T12:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}catch(e){return d}};
@@ -618,7 +626,8 @@ function renderLogin(){
       <p class="readout info" id="lInfo" hidden></p>
       <div class="field"><label for="lName">Your name</label><input type="text" id="lName" name="username" autocomplete="username" autocapitalize="words" value="${esc(last)}" placeholder="As it is written in the Teachers tab"></div>
       <div class="field"><label for="lPass" id="lPassLbl">Password</label><input type="password" id="lPass" name="password" autocomplete="current-password" placeholder="Your password"></div>
-      <div class="field" id="lConfWrap" hidden><label for="lConf">Type the same password again</label><input type="password" id="lConf" autocomplete="new-password"></div>
+      <div class="field" id="lConfWrap" hidden><label for="lConf">Type the same password again</label><input type="password" id="lConf" autocomplete="new-password">
+        <span class="hint">Pick one you use nowhere else. Three random words work well, like <i>lamp-river-cello</i>. Your phone may warn you if a password has appeared in a data leak elsewhere.</span></div>
       <button class="primary" type="submit" id="lBtn">Sign in</button>
       <p class="readout err" id="lErr" hidden></p>
       <p class="readout" style="margin:0">First time? Type your name and leave the password empty. If you have no password yet, you choose one now.</p>
@@ -659,7 +668,7 @@ function renderLogin(){
     </section>
   </div>`;
   const f=$('#loginForm');
-  if(!last)$('#lName').focus();
+  if(!last&&!touchDevice)$('#lName').focus();
   let activating=false;
   const setMode=on=>{activating=on;$('#lConfWrap').hidden=!on;$('#lPassLbl').textContent=on?'Choose a password (6 characters or more)':'Password';
     $('#lPass').autocomplete=on?'new-password':'current-password';$('#lBtn').textContent=on?'Set password and sign in':'Sign in'};
@@ -674,7 +683,7 @@ function renderLogin(){
     if(!j.ok&&j.code==='activate'){
       // the name exists but has no password yet: this is the teacher's first sign-in
       if(!activating){setMode(true);info.innerHTML=`Welcome, <b>${esc(j.name)}</b>. This is your first sign-in, so choose your own password.`;info.hidden=false;
-        if(password){$('#lConf').focus()}else{$('#lPass').focus()}return}
+        if(!touchDevice){(password?$('#lConf'):$('#lPass')).focus()}return}
       err.textContent=j.error;err.hidden=false;return}
     if(!j.ok){err.textContent=j.error;err.hidden=false;return}
     S.token=j.token;S.me=j.name;S.role=j.role;ls.set('ops.token',S.token);ls.set('ops.me',S.me);ls.set('ops.role',S.role);ls.set('ops.lastName',j.name);
@@ -696,7 +705,8 @@ function renderAccount(quiet){
       <b class="login-h">Change your password</b>
       <input type="text" name="username" value="${esc(S.me)}" autocomplete="username" hidden>
       <div class="field"><label for="pwOld">Current password</label><input type="password" id="pwOld" autocomplete="current-password"></div>
-      <div class="field"><label for="pwNew">New password (6 characters or more)</label><input type="password" id="pwNew" autocomplete="new-password"></div>
+      <div class="field"><label for="pwNew">New password (6 characters or more)</label><input type="password" id="pwNew" autocomplete="new-password">
+        <span class="hint">Pick one you use nowhere else. Three random words work well, like <i>lamp-river-cello</i>. If your phone warns that a password was "found in a data breach", change it here.</span></div>
       <button class="primary" type="submit">Change password</button>
       <p class="readout err" id="pwErr" hidden></p>
     </form>
