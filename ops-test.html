@@ -1,0 +1,768 @@
+<title>Catalyst Operations Test</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+/* Layout: one phone column. Roster → one student's test sheet, stage by stage, like walking down a channel strip. */
+:root{
+  --bg:#eceff5; --panel:#ffffff; --sunk:#f4f6fa; --ink:#10131c; --mute:#5a6276; --line:#d5dae5;
+  --led:#0b43e0; --led-soft:#0b43e01a;
+  --tape:#f1e6bf; --tape-ink:#24221c;
+  --ok:#0f7a57; --hint:#a35f00; --no:#bf2b2b;
+  --ok-soft:#0f7a571c; --hint-soft:#a35f001f; --no-soft:#bf2b2b1a; --late:#c2410c; --late-soft:#c2410c1c;
+  --display:"Hanken Grotesk",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --r:12px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0b0d13; --panel:#141824; --sunk:#10131c; --ink:#e7eaf2; --mute:#8b93a8; --line:#262c3b;
+  --led:#5c8dff; --led-soft:#5c8dff22; --tape:#d8cda4; --tape-ink:#1b1a16;
+  --ok:#36c98f; --hint:#f0a43a; --no:#ff6b6b; --ok-soft:#36c98f22; --hint-soft:#f0a43a22; --no-soft:#ff6b6b22; --late:#fb8a4c; --late-soft:#fb8a4c22;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0b0d13; --panel:#141824; --sunk:#10131c; --ink:#e7eaf2; --mute:#8b93a8; --line:#262c3b;
+  --led:#5c8dff; --led-soft:#5c8dff22; --tape:#d8cda4; --tape-ink:#1b1a16;
+  --ok:#36c98f; --hint:#f0a43a; --no:#ff6b6b; --ok-soft:#36c98f22; --hint-soft:#f0a43a22; --no-soft:#ff6b6b22; --late:#fb8a4c; --late-soft:#fb8a4c22;
+  color-scheme:dark}
+
+*{box-sizing:border-box}
+html{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%;overscroll-behavior:none}
+body{overscroll-behavior:none;background:var(--bg);color:var(--ink);font-family:var(--display);font-size:15px;line-height:1.45;-webkit-tap-highlight-color:transparent}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--panel)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--led);outline-offset:2px}
+.wrap{max-width:640px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+h1,h2,h3{text-wrap:balance;margin:0}
+
+/* top bar */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--panel);border-bottom:1px solid var(--line)}
+.bar .wrap{padding-block:10px 0}
+.barrow{display:flex;align-items:center;gap:12px;min-height:46px;padding-bottom:10px}
+.brand b{text-wrap:balance}
+.brand{display:flex;flex-direction:column;min-width:0;flex:1}
+.brand .eyebrow{display:flex;gap:8px;align-items:center;white-space:nowrap;overflow:hidden}
+.brand b{font-weight:800;font-size:16px;letter-spacing:-.01em;line-height:1.2}
+.sync{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--mute);white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--mute);flex:none}
+.sync[data-s="ok"] .dot{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+.sync[data-s="busy"] .dot{background:var(--hint);box-shadow:0 0 6px var(--hint)}
+.sync[data-s="err"] .dot{background:var(--no);box-shadow:0 0 6px var(--no)}
+.sync[data-s="err"]{color:var(--no)}
+.iconbtn{border:1px solid var(--line);background:var(--sunk);border-radius:10px;height:38px;min-width:38px;padding:0 12px;font-weight:600;font-size:14px}
+
+.datebox{display:flex;align-items:center;gap:2px;flex:none}
+.datebox .step{border:1px solid var(--line);background:var(--sunk);height:38px;width:30px;border-radius:9px;font-family:var(--mono);font-size:15px;color:var(--mute)}
+.datepill{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;height:38px;padding:0 10px;border:1px solid var(--led);background:var(--led-soft);border-radius:9px;color:var(--led);font-family:var(--mono);font-weight:700;font-size:13px;white-space:nowrap;line-height:1.05}
+.datepill small{font-size:9px;letter-spacing:.1em;font-weight:500;opacity:.8}
+.datepill input{position:absolute;inset:0;opacity:0;width:100%;height:100%;border:0;padding:0;cursor:pointer}
+.dhead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.month{border:0;background:none;padding:4px 0;font-weight:800;font-size:15px;display:inline-flex;align-items:center;gap:6px}
+.month svg{width:14px;height:14px;transition:transform .2s;color:var(--mute)}
+.month[aria-expanded="true"] svg{transform:rotate(180deg)}
+.todaybtn{border:1px solid var(--line);background:var(--sunk);border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700}
+.dstrip{display:flex;gap:6px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;padding:8px 0 12px;scrollbar-width:none;overscroll-behavior-x:contain}
+.dstrip::-webkit-scrollbar{display:none}
+.dcell{flex:0 0 calc((100% - 36px)/7);scroll-snap-align:start;border:1px solid var(--line);background:var(--sunk);border-radius:14px;padding:7px 0 8px;display:flex;flex-direction:column;align-items:center;gap:1px;transition:background .15s,color .15s,transform .15s}
+.dcell:active{transform:scale(.96)}
+.dcell .w{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+.dcell .n{font-size:19px;font-weight:800;line-height:1.15;font-variant-numeric:tabular-nums}
+.dcell .c{height:14px;min-width:14px;padding:0 4px;border-radius:7px;font-family:var(--mono);font-size:9.5px;font-weight:700;line-height:14px;text-align:center;color:transparent}
+.dcell[data-n] .c{background:var(--led-soft);color:var(--led)}
+.dcell.we{background:transparent}
+.dcell.today{border-color:var(--led);border-width:1.5px}
+.dcell[aria-pressed="true"]{background:var(--led);color:#fff;border-color:var(--led);box-shadow:0 4px 14px -4px var(--led)}
+.dcell[aria-pressed="true"] .w{color:#ffffffc0}
+.dcell[aria-pressed="true"] .c{background:#ffffff33;color:#fff}
+.dcell[aria-pressed="true"]:not([data-n]) .c{background:transparent}
+.dcell.mstart .w{color:var(--led);font-weight:700}
+.dcell[aria-pressed="true"].mstart .w{color:#fff}
+.datecard{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:52px;height:46px;border-radius:12px;background:var(--led);color:#fff;line-height:1.05}
+.datecard small{font-family:var(--mono);font-size:9px;letter-spacing:.1em;opacity:.85}
+.datecard b{font-size:18px;font-weight:800}
+.datecard span{font-family:var(--mono);font-size:9px;letter-spacing:.08em;opacity:.85;text-transform:uppercase}
+.datepill.static{border-color:var(--line);background:var(--sunk);color:var(--ink)}
+.dayhead{display:flex;justify-content:space-between;align-items:baseline;margin-top:10px;padding:0 2px}
+.dayhead b{font-size:14px}.dayhead span{font-family:var(--mono);font-size:11px;color:var(--mute)}
+.crit-n{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--no)}
+.chip .c{opacity:.6;margin-left:6px}
+.banner{margin-top:12px;border:1px dashed var(--line);border-radius:var(--r);padding:10px 12px;font-size:13px;color:var(--mute)}
+
+/* roster */
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:10px}
+.stat .n{font-family:var(--mono);font-size:22px;font-weight:700;line-height:1.1}
+.stat .l{font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.08em}
+.days{display:flex;gap:6px;overflow-x:auto;margin-top:16px;padding-bottom:4px;scrollbar-width:none}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 12px;font-family:var(--mono);font-size:12px;white-space:nowrap}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.row{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;text-align:left;width:100%}
+.row .who{flex:1;min-width:0}
+.row .who b{display:block;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .who span{font-size:12px;color:var(--mute)}
+.meter{width:44px;height:44px;flex:none}
+.pill{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:6px;padding:3px 7px;white-space:nowrap;border:1px solid currentColor}
+.pill.pass{color:var(--ok);background:var(--ok-soft)} .pill.border{color:var(--hint);background:var(--hint-soft)} .pill.resit{color:var(--no);background:var(--no-soft)}
+.pill.live{color:var(--led);background:var(--led-soft)} .pill.todo{color:var(--mute)}
+.empty{background:var(--panel);border:1px dashed var(--line);border-radius:var(--r);padding:20px;text-align:center;color:var(--mute)}
+.empty b{color:var(--ink);display:block;margin-bottom:4px}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+.add{margin-top:20px;display:flex;flex-direction:column;gap:10px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:12px;color:var(--mute);font-weight:600}
+input[type=text],input[type=date],input[type=number],textarea,select{background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;font-size:16px}
+textarea{resize:vertical;min-height:44px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--sunk)}
+.seg button{border:0;background:transparent;padding:10px 6px;font-weight:600;font-size:13px;border-left:1px solid var(--line)}
+.seg button:first-child{border-left:0}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.primary{background:var(--led);color:#fff;border:0;border-radius:10px;padding:12px 16px;font-weight:700;font-size:15px}
+.ghost{background:transparent;border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-weight:600}
+.danger{color:var(--no)}
+.tools{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+details.guide{margin-top:20px}
+details.guide summary{cursor:pointer;font-weight:700;list-style:none;display:flex;justify-content:space-between}
+details.guide summary::after{content:"+";font-family:var(--mono);color:var(--mute)}
+details.guide[open] summary::after{content:"–"}
+.guide ul{padding-left:18px;margin:10px 0 0;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.key{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:700;border-radius:4px;padding:1px 5px;color:#fff}
+
+/* student sheet */
+.strip{margin-top:14px;display:flex;align-items:center;gap:12px}
+.scribble{background:var(--tape);color:var(--tape-ink);font-family:var(--mono);font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:8px 14px 7px;border-radius:2px;transform:rotate(-1deg);box-shadow:0 1px 0 #0000001f;font-size:18px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%;
+  -webkit-mask:linear-gradient(90deg,transparent 0,#000 3px,#000 calc(100% - 3px),transparent 100%)}
+.strip .meta{font-size:12px;color:var(--mute);min-width:0}
+.stagenav{position:sticky;top:calc(env(safe-area-inset-top,0px) + var(--barh,57px));z-index:4;background:var(--bg);display:flex;gap:6px;overflow-x:auto;padding:8px 0 10px;scrollbar-width:none;margin-inline:-4px;padding-inline:4px}
+.stagenav a{flex:none;display:flex;align-items:center;gap:6px;text-decoration:none;color:var(--ink);border:1px solid var(--line);background:var(--sunk);border-radius:8px;padding:5px 9px;font-size:12px;font-weight:600}
+.stagenav a .mono{color:var(--mute)}
+.stagenav a .dot{width:6px;height:6px}
+.stagenav a[data-s="done"] .dot{background:var(--ok)}
+.stagenav a[data-s="part"] .dot{background:var(--hint)}
+.stagenav a[data-s="flag"] .dot{background:var(--no)}
+.sheet{display:flex;flex-direction:column;gap:22px;margin-top:16px;padding-bottom:40px}
+.readout{font-size:12px;color:var(--mute);margin-top:10px}
+.stage{display:flex;flex-direction:column;gap:8px;scroll-margin-top:calc(env(safe-area-inset-top,0px) + 120px)}
+.stage-h{display:flex;align-items:baseline;gap:10px;padding:0 2px}
+.stage-h .mono{font-size:12px;color:var(--led);font-weight:700}
+.stage-h h2{font-size:18px;font-weight:800;letter-spacing:-.01em;flex:1}
+.stage-h .count{font-family:var(--mono);font-size:12px;color:var(--mute)}
+.crit{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:10px}
+.crit[data-m="y"]{border-color:color-mix(in srgb,var(--ok) 45%,var(--line))}
+.crit[data-m="h"]{border-color:color-mix(in srgb,var(--hint) 45%,var(--line))}
+.crit[data-m="n"]{border-color:color-mix(in srgb,var(--no) 45%,var(--line))}
+.crit[data-m="g"]{border-color:color-mix(in srgb,var(--late) 45%,var(--line))}
+.crit-top{display:flex;gap:10px;align-items:flex-start}
+.crit-top .t{flex:1;min-width:0}
+.crit-top h3{font-size:15px;font-weight:700;line-height:1.3}
+.tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.tags:empty{display:none}
+.tag{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-radius:4px;padding:1px 5px;border:1px solid var(--line);color:var(--mute)}
+.tag.core{color:var(--led);border-color:var(--led)}
+.tag.safety{color:var(--no);border-color:var(--no)}
+.more{border:0;background:none;color:var(--mute);font-family:var(--mono);font-size:12px;padding:2px 0 2px 8px;flex:none}
+.detail{font-size:13.5px;color:var(--mute);display:flex;flex-direction:column;gap:8px}
+.detail .ask{color:var(--ink);background:var(--sunk);border-left:3px solid var(--led);padding:8px 10px;border-radius:0 8px 8px 0}
+.detail .ask::before{content:"ASK  ";font-family:var(--mono);font-size:10px;font-weight:700;color:var(--led);letter-spacing:.1em}
+.marks{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.marks button{border:1px solid var(--line);background:var(--sunk);border-radius:9px;padding:10px 2px 9px;font-size:12.5px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:5px;transition:background .12s,border-color .12s}
+.marks button i{width:9px;height:9px;border-radius:50%;background:var(--line);transition:background .12s,box-shadow .12s}
+.marks button[data-v="y"][aria-pressed="true"]{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+.marks button[data-v="y"][aria-pressed="true"] i{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.marks button[data-v="h"][aria-pressed="true"]{background:var(--hint-soft);border-color:var(--hint);color:var(--hint)}
+.marks button[data-v="h"][aria-pressed="true"] i{background:var(--hint);box-shadow:0 0 8px var(--hint)}
+.marks button[data-v="n"][aria-pressed="true"]{background:var(--no-soft);border-color:var(--no);color:var(--no)}
+.marks button[data-v="n"][aria-pressed="true"] i{background:var(--no);box-shadow:0 0 8px var(--no)}
+.marks button[data-v="g"][aria-pressed="true"]{background:var(--late-soft);border-color:var(--late);color:var(--late)}
+.marks button[data-v="g"][aria-pressed="true"] i{background:var(--late);box-shadow:0 0 8px var(--late)}
+[hidden]{display:none!important}
+.marks.three{grid-template-columns:repeat(3,1fr)}
+.note{font-size:16px}
+
+.safety{border-color:var(--no)}
+.safety h3{font-size:15px}
+.incident{display:flex;gap:8px;align-items:flex-start;font-size:14px;border-top:1px solid var(--line);padding-top:8px}
+.incident .mono{font-size:11px;color:var(--mute);flex:none;padding-top:2px}
+.incident p{margin:0;flex:1;min-width:0;overflow-wrap:anywhere}
+.incident .stop{color:var(--no);font-weight:700}
+.quick{display:flex;flex-wrap:wrap;gap:6px}
+.quick button{display:inline-flex;align-items:center;gap:8px;text-align:left;border:1px solid var(--line);background:var(--sunk);border-radius:10px;padding:9px 12px;font-size:13.5px;font-weight:600;transition:background .12s,border-color .12s}
+.quick button i{width:9px;height:9px;border-radius:50%;background:var(--line);flex:none;transition:background .12s,box-shadow .12s}
+.quick button[aria-pressed="true"]{background:var(--no-soft);border-color:var(--no);color:var(--no)}
+.quick button[aria-pressed="true"] i{background:var(--no);box-shadow:0 0 8px var(--no)}
+.check{display:flex;align-items:center;gap:8px;font-size:14px}
+.check input{width:20px;height:20px;accent-color:var(--no)}
+
+.verdict{display:flex;flex-direction:column;gap:12px}
+.score{display:flex;align-items:center;gap:14px}
+.score .big{font-family:var(--mono);font-size:40px;font-weight:700;line-height:1}
+.reasons{font-size:13.5px;color:var(--mute);margin:0;padding-left:18px}
+.vseg button[data-v="pass"][aria-pressed="true"]{background:var(--ok);color:#fff}
+.vseg button[data-v="border"][aria-pressed="true"]{background:var(--hint);color:#fff}
+.vseg button[data-v="resit"][aria-pressed="true"]{background:var(--no);color:#fff}
+.foot{display:flex;gap:8px;flex-wrap:wrap}
+
+.cal{margin-top:12px;padding:12px}
+.cal-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cal-h b{font-size:16px;font-weight:800}
+.cal-h .step{border:1px solid var(--line);background:var(--sunk);height:34px;width:34px;border-radius:9px;font-family:var(--mono);font-size:15px;color:var(--mute)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-dow{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--mute);text-align:center;padding-bottom:4px}
+.cal-d{position:relative;aspect-ratio:1;max-width:100%;border:1px solid transparent;background:transparent;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-family:var(--mono);font-size:13px;padding:0}
+.cal-d.out{visibility:hidden}
+.cal-d.has{background:var(--led-soft);color:var(--led);font-weight:700}
+.cal-d .n{font-size:9.5px;font-weight:700;line-height:1}
+.cal-d.today{border-color:var(--line)}
+.cal-d[aria-pressed="true"]{background:var(--led);color:#fff;border-color:var(--led)}
+.cal-d.rev::after{content:"";position:absolute;top:5px;right:5px;width:5px;height:5px;border-radius:50%;background:var(--ok)}
+.gate{display:flex;align-items:center;gap:12px;margin-top:12px}
+.gate p{margin:0;flex:1;min-width:0;font-size:13.5px;color:var(--mute)}
+.gate p b{color:var(--ink)}
+.gate .ghost{white-space:nowrap}
+.pill.dist{color:var(--led);background:var(--led-soft)} .pill.merit{color:var(--ok);background:var(--ok-soft)} .pill.passg{color:var(--ink);background:var(--sunk)} .pill.resitg{color:var(--no);background:var(--no-soft)} .pill.done{color:var(--ink)}
+.grade{font-size:34px;font-weight:800;letter-spacing:-.02em;line-height:1}
+.bands{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:11px;font-family:var(--mono);color:var(--mute);text-align:center}
+.bands span{border:1px solid var(--line);border-radius:6px;padding:5px 2px}
+.bands span.on{border-color:currentColor;font-weight:700}
+.hidden-grade{display:flex;align-items:center;gap:12px;background:var(--sunk);border:1px dashed var(--line);border-radius:10px;padding:12px;font-size:14px;color:var(--mute)}
+.whobtn{border:0;background:var(--led-soft);color:var(--led);font:inherit;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-radius:5px;padding:1px 6px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.signin{margin-top:20px;display:flex;flex-direction:column;gap:14px;padding:20px}
+.per{display:flex;flex-direction:column;gap:10px;margin-top:14px}
+.per-row{border-top:1px solid var(--line);padding-top:10px}
+.per-top{display:flex;justify-content:space-between;gap:10px;font-size:14px}
+.per-top span{font-family:var(--mono);font-size:12px;font-weight:700}
+.per-row .reasons{margin-top:6px}
+.confirm{margin-top:12px;display:flex;flex-direction:column;gap:8px;border-color:var(--led)}
+.confirm b{font-size:16px}.confirm p{margin:0;font-size:14px;color:var(--mute)}
+.tally{margin-top:12px;display:flex;flex-direction:column;gap:12px;padding:12px}
+.tally-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.tally-h b{font-size:16px;font-weight:800}.tally-h span{font-family:var(--mono);font-size:11px;color:var(--mute)}
+.tbl-wrap{overflow-x:auto;margin-inline:-12px;padding-inline:12px}
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
+.tbl th{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);font-weight:500;text-align:right;padding:0 6px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl th:first-child,.tbl td:first-child{text-align:left;padding-left:0}
+.tbl td{text-align:right;padding:9px 6px;border-bottom:1px solid var(--line);font-family:var(--mono);white-space:nowrap;vertical-align:middle}
+.tbl td:first-child{font-family:var(--display);white-space:normal;width:100%}
+.tbl td b{font-size:15px}
+.tbl td:first-child b{display:block;font-size:14px}
+.tbl td small{display:block;font-size:10.5px;color:var(--mute);font-family:var(--mono)}
+.tbl td:last-child{padding-right:0}
+.tbl tr[data-open]{cursor:pointer}
+.tbl tr:last-child td{border-bottom:0}
+.exports{margin-top:20px;display:flex;flex-direction:column;gap:8px}
+.sum{display:flex;flex-direction:column;margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:2px 12px}
+.sum-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.sum .sum-row:last-child{border-bottom:0}
+.sum-row span{color:var(--mute);min-width:0;overflow-wrap:anywhere}
+.sum-row b{font-family:var(--mono);white-space:nowrap}
+.sum-row.warn span,.sum-row.warn b{color:var(--no)}
+.per-h{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin-top:14px}
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;font-weight:600;z-index:20;max-width:calc(100% - 32px)}
+.export{margin-top:10px;font-family:var(--mono);font-size:11px;min-height:120px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (max-width:520px){.sync:not([data-s="err"]) span{display:none}}
+@media (max-width:380px){.summary{grid-template-columns:repeat(2,1fr)}.marks button{font-size:11.5px}}
+</style>
+
+<header class="bar"><div class="wrap" id="barInner"></div></header>
+<main class="wrap" id="app"></main>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* ------------------------------------------------------------------ rubric
+   To change the test, edit STAGES and CRIT. Every skill counts the same.
+   core:1              the student must not fail it (combined mark under 50% means Resit)
+   ask:'…'             a question shown on the sheet for the teacher to ask out loud
+   studios:['Studio A'] only for students booked in those studios (leave it out for everyone)
+   Marks already given on a removed skill are ignored; a new skill simply starts unmarked. */
+const STAGES=[
+ {id:'power',short:'Power',name:'Power up & safe listening'},
+ {id:'mic',short:'Mic',name:'Mic in the live room'},
+ {id:'route',short:'Route',name:'Route to the speakers'},
+ {id:'rec',short:'Record',name:'Record & play back in Pro Tools'},
+ {id:'cue',short:'Cue',name:'Headphones & cue mix'},
+ {id:'down',short:'Shut down',name:'Shut down & pack down'}
+];
+const CRIT=[
+ {id:'p1',s:'power',core:1,t:'Powers up in the right order',look:'Desk, interface, outboard and computer first. Speakers (or their amp) switched on last.'},
+ {id:'p2',s:'power',core:1,safety:1,t:'Control-room level down before speaker power and routing changes',look:'Watch this the whole test, not just at the start. Every speaker on/off and every big routing change happens with the control-room level down.'},
+ {id:'p3',s:'power',t:'Keeps listening levels safe and works methodically',look:'No pressing random buttons with the level up. Brings level up slowly once signal is confirmed on the meters.'},
+ {id:'m1',s:'mic',t:'Chooses a dynamic mic and places it sensibly',look:'Picks a dynamic (not the condenser or ribbon), uses a proper XLR, mic on a stand pointing at the source.'},
+ {id:'m2',s:'mic',t:'Connects the live-room wall box to the right desk channel',look:'Knows which tie line lands on which desk input. Can say the number before plugging in.'},
+ {id:'m3',s:'mic',core:1,t:'Gets a healthy signal on the desk',look:'Gain set at the preamp, not with the fader. Solid level on the meter, no clip light, no pad or HPF left on by accident.'},
+ {id:'m4',s:'mic',core:1,safety:1,t:'Understands phantom power',ask:'If I had asked you to use the condenser instead, what would you have needed to do?',look:'+48V on that channel only. Faders and control-room level down when switching it. Wait for it to settle. Off before unplugging. Never on a ribbon.'},
+ {id:'r1',s:'route',core:1,t:'Routes the channel to the mix bus and hears it in the speakers',look:'Channel assigned to the mix bus, mix bus selected as the monitor source, right speakers selected, level brought up gently.'},
+ {id:'t1',s:'rec',core:1,t:'Creates a Pro Tools track with the correct input and output',look:'Mono audio track, input matches the desk send / interface channel, output to the right interface output.'},
+ {id:'t2',s:'rec',t:'Healthy record level in Pro Tools',look:'Peaks well short of clipping (roughly −18 to −10 dBFS). Fixes level at the preamp, not with the Pro Tools fader, and knows the fader does not change the recorded level.'},
+ {id:'t3',s:'rec',core:1,t:'Records a 1-2-3 test and returns it on a different desk channel',look:'Track armed, records a short clip, playback arrives on the channel you asked for.'},
+ {id:'t4',s:'rec',core:1,t:'Plays it back through the path you asked for',look:'Picks the right source (tape return or direct signal) on the right fader (long or short).'},
+ {id:'c1',s:'cue',core:1,t:'Builds a usable cue mix on the aux sends',look:'Sends from the right channels, a balance a performer could play to, not just one channel blasting.'},
+ {id:'c2',s:'cue',core:1,t:'Understands pre-fader vs. post-fader',ask:'Should this send be pre or post fader, and why?',look:'Pre-fader for headphones, so control-room fader moves do not change the performer\'s mix. Post-fader for effects sends.'},
+ {id:'c3',s:'cue',core:1,t:'Routes the cue to the headphone amp and checks it',look:'Aux out reaches the headphone amp, right input selected on the amp, puts on headphones (level down first) to confirm.'},
+ {id:'c4',s:'cue',t:'Explains sending the cue to a selected Live room',ask:'Without going there: how would the same cue reach this Live room?',look:'Names the patch points or tie lines for that room, says what they would check there (headphone amp on, level, which input).'},
+ {id:'s1',s:'down',core:1,safety:1,t:'Knows the shutdown order',ask:'If you had to shut down the studio now, what would you switch off first?',look:'Control-room level down, then speakers off first. Then outboard and desk, computer last after saving and quitting Pro Tools.'},
+ {id:'s2',s:'down',t:'Leaves the studio as it was found',look:'Patch cables out, phantom off, sends and EQ back to zero, faders down, mic and cables put away, session saved and closed.'}
+];
+const MARK={y:'Pass',h:'Hint',g:'Got there',n:'Failed'};
+const POINTS={y:1,h:.75,g:.5,n:0};
+const QUICK=['Speakers switched with level up','Phantom switched with fader up','Control-room level dangerously loud while patching'];
+const GRADES=[{k:'dist',l:'Distinction',min:.9,col:'led'},{k:'merit',l:'Merit',min:.75,col:'ok'},{k:'passg',l:'Pass',min:.6,col:'ink'},{k:'resitg',l:'Resit',min:0,col:'no'}];
+
+/* ------------------------------------------------------------------ helpers */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const fmtDay=d=>{try{return new Date(d+'T12:00').toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})}catch(e){return d}};
+const hhmm=ms=>new Date(ms).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+const rid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const ls={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const isObj=o=>o&&typeof o==='object'&&!Array.isArray(o);
+function merge(a,b){const o={...(a||{})};for(const k in b){o[k]=isObj(b[k])&&isObj(o[k])?merge(o[k],b[k]):b[k]}return o}
+function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,2200)}
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+
+/* ------------------------------------------------------------------ state */
+const S={db:null,user:null,me:null,meName:'',demo:false,tests:{},teachers:{},pending:ls.get('ops.pending',{}),view:'roster',open:null,day:ls.get('ops.day',null)||today(),all:false,days:{},dayWant:{},confirm:null,cal:null,names:{},sync:'ok',writable:true,ready:false};
+
+/* ---- each teacher marks on their own: a test keeps one entry per teacher under by.<teacher id> */
+function entries(t){
+  const e={};for(const [k,v] of Object.entries(t.by||{}))if(v)e[k]=v;
+  // marks saved before per-teacher marking existed belong to whoever added the student
+  const L=legacy(t);if(L){const k=t.examiner||'earlier';e[k]=merge(L,e[k])}
+  return e;
+}
+function legacy(t){const has=o=>o&&Object.values(o).some(Boolean);return has(t.marks)||has(t.safety)||has(t.notes)||t.summary?{marks:t.marks||{},notes:t.notes||{},safety:t.safety||{},summary:t.summary||''}:null}
+const mine=t=>!S.me?{}:entries(t)[S.me]||{};
+const canMark=()=>S.writable&&!!S.me;
+function teacherName(uid){return S.teachers[uid]?.name||S.names[uid]||(uid==='earlier'?'Earlier marking':'A colleague')}
+
+const skillsFor=t=>CRIT.filter(c=>!c.studios||c.studios.includes(t.studio));
+const ERR_POINTS=10;
+const bandOf=p=>GRADES.find(g=>p>=g.min*100-1e-9);
+// one teacher's own progress and score; shown next to the combined result, never used for it
+function scoreOf(e,t){
+  const skills=t?skillsFor(t):CRIT,m=e.marks||{};let pts=0,n=0;
+  for(const c of skills){const v=m[c.id];if(v in POINTS){n++;pts+=POINTS[v]}}
+  const inc=[...new Set(Object.values(e.safety||{}).filter(Boolean).map(i=>i.text))];
+  return {pct:n?pts/n:0,n,total:skills.length,left:skills.length-n,complete:n===skills.length,inc};
+}
+/* The combined grade is the same sum for every student and every teacher:
+   1. each skill's mark is the average of every teacher's mark on it
+   2. the score is the average over all skills, so every skill weighs the same
+   3. minus 10 points for each different critical error that any teacher logged
+   4. a core skill whose combined mark is under 50% means Resit */
+function gradeOf(t){
+  const skills=skillsFor(t),es=entries(t),uids=Object.keys(es);
+  const per=skills.map(c=>{const v=uids.map(u=>es[u].marks?.[c.id]).filter(x=>x in POINTS).map(x=>POINTS[x]);return {c,n:v.length,avg:v.length?v.reduce((a,b)=>a+b,0)/v.length:null}});
+  const marked=per.filter(x=>x.avg!==null);
+  const score=marked.length?marked.reduce((a,x)=>a+x.avg,0)/marked.length*100:0;
+  const errors=[...new Set(uids.flatMap(u=>Object.values(es[u].safety||{}).filter(Boolean).map(i=>i.text)))];
+  const deduction=errors.length*ERR_POINTS,final=Math.max(0,score-deduction);
+  const coreFails=marked.filter(x=>x.c.core&&x.avg<.5).map(x=>x.c);
+  const grade=coreFails.length?GRADES[3]:bandOf(final);
+  return {skills,per,marked:marked.length,total:skills.length,complete:marked.length===skills.length,score,errors,deduction,final,coreFails,grade,teachers:uids.filter(u=>Object.values(es[u].marks||{}).some(v=>v in POINTS))};
+}
+const revealed=day=>!!S.days[day]?.revealed;
+function statusOf(t){
+  if(revealed(t.day)){const g=gradeOf(t);if(g.complete)return {k:g.grade.k,l:g.grade.l,grade:g.grade};if(g.marked)return {k:'live',l:'Unfinished'}}
+  const sc=scoreOf(mine(t),t);
+  if(sc.complete)return {k:'done',l:'Marked'};
+  if(!sc.n)return {k:'todo',l:'Not started'};
+  return {k:'live',l:'In progress'}}
+async function setReveal(day,on){
+  // keep the choice on screen until the store confirms it, so a refresh in between cannot flip it back
+  S.dayWant[day]=on;S.days={...S.days,[day]:{...(S.days[day]||{}),revealed:on}};S.confirm=null;render();
+  if(S.demo){toast(on?'Grades revealed for '+fmtDay(day):'Grades hidden again');return}
+  try{await S.db.collection('days').doc(day).set({revealed:on,by:S.me||null,at:Date.now()});toast(on?'Grades revealed for '+fmtDay(day):'Grades hidden again')}
+  catch(e){delete S.dayWant[day];S.days={...S.days,[day]:{...(S.days[day]||{}),revealed:!on}};render();toast('Could not save. Check your connection and try again.')}
+}
+
+/* ------------------------------------------------------------------ store + write queue */
+function view(id){return S.pending[id]?merge(S.tests[id],S.pending[id]):S.tests[id]}
+function allTests(){const ids=new Set([...Object.keys(S.tests),...Object.keys(S.pending).filter(k=>S.pending[k]?.name)]);return [...ids].map(id=>({id,...view(id)})).filter(t=>t.name&&!t.deleted)}
+function patch(id,obj){
+  S.pending[id]=merge(S.pending[id],obj);ls.set('ops.pending',S.pending);
+  refresh();flushSoon();
+}
+const patchMine=(id,obj)=>{if(!canMark())return;patch(id,{by:{[S.me]:{...obj,at:Date.now()}}})};
+let flushT=null,flushing=false,backoff=800;
+function flushSoon(d=350){clearTimeout(flushT);flushT=setTimeout(flush,d)}
+async function flush(){
+  if(flushing)return;const ids=Object.keys(S.pending);if(!ids.length){setSync('ok');return}
+  if(S.demo){for(const id of ids){S.tests[id]=merge(S.tests[id],S.pending[id])}S.pending={};ls.set('ops.pending',{});setSync('ok');refresh();return}
+  if(!S.db){setSync('err');return}
+  flushing=true;setSync('busy');
+  try{
+    for(const id of ids){
+      const p=S.pending[id];const ref=S.db.collection('tests').doc(id);
+      let exists=!!S.tests[id];if(!exists)exists=(await ref.get()).exists;
+      if(exists)await ref.update(p);else await ref.set(merge({},p));
+      S.tests[id]=merge(S.tests[id],p);
+      if(S.pending[id]===p)delete S.pending[id];
+      ls.set('ops.pending',S.pending);
+    }
+    backoff=800;flushing=false;
+    if(Object.keys(S.pending).length)flushSoon(50);else setSync('ok');
+  }catch(e){
+    flushing=false;setSync('err');
+    flushSoon(backoff=Math.min(backoff*2,15000));
+  }
+}
+function setSync(s){S.sync=s;const el=$('#sync');if(!el)return;el.dataset.s=s;el.querySelector('span').textContent=s==='ok'?(S.demo?'Preview only':'Saved'):s==='busy'?'Saving…':'Not saved yet, retrying'}
+addEventListener('online',()=>flushSoon(10));
+
+/* ------------------------------------------------------------------ boot */
+async function boot(){
+  renderBar();render();
+  const [db,user]=await Promise.all([window.claude?.use?.('db')??null,window.claude?.use?.('user')??null]).catch(()=>[null,null]);
+  S.user=user;
+  if(!db){startDemo();return}
+  S.db=db;
+  try{const me=user?await user.me():null;S.me=me?.id||null;S.meName=me?.name||''}catch(e){}
+  try{const w=user?await user.can('data.write'):null;if(w===false)S.writable=false}catch(e){}
+  db.collection('tests').onSnapshot(snap=>{
+    const next={};for(const d of snap.docs)next[d.id]=d.data();S.tests=next;
+    resolveNames();refresh();
+  },err=>{setSync('err');toast('Lost the connection to saved results. Reload the page.')});
+  db.collection('days').onSnapshot(snap=>{const next={};for(const d of snap.docs)next[d.id]=d.data();
+    for(const [d,w] of Object.entries(S.dayWant)){if(!!next[d]?.revealed===w)delete S.dayWant[d];else next[d]={...(next[d]||{}),revealed:w}}
+    S.days=next;refresh()},()=>{});
+  db.collection('teachers').onSnapshot(snap=>{const next={};for(const d of snap.docs)next[d.id]=d.data();S.teachers=next;
+    const first=!S.ready;S.ready=true;
+    if(first&&S.me&&!next[S.me]&&canMark())S.view='signin';
+    renderBar();render()},()=>{S.ready=true;render()});
+  flushSoon(10);
+}
+function startDemo(){
+  S.demo=true;S.pending={};S.me='demo-you';S.ready=true;
+  S.teachers={'demo-you':{name:'You (preview)'},'demo-col':{name:'Example colleague'}};
+  const d=today();
+  const nx=new Date();nx.setDate(nx.getDate()+6);const later=nx.getFullYear()+'-'+String(nx.getMonth()+1).padStart(2,'0')+'-'+String(nx.getDate()).padStart(2,'0');
+  const all=v=>Object.fromEntries(CRIT.map(c=>[c.id,v(c)]));
+  const mk=(name,day,by)=>{const id=rid();S.tests[id]={name,studio:'Studio A',day,createdAt:Date.now()-Math.random()*1e6,by,example:true}};
+  mk('Example · Lena',d,{'demo-you':{marks:{p1:'y',p2:'y',p3:'y',m1:'y',m2:'h',m3:'y',m4:'y',r1:'y',t1:'y',t2:'g',t3:'y'}}});
+  mk('Example · Jonas',d,{'demo-you':{marks:all(c=>c.id==='t2'?'h':'y')},'demo-col':{marks:all(c=>c.id==='m2'||c.id==='c4'?'g':'y'),safety:{a:{t:Date.now(),text:'Phantom switched with fader up'}}}});
+  mk('Example · Mira',d,{'demo-you':{marks:{p1:'y',p2:'n',m1:'y'},safety:{a:{t:Date.now()-6e5,text:'Speakers switched with level up'}}}});
+  mk('Example · Noah',later,{});mk('Example · Ida',later,{});
+  setSync('ok');renderBar();refresh();
+}
+async function resolveNames(){
+  if(!S.user?.profiles)return;const ids=[...new Set(allTests().flatMap(t=>Object.keys(entries(t))).filter(x=>x&&x!=='earlier'))];
+  if(!ids.length)return;
+  try{const ps=await S.user.profiles(ids);let ch=false;for(const id of ids){const n=ps?.[id]?.name||'';if(S.names[id]!==n){S.names[id]=n;ch=true}}if(ch)refresh()}catch(e){}
+}
+
+/* ------------------------------------------------------------------ render */
+const ymd=x=>x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');
+function dateStrip(){
+  // nine weeks of days, Monday first, starting two weeks before the chosen week; swipe sideways a week at a time
+  const sel=new Date(S.day+'T12:00'),mon=new Date(sel);mon.setDate(sel.getDate()-((sel.getDay()+6)%7));
+  const start=new Date(mon);start.setDate(mon.getDate()-14);
+  const cells=[];for(let k=0;k<63;k++){const d=new Date(start);d.setDate(start.getDate()+k);const id=ymd(d),wd=d.getDay();
+    cells.push(`<button class="dcell${wd===0||wd===6?' we':''}${id===today()?' today':''}${d.getDate()===1?' mstart':''}" data-d="${id}" aria-pressed="${id===S.day}" aria-label="${fmtDay(id)}"><span class="w">${d.getDate()===1?d.toLocaleDateString('en-GB',{month:'short'}):d.toLocaleDateString('en-GB',{weekday:'short'}).slice(0,2)}</span><span class="n">${d.getDate()}</span><span class="c"></span></button>`)}
+  return `<div class="dhead" id="dhead">${dhead()}</div>
+    <div class="dstrip" id="dstrip">${cells.join('')}</div>`;
+}
+function dhead(){const sel=new Date(S.day+'T12:00');
+  return `<button class="month" id="monthBtn" aria-expanded="${S.all}" aria-label="Show the month calendar">${sel.toLocaleDateString('en-GB',{month:'long',year:'numeric'})}<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg></button>${S.day!==today()?'<button class="todaybtn" id="todayBtn">Today</button>':''}`}
+function bindDhead(setDay){
+  $('#todayBtn')?.addEventListener('click',()=>setDay(today()));
+  $('#monthBtn')?.addEventListener('click',()=>{S.all=!S.all;S.cal=null;$('#dhead').innerHTML=dhead();bindDhead(setDay);render()});
+}
+function stripCounts(byDay){document.querySelectorAll('.dcell').forEach(c=>{const n=(byDay[c.dataset.d]||[]).length;if(n){c.dataset.n=n;c.querySelector('.c').textContent=n}else{delete c.dataset.n;c.querySelector('.c').textContent=''}})}
+function renderBar(){
+  const t=S.view==='test'&&view(S.open);
+  const nm=S.me?(S.teachers[S.me]?.name||S.meName||''):'';
+  const td=t&&new Date(t.day+'T12:00');
+  $('#barInner').innerHTML=`<div class="barrow">${S.view==='test'||S.view==='signin'&&S.teachers[S.me]?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
+   <div class="brand"><span class="eyebrow">${S.me&&nm?`<button class="whobtn" id="whoBtn" aria-label="Your teacher name">${esc(nm)}</button>`:'Catalyst Studios'} <span class="sync" id="sync" data-s="${S.sync}"><i class="dot"></i><span></span></span></span><b>Catalyst Operations Test - CAP 2026</b></div>
+   ${S.view==='test'&&t?`<span class="datecard" title="Test date"><small>${td.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase()}</small><b>${td.getDate()}</b><span>${td.toLocaleDateString('en-GB',{month:'short'})}</span></span>`:''}</div>
+   ${S.view==='roster'?dateStrip():''}`;
+  setSync(S.sync);
+  $('#back')?.addEventListener('click',()=>go('roster'));
+  $('#whoBtn')?.addEventListener('click',()=>{if(!S.demo)go('signin')});
+  const setDay=d=>{if(!d)return;S.day=d;S.cal=null;ls.set('ops.day',d);renderBar();render()};
+  bindDhead(setDay);
+  const st=$('#dstrip');
+  if(st){st.onclick=e=>{const c=e.target.closest('.dcell');if(!c)return;
+      if(c.dataset.d===S.day)return;S.day=c.dataset.d;S.cal=null;ls.set('ops.day',S.day);
+      // only the highlight moves: the strip stays exactly where the teacher scrolled it
+      st.querySelectorAll('.dcell').forEach(x=>x.setAttribute('aria-pressed',x===c));
+      $('#dhead').innerHTML=dhead();bindDhead(setDay);render()};
+    const mon=st.children[14];st.style.scrollBehavior='auto';st.scrollLeft=mon.offsetLeft-st.offsetLeft;st.style.scrollBehavior=''}
+  const h=document.querySelector('.bar').offsetHeight;document.documentElement.style.setProperty('--barh',h+'px');
+}
+function go(v,id){S.view=v;S.open=id||null;renderBar();render();scrollTo(0,0);wake(v==='test')}
+function refresh(){if(S.view==='test')syncSheet();else if(S.view==='roster')render()}
+function render(){S.view==='signin'?renderSignin():S.view==='test'&&view(S.open)?renderSheet():renderRoster()}
+
+function renderSignin(){
+  const known=S.teachers[S.me];
+  $('#app').innerHTML=`<form class="card signin" id="signForm" autocomplete="off">
+    <span class="eyebrow">${known?'Your teacher name':'Teacher sign-in'}</span>
+    <h2 style="font-size:22px;font-weight:800">${known?'Change your name':'Who is marking?'}</h2>
+    <p class="readout" style="margin:0;font-size:14px">You are signed in with your claude.ai account. Your marks, notes and critical errors are kept apart from the other teachers', under this name.</p>
+    <div class="field"><label for="tName">Name shown to the other teachers</label><input type="text" id="tName" value="${esc(known?.name||S.meName||'')}" placeholder="e.g. Gunnar" maxlength="40"></div>
+    <button class="primary" type="submit">${known?'Save name':'Start marking'}</button>
+    <p class="readout" style="margin:0">Marking for someone else? They sign in on their own phone with their own claude.ai account.</p>
+  </form>`;
+  $('#tName').focus();
+  $('#signForm').onsubmit=async e=>{e.preventDefault();const name=$('#tName').value.trim();if(!name){toast('Type your name');return}
+    const body={name,at:Date.now()};S.teachers={...S.teachers,[S.me]:body};
+    try{await S.db.collection('teachers').doc(S.me).set(body);toast('Signed in as '+name);go('roster')}catch(err){toast('Could not save your name. Check you have Contributor access.')}};
+}
+
+function ring(t,size=44){
+  const sc=scoreOf(mine(t),t),done=sc.n,f=sc.total?done/sc.total:0,r=18,c=2*Math.PI*r,st=statusOf(t);
+  const col=st.grade?`var(--${st.grade.col})`:st.k==='done'?'var(--ink)':'var(--led)';
+  return `<svg class="meter" viewBox="0 0 44 44" width="${size}" height="${size}" aria-hidden="true"><circle cx="22" cy="22" r="${r}" fill="none" stroke="var(--line)" stroke-width="4"/><circle cx="22" cy="22" r="${r}" fill="none" stroke="${col}" stroke-width="4" stroke-linecap="${f>0?'round':'butt'}" stroke-dasharray="${(c*f).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 22 22)"/><text x="22" y="26" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="var(--ink)">${done}</text></svg>`;
+}
+
+function calendar(byDay){
+  const base=S.cal||S.day.slice(0,7);const [y,mo]=base.split('-').map(Number);
+  const first=new Date(y,mo-1,1),lead=(first.getDay()+6)%7,len=new Date(y,mo,0).getDate();
+  const cells=[];for(let i=0;i<lead;i++)cells.push('<span class="cal-d out"></span>');
+  for(let d=1;d<=len;d++){const id=`${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`,n=(byDay[id]||[]).length;
+    cells.push(`<button class="cal-d${n?' has':''}${id===today()?' today':''}${revealed(id)?' rev':''}" data-cal="${id}" aria-pressed="${id===S.day}" aria-label="${fmtDay(id)}${n?', '+n+' students':''}">${d}${n?`<span class="n">${n}</span>`:''}</button>`)}
+  return `<div class="card cal"><div class="cal-h"><button class="step" data-mo="-1" aria-label="Previous month">‹</button><b>${first.toLocaleDateString('en-GB',{month:'long',year:'numeric'})}</b><button class="step" data-mo="1" aria-label="Next month">›</button></div>
+    <div class="cal-grid">${['Mo','Tu','We','Th','Fr','Sa','Su'].map(x=>`<span class="cal-dow">${x}</span>`).join('')}${cells.join('')}</div></div>`;
+}
+function renderRoster(){
+  const all=allTests();
+  const byDay={};all.forEach(t=>(byDay[t.day]=byDay[t.day]||[]).push(t));
+  const days=Object.keys(byDay).sort();
+  const list=all.filter(t=>t.day===S.day).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  const rev=revealed(S.day);
+  const cnt={todo:0,live:0,done:0,dist:0,merit:0,passg:0,resitg:0};list.forEach(t=>cnt[statusOf(t).k]++);
+  const marked=list.filter(t=>scoreOf(mine(t),t).complete).length;
+  const grades=list.map(t=>({t,g:gradeOf(t)})),unfinished=grades.filter(x=>!x.g.complete).length;
+  const lastStudio=ls.get('ops.studio','');
+  const row=t=>{const st=statusOf(t),ce=scoreOf(mine(t),t).inc.length,nt=Object.keys(entries(t)).length;
+    return `<button class="row" data-open="${t.id}">${ring(t)}<span class="who"><b>${esc(t.name)}</b><span>${[esc(t.studio||''),nt?nt+' teacher'+(nt>1?'s':''):''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}</span></span><span class="pill ${st.k}">${st.l}</span></button>`};
+  const stats=rev
+    ?GRADES.map(g=>`<div class="stat"><div class="n" style="color:var(--${g.col})">${cnt[g.k]}</div><div class="l">${g.l}</div></div>`).join('')
+    :`<div class="stat"><div class="n">${list.length}</div><div class="l">Students</div></div>
+      <div class="stat"><div class="n">${marked}</div><div class="l">Marked by you</div></div>
+      <div class="stat"><div class="n" style="color:var(--led)">${cnt.live}</div><div class="l">In progress</div></div>
+      <div class="stat"><div class="n" style="color:var(--mute)">${cnt.todo}</div><div class="l">Not started</div></div>`;
+  $('#app').innerHTML=`
+   ${S.all?calendar(byDay):''}
+   ${S.demo?`<div class="banner"><b>Preview.</b> These students and the second teacher are examples and nothing here is saved. Open the page from its claude.ai link to mark real students.</div>`:''}
+   ${!S.demo&&S.ready&&!S.me?`<div class="banner">Sign in to claude.ai to mark. Your marks are saved under your own account.</div>`:''}
+   ${!S.writable?`<div class="banner">You can view results but not mark. Ask the page owner for Contributor access.</div>`:''}
+   <div class="summary">${stats}</div>
+   ${!list.length?'':S.confirm===S.day?`<div class="card confirm" role="alertdialog" aria-label="Reveal grades">
+       <b>Reveal grades for ${fmtDay(S.day)}?</b>
+       <p>Every teacher will see the combined grades for this date.${unfinished?` ${unfinished} student${unfinished>1?'s are':' is'} not fully marked yet and will show as Unfinished.`:''} You can hide them again.</p>
+       <div class="foot"><button class="primary" id="revealYes" type="button">Reveal grades</button><button class="ghost" id="revealNo" type="button">Cancel</button></div></div>`
+     :`<div class="gate"><p>${rev?`<b>Grades shown</b> for ${fmtDay(S.day)}.`:`<b>Grades hidden.</b> You have fully marked ${marked} of ${list.length}.`}</p><button class="ghost" id="revealBtn" type="button" ${!canMark()?'disabled':''}>${rev?'Hide grades':'Reveal grades'}</button></div>`}
+   ${rev&&list.length?`<section class="card tally" aria-label="Results">
+       <div class="tally-h"><b>Results</b><span>${fmtDay(S.day)} · ${list.length} student${list.length>1?'s':''}</span></div>
+       <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Student</th><th>Final</th><th>Grade</th></tr></thead><tbody>
+       ${grades.map(({t,g})=>`<tr data-open="${t.id}"><td><b>${esc(t.name)}</b><small>${g.teachers.length} teacher${g.teachers.length===1?'':'s'} · ${g.marked}/${g.total} skills</small></td><td><b>${g.marked?Math.round(g.final)+'%':'–'}</b>${g.marked?`<small>${Math.round(g.score)}${g.deduction?' − '+g.deduction+' errors':''}</small>`:''}</td><td>${g.complete?`<span class="pill ${g.grade.k}">${g.grade.l}</span>${g.coreFails.length?'<small class="crit-n">core skill</small>':''}`:'<span class="pill live">Unfinished</span>'}</td></tr>`).join('')}
+       </tbody></table></div>
+       <div class="foot"><button class="primary" id="dlDay" type="button">Download results (.csv)</button><button class="ghost" id="cpDay" type="button">Copy</button></div>
+     </section>`:''}
+   <div class="list">
+     <div class="dayhead"><b>${fmtDay(S.day)}${S.day===today()?' · today':''}</b><span>${list.length} student${list.length===1?'':'s'}</span></div>
+     ${list.length?list.map(row).join(''):`<div class="empty"><b>No tests on ${fmtDay(S.day)}</b>Add students below, or pick another date.</div>`}
+   </div>
+
+   <form class="card add" id="addForm" autocomplete="off">
+     <h3 style="font-size:16px">Add students to ${fmtDay(S.day)}</h3>
+     <p class="readout" style="margin:-4px 0 0">Plan ahead: change the date at the top first, then add the students for that day.</p>
+     <div class="field"><label for="addNames">Names, one per line</label><textarea id="addNames" rows="3" placeholder="Student name"></textarea></div>
+     <div class="field"><label for="addStudio">Studio</label><input type="text" id="addStudio" value="${esc(lastStudio)}" placeholder="e.g. Studio A"></div>
+     <button class="primary" type="submit" ${!canMark()?'disabled':''}>Add to ${fmtDay(S.day)}</button>
+   </form>
+
+   <div class="card exports">
+     <b>Export</b>
+     <p class="readout" style="margin:0">Grades are only included for dates that have been revealed.</p>
+     <div class="foot"><button class="ghost" id="dlAll" type="button">All dates, results (.csv)</button><button class="ghost" id="dlMarks" type="button">All dates, every mark (.csv)</button></div>
+   </div>
+   <textarea class="export" id="exportBox" hidden readonly></textarea>
+
+   <details class="guide card" id="guide">
+     <summary>How marking works</summary>
+     <ul>
+       <li>Each teacher signs in with their own claude.ai account and marks on their own phone. You never see another teacher's marks while you mark.</li>
+       <li>Marks: <span class="key" style="background:var(--ok)">Pass</span> done unaided = 100, <span class="key" style="background:var(--hint)">Hint</span> after one prompt = 75, <span class="key" style="background:var(--late)">Got there</span> with more help = 50, <span class="key" style="background:var(--no)">Failed</span> = 0.</li>
+       <li><b>The same sum for every student.</b> Each skill's mark is the average of every teacher who marked it. The score is the average of all skills, so every skill counts the same and every teacher counts the same.</li>
+       <li>Each different <b>critical error</b> takes off 10 points, once, however many teachers logged it.</li>
+       <li>A <b>Core</b> skill whose combined mark is under 50 means Resit, whatever the score.</li>
+       <li>Final score sets the grade: <b>Distinction</b> 90 and up, <b>Merit</b> 75–89, <b>Pass</b> 60–74, <b>Resit</b> under 60. A grade is only given once every skill has at least one mark.</li>
+       <li>Grades stay hidden while you mark. When a test day is done, tap <b>Reveal grades</b> to see the results table and download it.</li>
+       <li>Plan test days ahead: pick the date at the top, add the students, and they are filed under that date. A student can be moved to another date from their sheet.</li>
+     </ul>
+   </details>
+   <div style="height:32px"></div>`;
+  stripCounts(byDay);
+  $('#app').querySelectorAll('[data-cal]').forEach(b=>b.onclick=()=>{S.day=b.dataset.cal;S.cal=S.day.slice(0,7);S.all=false;ls.set('ops.day',S.day);renderBar();render();scrollTo(0,0)});
+  $('#app').querySelectorAll('[data-mo]').forEach(b=>b.onclick=()=>{const [y,m]=(S.cal||S.day.slice(0,7)).split('-').map(Number);const d=new Date(y,m-1+(+b.dataset.mo),1);S.cal=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');render()});
+  $('#revealBtn')?.addEventListener('click',()=>{if(rev)setReveal(S.day,false);else{S.confirm=S.day;render()}});
+  $('#revealYes')?.addEventListener('click',()=>setReveal(S.day,true));
+  $('#revealNo')?.addEventListener('click',()=>{S.confirm=null;render()});
+  $('#dlDay')?.addEventListener('click',()=>offerFile(`ops-test-results-${S.day}.csv`,resultsCSV(list)));
+  $('#cpDay')?.addEventListener('click',()=>copyText(resultsCSV(list)));
+  $('#dlAll').onclick=()=>offerFile(`ops-test-results-all-dates.csv`,resultsCSV(all));
+  $('#dlMarks').onclick=()=>offerFile(`ops-test-every-mark.csv`,marksCSV(all));
+  $('#app').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>go('test',b.dataset.open));
+  $('#addForm').onsubmit=e=>{e.preventDefault();if(!canMark())return;
+    const names=$('#addNames').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!names.length){toast('Type at least one name');return}
+    const studio=$('#addStudio').value.trim(),day=S.day;ls.set('ops.studio',studio);
+    names.forEach((name,i)=>{const id=rid();S.pending[id]=merge(S.pending[id],{name,studio,day,createdAt:Date.now()+i,addedBy:S.me,by:{}})});
+    ls.set('ops.pending',S.pending);flushSoon(10);render();toast((names.length>1?`Added ${names.length} students`:`Added ${names[0]}`)+' to '+fmtDay(day));
+  };
+}
+
+const csvq=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+const toCSV=rows=>rows.map(r=>r.map(csvq).join(',')).join('\r\n');
+const byDate=list=>list.slice().sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:(a.createdAt||0)-(b.createdAt||0));
+// one row per student: the tally
+function resultsCSV(list){
+  const head=['Date','Student','Studio','Teachers','Skills marked','Score %','Critical errors','Deduction','Final %','Grade','Core skills under 50%','Status','Feedback'];
+  const rows=byDate(list).map(t=>{const g=gradeOf(t),rv=revealed(t.day),es=entries(t);
+    const fb=Object.entries(es).filter(([,e])=>e.summary).map(([u,e])=>teacherName(u)+': '+e.summary).join(' | ');
+    if(!rv)return [t.day,t.name,t.studio,g.teachers.map(teacherName).join(', '),g.marked+'/'+g.total,'','','','','','','Hidden',''];
+    return [t.day,t.name,t.studio,g.teachers.map(teacherName).join(', '),g.marked+'/'+g.total,Math.round(g.score),g.errors.join('; '),g.deduction?-g.deduction:0,Math.round(g.final),g.complete?g.grade.l:'',g.coreFails.map(c=>c.t).join('; '),g.complete?'Final':'Unfinished',fb]});
+  return toCSV([head,...rows]);
+}
+// one row per student per teacher with every mark: the evidence behind the tally
+function marksCSV(list){
+  const head=['Date','Student','Studio','Teacher',...CRIT.map(c=>c.t),'Teacher score %','Critical errors','Feedback','Notes'];
+  const rows=[];
+  byDate(list).filter(t=>revealed(t.day)).forEach(t=>Object.entries(entries(t)).forEach(([u,e])=>{const sc=scoreOf(e,t);
+    rows.push([t.day,t.name,t.studio,teacherName(u),...CRIT.map(c=>MARK[e.marks?.[c.id]]||''),sc.n?Math.round(sc.pct*100):'',sc.inc.join('; '),e.summary||'',Object.entries(e.notes||{}).filter(([,v])=>v).map(([k,v])=>(CRIT.find(c=>c.id===k)?.t||k)+': '+v).join(' | ')])}));
+  return toCSV([head,...rows]);
+}
+async function offerFile(name,csv){
+  const dl=await (window.claude?.use?.('downloads')??null);
+  if(dl){try{await dl.save({filename:name,data:'﻿'+csv});toast('Saved '+name);return}catch(e){if(e?.code==='declined')return}}
+  copyText(csv);
+}
+function copyText(csv){
+  const box=$('#exportBox');box.value=csv;
+  const fall=()=>{box.hidden=false;box.focus();box.select();toast('Select all and copy from the box')};
+  if(navigator.clipboard?.writeText)navigator.clipboard.writeText(csv).then(()=>toast('Copied. Paste into a spreadsheet.'),fall);else fall();
+}
+
+/* ---- the sheet: built once per open, then synced in place so typing is never interrupted */
+function markBtns(kind,id,opts){return `<div class="marks${opts.length===3?' three':''}" data-${kind}="${id}">${opts.map(v=>`<button type="button" data-v="${v}" aria-pressed="false"><i></i>${MARK[v]}</button>`).join('')}</div>`}
+function renderSheet(){
+  const t={id:S.open,...view(S.open)};
+  $('#app').innerHTML=`
+   <div class="strip"><span class="scribble" id="sName">${esc(t.name)}</span><span class="meta" id="sMeta"></span></div>
+   <nav class="stagenav" id="stageNav">${STAGES.filter(s=>skillsFor(t).some(c=>c.s===s.id)).map((s,i)=>`<a href="#st-${s.id}" data-st="${s.id}"><span class="mono">${i+1}</span>${s.short}<i class="dot"></i></a>`).join('')}<a href="#st-errors" data-st="errors"><span class="mono">!</span>Errors</a><a href="#st-result" data-st="result"><span class="mono">✓</span>Grade</a></nav>
+   <div class="sheet">
+     ${STAGES.filter(s=>skillsFor(t).some(c=>c.s===s.id)).map((s,i)=>`
+     <section class="stage" id="st-${s.id}">
+       <div class="stage-h"><span class="mono">${String(i+1).padStart(2,'0')}</span><h2>${s.name}</h2><span class="count" data-count="${s.id}"></span></div>
+       ${skillsFor(t).filter(c=>c.s===s.id).map(c=>`
+       <article class="crit" data-crit="${c.id}">
+         <div class="crit-top"><div class="t"><h3>${esc(c.t)}</h3>
+           <div class="tags">${c.core?'<span class="tag core">Core</span>':''}${c.safety?'<span class="tag safety">Safety</span>':''}${c.ask?'<span class="tag">Ask</span>':''}</div></div>
+           <button class="more" type="button" data-addnote="${c.id}">+ Note</button></div>
+         ${c.ask?`<div class="detail"><div class="ask">${esc(c.ask)}</div></div>`:''}
+         ${markBtns('crit',c.id,['y','h','g','n'])}
+         <textarea class="note" rows="1" data-note="${c.id}" placeholder="Note" hidden></textarea>
+       </article>`).join('')}
+     </section>`).join('')}
+
+     <section class="card safety" id="st-errors" aria-label="Critical Errors">
+       <h3>Critical Errors</h3>
+       <div class="quick" id="critChips" style="margin-top:10px"></div>
+       <input type="text" id="incText" placeholder="Something else…" enterkeyhint="done" style="margin-top:10px">
+     </section>
+
+     <section class="card verdict" id="st-result">
+       <span class="eyebrow">Grade</span>
+       <div class="hidden-grade" id="gHidden"><span id="ringSmall"></span><span id="gHiddenTxt"></span></div>
+       <div id="gShown" hidden>
+         <div class="score"><span id="ringBig"></span><div><div class="grade" id="gLabel"></div><div class="readout" id="gSub" style="margin:4px 0 0"></div></div></div>
+         <div class="bands" id="bands" style="margin-top:12px"></div>
+         <div class="per" id="perTeacher"></div>
+       </div>
+       <div class="field"><label for="summary">Your feedback for the student</label><textarea id="summary" rows="3" placeholder="What went well, what to practise"></textarea></div>
+       <div class="field"><label for="moveDay">Test date</label><input type="date" id="moveDay"></div>
+       <div class="foot"><button class="primary" id="doneBtn" type="button">Save and back to students</button><button class="ghost danger" id="delBtn" type="button">Delete</button></div>
+     </section>
+   </div>`;
+  const app=$('#app');
+  app.querySelectorAll('.marks').forEach(g=>g.addEventListener('click',e=>{const btn=e.target.closest('button');if(!btn||!canMark())return;
+    const cur=btn.getAttribute('aria-pressed')==='true';const v=cur?null:btn.dataset.v;
+    patchMine(S.open,{marks:{[g.dataset.crit]:v}});
+    navigator.vibrate?.(8);}));
+  app.querySelectorAll('[data-addnote]').forEach(b=>b.onclick=()=>{const n=app.querySelector(`[data-note="${b.dataset.addnote}"]`);n.hidden=false;autosize(n);n.focus();b.hidden=true});
+  const debounced={};
+  app.querySelectorAll('[data-note]').forEach(n=>{n.oninput=()=>{autosize(n);clearTimeout(debounced[n.dataset.note]);debounced[n.dataset.note]=setTimeout(()=>patchMine(S.open,{notes:{[n.dataset.note]:n.value}}),700)}});
+  $('#summary').oninput=()=>{clearTimeout(debounced._s);debounced._s=setTimeout(()=>patchMine(S.open,{summary:$('#summary').value}),700)};
+  const activeKeys=text=>Object.entries(mine(view(S.open)).safety||{}).filter(([,v])=>v&&v.text===text).map(([k])=>k);
+  const logInc=text=>{if(!text||!canMark())return;if(activeKeys(text).length){$('#incText').value='';return}patchMine(S.open,{safety:{[rid()]:{t:Date.now(),text}}});$('#incText').value='';$('#incText').blur()};
+  $('#critChips').onclick=e=>{const b=e.target.closest('button');if(!b||!canMark())return;const text=b.dataset.q,keys=activeKeys(text);
+    if(keys.length)patchMine(S.open,{safety:Object.fromEntries(keys.map(k=>[k,null]))});else logInc(text);navigator.vibrate?.(8)};
+  $('#moveDay').onchange=e=>{const d=e.target.value;if(!d)return;patch(S.open,{day:d});S.day=d;ls.set('ops.day',d);renderBar();toast('Moved to '+fmtDay(d))};
+  $('#incText').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();logInc($('#incText').value.trim())}};
+  $('#doneBtn').onclick=()=>{flushSoon(0);go('roster')};
+  let delArm=0;$('#delBtn').onclick=()=>{if(Date.now()-delArm>3000){delArm=Date.now();$('#delBtn').textContent='Tap again to delete';setTimeout(()=>$('#delBtn')&&($('#delBtn').textContent='Delete'),3000);return}
+    patch(S.open,{deleted:true});toast('Student deleted');go('roster')};
+  app.querySelectorAll('.stagenav a').forEach(a=>a.onclick=e=>{e.preventDefault();document.getElementById(a.getAttribute('href').slice(1))?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'})});
+  syncSheet(true);
+}
+function autosize(n){n.style.height='auto';n.style.height=Math.min(n.scrollHeight+2,220)+'px'}
+function syncSheet(first){
+  if(S.view!=='test')return;const raw=view(S.open);if(!raw||raw.deleted){go('roster');return}
+  const t={id:S.open,...raw},e=mine(t),sc=scoreOf(e,t),app=$('#app');
+  $('#sName').textContent=t.name;
+  $('#sMeta').textContent=t.studio||'';
+  const md=$('#moveDay');if(document.activeElement!==md)md.value=t.day||'';
+  app.querySelectorAll('.marks').forEach(g=>{const v=e.marks?.[g.dataset.crit];g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===v));(g.closest('.crit')).dataset.m=v||''});
+  app.querySelectorAll('[data-note]').forEach(n=>{const v=e.notes?.[n.dataset.note]||'';if(document.activeElement!==n&&n.value!==v){n.value=v}if(v){n.hidden=false;const ab=app.querySelector(`[data-addnote="${n.dataset.note}"]`);if(ab)ab.hidden=true}if(!n.hidden)autosize(n)});
+  const sm=$('#summary');if(document.activeElement!==sm&&sm.value!==(e.summary||''))sm.value=e.summary||'';
+  STAGES.forEach(s=>{const cs=skillsFor(t).filter(c=>c.s===s.id);if(!cs.length||!app.querySelector(`[data-count="${s.id}"]`))return;
+    const vals=cs.map(c=>e.marks?.[c.id]);const done=vals.filter(Boolean).length;
+    app.querySelector(`[data-count="${s.id}"]`).textContent=`${done}/${vals.length}`;
+    const flag=cs.some(c=>c.core&&e.marks?.[c.id]==='n');
+    app.querySelector(`.stagenav [data-st="${s.id}"]`).dataset.s=flag?'flag':done===vals.length?'done':done?'part':''});
+  const inc=Object.entries(e.safety||{}).filter(([,v])=>v).sort((a,b)=>a[1].t-b[1].t);
+  const on=new Set(inc.map(([,i])=>i.text)),chips=[...QUICK,...[...on].filter(x=>!QUICK.includes(x))];
+  const cc=$('#critChips'),html=chips.map(q=>`<button type="button" data-q="${esc(q)}" aria-pressed="${on.has(q)}"><i></i>${esc(q)}</button>`).join('');
+  if(cc.innerHTML!==html)cc.innerHTML=html;
+  const others=Object.entries(entries(t)).filter(([uid])=>uid!==S.me);
+  const rv=revealed(t.day);$('#gHidden').hidden=rv;$('#gShown').hidden=!rv;
+  if(!rv){$('#ringSmall').innerHTML=ring(t,44);
+    $('#gHiddenTxt').textContent=`Hidden until grades are revealed for ${fmtDay(t.day)}. You have marked ${sc.n} of ${sc.total}.`+(others.length?' Also marking: '+others.map(([uid,x])=>teacherName(uid)+' ('+scoreOf(x,t).n+'/'+sc.total+')').join(', ')+'.':'')}
+  else{const g=gradeOf(t);$('#ringBig').innerHTML=ring(t,64);
+    $('#gLabel').textContent=g.complete?g.grade.l:'Unfinished';$('#gLabel').style.color=g.complete?`var(--${g.grade.col})`:'var(--mute)';
+    $('#gSub').textContent=g.marked?`${Math.round(g.final)}% final`+(g.complete?'':` · ${g.total-g.marked} skill${g.total-g.marked>1?'s':''} not marked by anyone`):'No skills marked yet';
+    $('#bands').innerHTML=GRADES.map(x=>`<span class="${g.complete&&x.k===g.grade.k?'on':''}" style="${g.complete&&x.k===g.grade.k?`color:var(--${x.col})`:''}">${x.l}</span>`).join('');
+    const line=(a,b)=>`<div class="sum-row"><span>${a}</span><b>${b}</b></div>`;
+    $('#perTeacher').innerHTML=`<div class="sum">
+      ${line(`Score · average of ${g.teachers.length} teacher${g.teachers.length===1?'':'s'} over ${g.marked} skill${g.marked===1?'':'s'}`,Math.round(g.score)+'%')}
+      ${line(`Critical errors${g.errors.length?': '+g.errors.map(esc).join('; '):''}`,g.deduction?'−'+g.deduction:'0')}
+      ${line('Final score',Math.round(g.final)+'%')}
+      ${g.coreFails.length?`<div class="sum-row warn"><span>Core skill under 50%: ${g.coreFails.map(c=>esc(c.t)).join('; ')}</span><b>Resit</b></div>`:''}
+    </div>
+    <div class="per-h">Each teacher</div>
+    ${g.teachers.map(u=>{const x=scoreOf(entries(t)[u],t);return `<div class="sum-row"><span>${esc(teacherName(u))}${u===S.me?' (you)':''} · ${x.n}/${x.total} marked${x.inc.length?' · '+x.inc.length+' error'+(x.inc.length>1?'s':''):''}</span><b>${Math.round(x.pct*100)}%</b></div>`}).join('')||'<p class="readout" style="margin:0">No marks yet.</p>'}`}
+  if(!canMark())app.querySelectorAll('.sheet button,.sheet textarea,.sheet input').forEach(x=>x.disabled=true);
+}
+
+/* keep the phone awake while a test sheet is open */
+let lock=null;async function wake(on){try{if(on&&!lock&&navigator.wakeLock){lock=await navigator.wakeLock.request('screen');lock.addEventListener?.('release',()=>lock=null)}else if(!on&&lock){await lock.release();lock=null}}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&S.view==='test')wake(true)});
+
+// one fixed screen: no pinch, no double-tap and no ctrl-wheel zoom
+document.addEventListener('gesturestart',e=>e.preventDefault());
+document.addEventListener('touchmove',e=>{if(e.touches.length>1||(e.scale&&e.scale!==1))e.preventDefault()},{passive:false});
+document.addEventListener('wheel',e=>{if(e.ctrlKey)e.preventDefault()},{passive:false});
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&['+','=','-','0'].includes(e.key))e.preventDefault()});
+boot();
+</script>
