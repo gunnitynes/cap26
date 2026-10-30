@@ -316,9 +316,10 @@ function studentsTyped_(sh, top, count) {
       if (!r[S_.STUDIO] && prevStudio) { r[S_.STUDIO] = prevStudio; changed = true; }
       if (!r[S_.ID]) { r[S_.ID] = newId_(); changed = true; }
     }
-    // a time typed as 9.30 or 930 would show as a wrong time: store it as 09:30
+    // a time typed as 9.30 or 930 becomes a number that would show as a wrong time: store it as 09:30
+    // (a slot typed as text, like 11:15 - 11:30, stays exactly as typed)
     const tm = time_(r[S_.TIME], shown[i][S_.TIME]);
-    if (r[S_.TIME] !== '' && !(r[S_.TIME] instanceof Date) && tm) { r[S_.TIME] = tm; changed = true; }
+    if (typeof r[S_.TIME] === 'number' && tm) { r[S_.TIME] = tm; changed = true; }
     if (r[S_.DAY]) prevDate = r[S_.DAY];
     if (r[S_.STUDIO]) prevStudio = r[S_.STUDIO];
   });
@@ -343,6 +344,15 @@ function time_(v, shown) {
   return h < 24 && mi < 60 ? pad2_(h) + ':' + pad2_(mi) : '';
 }
 function pad2_(n) { return ('0' + n).slice(-2); }
+/** A test slot from the sheet: '11:15 - 11:30' (hyphen, dash or "to") → {time: '11:15', end: '11:30'}; one time → {time, end: ''}. */
+function slot_(v, shown) {
+  const t = typeof v === 'string' ? v.trim() : '';
+  const m = t.match(/^(.+?)\s*(?:-|\u2013|\u2014|to|bis)\s*(.+)$/i);
+  if (m && time_(m[1]) && time_(m[2])) return { time: time_(m[1]), end: time_(m[2]) };
+  return { time: time_(v, shown), end: '' };
+}
+function mins_(hm) { const p = String(hm).split(':'); return +p[0] * 60 + +p[1]; }
+function hm_(m) { m = ((m % 1440) + 1440) % 1440; return pad2_(Math.floor(m / 60)) + ':' + pad2_(m % 60); }
 
 /** Catches rows that arrived without the edit trigger (an import, a copy from another sheet). */
 function ensureStudentIds_() {
@@ -537,7 +547,7 @@ function students_() {
   const sh = sheet_(SHEETS.STUDENTS), n = sh.getLastRow() - 1;
   if (n < 1) return [];
   const range = sh.getRange(2, 1, n, SHEETS.STUDENTS.header.length), rows = range.getValues(), shown = range.getDisplayValues();
-  return rows.map((r, i) => ({ row: i + 2, id: String(r[S_.ID] || ''), day: day_(r[S_.DAY]), time: time_(r[S_.TIME], shown[i][S_.TIME]),
+  return rows.map((r, i) => ({ row: i + 2, id: String(r[S_.ID] || ''), day: day_(r[S_.DAY]), ...slot_(r[S_.TIME], shown[i][S_.TIME]),
     name: String(r[S_.NAME] || '').trim(), studio: String(r[S_.STUDIO] || ''), teacher: String(r[S_.TEACHER] || '').trim(), removed: !!r[S_.REMOVED] }))
     .filter(s => s.id && s.name && s.day);
 }
@@ -570,7 +580,7 @@ function state_(me) {
   students.forEach(s => { if (!(s.day in qdays)) qdays[s.day] = frozen_(s.day) ? questionsFor_(s.day, questions) : null; });
   Object.keys(qdays).forEach(d => { if (!qdays[d]) delete qdays[d]; });
   return { ok: true, me: { name: me.name, role: me.role },
-    students: students.map(s => ({ id: s.id, day: s.day, time: s.time, name: s.name, studio: s.studio, teacher: s.teacher })),
+    students: students.map(s => ({ id: s.id, day: s.day, time: s.time, end: s.end, name: s.name, studio: s.studio, teacher: s.teacher })),
     entries, teachers: teachers_().map(t => t.name), questions, qdays };
 }
 
@@ -579,7 +589,11 @@ function addStudents_(me, req) {
   const day = checkDay_(req.day); if (!day) return { ok: false, error: 'Pick a test date first.' };
   // a line may start with its test time: "10:30 Kim"
   const lines = (Array.isArray(req.names) ? req.names : []).map(n => clean_(n, 90)).filter(Boolean).slice(0, 60)
-    .map(l => { const m = l.match(/^(\d{1,2}[:.]\d{2})\s+(.+)$/); return m && time_(m[1]) ? { time: time_(m[1]), name: clean_(m[2], 80) } : { time: '', name: clean_(l, 80) }; });
+    .map(l => {
+      const m = l.match(/^(\d{1,2}[:.]\d{2})(?:\s*[-\u2013]\s*(\d{1,2}[:.]\d{2}))?\s+(.+)$/);
+      if (!m || !time_(m[1])) return { time: '', name: clean_(l, 80) };
+      return { time: m[2] && time_(m[2]) ? time_(m[1]) + ' - ' + time_(m[2]) : time_(m[1]), name: clean_(m[3], 80) };
+    });
   if (!lines.length) return { ok: false, error: 'Type at least one name.' };
   const studio = STUDIO_LIST.indexOf(clean_(req.studio, 10)) >= 0 ? clean_(req.studio, 10) : STUDIO_LIST[0], sh = sheet_(SHEETS.STUDENTS);
   const t = me.role === 'admin' ? teacherName_(req.teacher) : me.name;   // a teacher adds students to their own list
@@ -608,7 +622,11 @@ function updateStudent_(me, req) {
     marksRows_().filter(m => m.sid === s.id).forEach(m => sheet_(SHEETS.MARKS).getRange(m.row, 1).setValue(toDate_(day)));
   }
   if (req.studio !== undefined) sh.getRange(s.row, S_.STUDIO + 1).setValue(clean_(req.studio, 40));
-  if (req.time !== undefined) sh.getRange(s.row, S_.TIME + 1).setValue(time_(req.time));
+  if (req.time !== undefined) {
+    // a new start time keeps the slot's length: 10:00 - 10:15 moved to 11:00 becomes 11:00 - 11:15
+    const start = time_(req.time), len = s.time && s.end ? mins_(s.end) - mins_(s.time) : 0;
+    sh.getRange(s.row, S_.TIME + 1).setValue(start && len > 0 ? start + ' - ' + hm_(mins_(start) + len) : start);
+  }
   if (req.teacher !== undefined) sh.getRange(s.row, S_.TEACHER + 1).setValue(teacherName_(req.teacher));
   return { ok: true };
 }
@@ -815,7 +833,7 @@ function grades_(me) {
   return { ok: true, students: gradeList_().list.filter(x => sees_(me, x.s)).map(({ s, qs, g }) => {
     const stages = [];
     qs.forEach(q => { if (!stages.some(x => x.name === q.stage)) stages.push({ name: q.stage, pct: q.stage in g.stages ? g.stages[q.stage] : null }); });
-    return { id: s.id, day: s.day, time: s.time, name: s.name, studio: s.studio, teacher: s.teacher, marked: g.marked, total: qs.length,
+    return { id: s.id, day: s.day, time: s.time, end: s.end, name: s.name, studio: s.studio, teacher: s.teacher, marked: g.marked, total: qs.length,
       score: g.score === null ? null : Math.round(g.score), final: g.final === null ? null : Math.round(g.final),
       errors: g.errors, coreFails: g.coreFails, complete: g.complete, grade: g.band ? g.band[0] : null, teachers: g.teachers, stages };
   }) };

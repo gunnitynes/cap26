@@ -23,9 +23,9 @@ const call = body => JSON.parse(g.doPost({ postData: { contents: body } }).s);
 if (process.env.OPS_SEED) {
   const ymd = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
   const tok = n => call(JSON.stringify({ action: 'login', name: n, password: 'catalyst' })).token, gt = tok('Gunnar'), at = tok('Anna');
-  call(JSON.stringify({ action: 'addStudents', token: gt, studio: 'K3', day: ymd(3), teacher: 'Gunnar', names: ['11:00 Polina', '09:30 Faddei'] }));
-  call(JSON.stringify({ action: 'addStudents', token: gt, studio: 'K3', day: ymd(3), teacher: 'Anna', names: ['10:15 Yutaro', 'Tales'] }));
-  call(JSON.stringify({ action: 'addStudents', token: gt, studio: 'K4', day: ymd(5), teacher: 'Anna', names: ['09:00 Ida', '09:40 Paul'] }));
+  call(JSON.stringify({ action: 'addStudents', token: gt, studio: 'K3', day: ymd(3), teacher: 'Gunnar', names: ['10:15-10:30 Polina', '10:00-10:15 Faddei'] }));
+  call(JSON.stringify({ action: 'addStudents', token: gt, studio: 'K3', day: ymd(3), teacher: 'Anna', names: ['10:30-10:45 Yutaro', '10:45-11:00 Tales'] }));
+  call(JSON.stringify({ action: 'addStudents', token: gt, studio: 'K4', day: ymd(5), teacher: 'Anna', names: ['09:00-09:15 Ida', '09:15-09:30 Paul'] }));
   const st = call(JSON.stringify({ action: 'state', token: gt })), ids = st.questions.map(q => q.id), id = n => st.students.find(x => x.name === n).id;
   const all = f => Object.fromEntries(ids.map((q, i) => [q, f(q, i)]));
   const save = (t, n, patch) => call(JSON.stringify({ action: 'saveEntry', token: t, sid: id(n), patch }));
