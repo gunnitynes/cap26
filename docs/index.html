@@ -399,6 +399,8 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .slot span{font-size:10.5px;color:var(--mute)}
 .slot.none b{color:var(--line)}
 .crit-n{white-space:nowrap}
+.row .who b .cap{margin-left:4px;font-size:10px}
+.cap{display:inline-block;font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.03em;color:var(--ink);border:1px solid var(--line);background:var(--sunk);border-radius:4px;padding:0 5px;line-height:1.5;vertical-align:1px;white-space:nowrap}
 .row.now{border-color:var(--led);box-shadow:inset 3px 0 0 var(--led)}
 .row.now .slot b,.row.now .slot span{color:var(--led)}
 .at{font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--led);margin-right:7px;vertical-align:1px}
@@ -588,7 +590,7 @@ function tidy(){if(S.demo||!S.token||Date.now()-tidyAt<20000)return;tidyAt=Date.
 function applyState(j){
   S.me=j.me.name;S.role=j.me.role;ls.set('ops.me',S.me);ls.set('ops.role',S.role);
   const tests={};
-  for(const st of j.students)tests[st.id]={name:st.name,studio:st.studio,day:st.day,time:st.time||'',end:st.end||'',teacher:st.teacher||'',by:{}};
+  for(const st of j.students)tests[st.id]={name:st.name,cap:st.cap||'',studio:st.studio,day:st.day,time:st.time||'',end:st.end||'',teacher:st.teacher||'',by:{}};
   for(const e of j.entries)if(tests[e.sid])tests[e.sid].by[e.teacher]=e.data||{_progress:e.progress||0};
   S.tests=tests;
   S.teachers=Object.fromEntries(j.teachers.map(n=>[n,{name:n}]));
@@ -613,6 +615,9 @@ function startDay(){
   if(days.has(td))return td;
   return [...days].filter(d=>d>td).sort()[0]||td;
 }
+// the CAP column in the Students tab, shown as typed ("CAP 1"); a bare "1" becomes "CAP 1"
+const capOf=t=>{const v=String(t&&t.cap||'').trim();return !v?'':/cap/i.test(v)?v:'CAP '+v};
+const capTag=t=>capOf(t)?`<span class="cap">${esc(capOf(t))}</span>`:'';
 const isMine=t=>!!S.me&&(t.teacher||'').trim().toLowerCase()===S.me.trim().toLowerCase();
 // test date, then test time (students without one last), then name
 const byTime=(a,b)=>a.day<b.day?-1:a.day>b.day?1:(a.time||'99')<(b.time||'99')?-1:(a.time||'99')>(b.time||'99')?1:a.name.localeCompare(b.name);
@@ -691,7 +696,7 @@ function startDemo(){
   const d=today();
   const nx=new Date();nx.setDate(nx.getDate()+6);const later=nx.getFullYear()+'-'+String(nx.getMonth()+1).padStart(2,'0')+'-'+String(nx.getDate()).padStart(2,'0');
   const all=v=>Object.fromEntries(QNOW.map(c=>[c.id,v(c)]));
-  let slot=9*60,turn=0;const mk=(name,day,by)=>{const id=rid();S.tests[id]={name,studio:'K3',day,teacher:['Gunnar','Gunnar','Anna'][turn++%3],time:hm(slot),end:hm(slot+15),by};slot+=15};const hm=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+  let slot=9*60,turn=0;const mk=(name,day,by)=>{const id=rid();S.tests[id]={name,cap:['CAP 1','CAP 2'][turn%2],studio:'K3',day,teacher:['Gunnar','Gunnar','Anna'][turn++%3],time:hm(slot),end:hm(slot+15),by};slot+=15};const hm=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
   mk('Example · Lena',d,{'Gunnar':{marks:{p1:'y',p2:'y',p3:'y',m1:'y',m2:'h',m3:'y',m4:'y',r1:'y',t1:'y',t2:'g',t3:'y'}}});
   mk('Example · Jonas',d,{'Gunnar':{marks:all(c=>c.id==='t2'?'h':'y')},'Anna':{marks:all(c=>c.id==='m2'||c.id==='c4'?'g':'y'),safety:{a:{t:Date.now(),text:'Phantom switched with fader up'}}}});
   mk('Example · Mira',d,{'Gunnar':{marks:{p1:'y',p2:'n',m1:'y'},safety:{a:{t:Date.now()-6e5,text:'Speakers switched with level up'}}}});
@@ -884,7 +889,7 @@ function renderRoster(){
   const isNow=t=>{const a=toM(t.time),b=t.end?toM(t.end):a+15;return nowM>=a&&nowM<b};
   const slot=t=>!timed?'':t.time?`<span class="slot" aria-label="${t.time}${t.end?' to '+t.end:''}"><b>${t.time}</b>${t.end?`<span>${t.end}</span>`:''}</span>`:'<span class="slot none" aria-hidden="true"><b>––:––</b></span>';
   const row=t=>{const st=statusOf(t),ce=scoreOf(mine(t),t).inc.length,nt=Object.keys(entries(t)).length;
-    return `<button class="row${isNow(t)?' now':''}" data-open="${t.id}">${slot(t)}${ring(t,timed?38:44)}<span class="who"><b>${esc(t.name)}${timerOf(t.id)?` <span class="tm-mini" data-timer="${t.id}"><span class="tm-num">${timerOf(t.id).txt}</span></span>`:''}</b><span>${[esc(t.studio||''),mineView||!admin?'':t.teacher?esc(t.teacher):'<span class="unas">No teacher</span>',nt?nt+' marking':''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}</span></span><span class="pill ${st.k}">${st.l}</span></button>`};
+    return `<button class="row${isNow(t)?' now':''}" data-open="${t.id}">${slot(t)}${ring(t,timed?38:44)}<span class="who"><b>${esc(t.name)}${capOf(t)?' '+capTag(t):''}${timerOf(t.id)?` <span class="tm-mini" data-timer="${t.id}"><span class="tm-num">${timerOf(t.id).txt}</span></span>`:''}</b><span>${[esc(t.studio||''),mineView||!admin?'':t.teacher?esc(t.teacher):'<span class="unas">No teacher</span>',nt?nt+' marking':''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}</span></span><span class="pill ${st.k}">${st.l}</span></button>`};
   const stats=`<div class="stat"><div class="n">${list.length}</div><div class="l">Students</div></div>
       <div class="stat"><div class="n">${marked}</div><div class="l">Marked by you</div></div>
       <div class="stat"><div class="n" style="color:var(--mute)">${cnt.todo}</div><div class="l">Not started</div></div>
@@ -946,7 +951,7 @@ async function loadGrades(force){
   if(j.ok){G.list=j.students;G.at=Date.now();G.err=''}else G.err=j.error||'The grades could not be loaded.';
 }
 function demoGrades(){return allTests().map(t=>{const g=gradeOf(t);
-  return {id:t.id,day:t.day,time:t.time||'',end:t.end||'',name:t.name,studio:t.studio,teacher:t.teacher||'',marked:g.marked,total:g.total,score:g.marked?Math.round(g.score):null,final:g.marked?Math.round(g.final):null,
+  return {id:t.id,day:t.day,time:t.time||'',end:t.end||'',name:t.name,cap:t.cap||'',studio:t.studio,teacher:t.teacher||'',marked:g.marked,total:g.total,score:g.marked?Math.round(g.score):null,final:g.marked?Math.round(g.final):null,
     errors:g.errors,coreFails:g.coreFails.map(c=>c.t),complete:g.complete,grade:g.marked?g.grade.l:null,teachers:g.teachers,
     stages:stagesFor(t).map(s=>{const xs=g.per.filter(x=>x.c.s===s.id&&x.avg!==null);return {name:s.short,pct:xs.length?Math.round(xs.reduce((a,x)=>a+x.avg,0)/xs.length*100):null}})}})}
 async function openGrades(){G.day=null;go('grades');await loadGrades(true);if(S.view==='grades')renderGrades()}
@@ -967,7 +972,7 @@ function renderGrades(){
   const card=x=>{const k=gkey(x),c=GK[k],col=c.col;
     return `<article class="gcard g-${c.cls}">
       <div class="gc-top"><b>${x.time?`<span class="at">${x.time}${x.end?'–'+x.end:''}</span>`:''}${esc(x.name)}</b><span class="pill ${c.pill}">${esc(c.l||k)}</span></div>
-      <div class="gc-sub">${[day==='all'?fmtDay(x.day):'',esc(x.studio),x.teacher?'Teacher '+esc(x.teacher):'',x.teachers.length?'marked by '+esc(x.teachers.join(', ')):''].filter(Boolean).join(' · ')}</div>
+      <div class="gc-sub">${[day==='all'?fmtDay(x.day):'',capTag(x),esc(x.studio),x.teacher?'Teacher '+esc(x.teacher):'',x.teachers.length?'marked by '+esc(x.teachers.join(', ')):''].filter(Boolean).join(' · ')}</div>
       ${!x.marked?'<div class="gc-prog">No marks yet.</div>':`
       <div class="gc-final"><span class="gc-num" style="color:var(--${col})">${x.final}</span><span class="track" aria-hidden="true"><i style="width:${x.final}%;background:var(--${col})"></i><u style="left:60%"></u><u style="left:75%"></u></span></div>
       <div class="gc-prog">${x.complete?'':'So far · '}score ${x.score}${x.errors.length?` − ${x.errors.length*10} for ${x.errors.length} critical error${x.errors.length>1?'s':''}`:''} · ${x.marked}/${x.total} skills marked</div>
@@ -1065,7 +1070,7 @@ function syncSheet(first){
   if(S.view!=='test')return;const raw=view(S.open);if(!raw||raw.deleted){go('roster');return}
   const t={id:S.open,...raw},e=mine(t),sc=scoreOf(e,t),app=$('#app');
   $('#sName').textContent=t.name;
-  $('#sMeta').textContent=[t.studio,t.time?(t.end?t.time+'–'+t.end:t.time):'',t.teacher].filter(Boolean).join(' · ');
+  $('#sMeta').textContent=[capOf(t),t.studio,t.time?(t.end?t.time+'–'+t.end:t.time):'',t.teacher].filter(Boolean).join(' · ');
   const mtc=$('#moveTeacher');if(document.activeElement!==mtc)mtc.value=t.teacher||'';
   const md=$('#moveDay');if(document.activeElement!==md)md.value=t.day||'';
   const mt=$('#moveTime');if(document.activeElement!==mt)mt.value=t.time||'';
