@@ -697,7 +697,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793389750';
+const BUILD='1793389842';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -860,7 +860,7 @@ function renderLogin(){
     S.token=j.token;S.me=j.name;S.role=j.role;ls.set('ops.token',S.token);ls.set('ops.me',S.me);ls.set('ops.role',S.role);ls.set('ops.lastName',j.name);
     ls.set('ops.until',Date.now()+(j.days||400)*864e5);
     S.ready=false;S.dayPicked=false;S.loadErr='';S.view='roster';renderBar();render();await load();
-    toast('Welcome, '+j.name+'. This phone stays signed in.');
+    toast('Welcome, '+j.name+'.');
   };
 }
 
@@ -871,7 +871,7 @@ function renderAccount(quiet){
     <section class="card acct">
       <span class="eyebrow">Signed in as</span>
       <b class="login-h">${esc(S.me)}</b>
-      <span class="readout" style="margin:0">${admin?'Admin: you can add and remove teachers.':`This phone stays signed in until ${new Date(ls.get('ops.until',Date.now()+400*864e5)).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}.`}</span>
+      ${admin?'<span class="readout" style="margin:0">Admin: you can add and remove teachers.</span>':''}
       <span class="hint">Signing out is only needed if someone else will use this phone.</span>
       <button class="ghost" id="outBtn" type="button">Sign out</button>
     </section>
