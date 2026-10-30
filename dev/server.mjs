@@ -36,6 +36,11 @@ if (process.env.OPS_SEED) {
   // CAPs, typed in the sheet as the organiser does
   const stu = g.SpreadsheetApp.getActive().getSheetByName('Students'), rows = book.sheets.find(x => x.name === 'Students').data;
   rows.forEach((r, i) => { if (i && r[2]) stu.getRange(i + 1, 4).setValue(['CAP 26A', 'CAP 26B', 'TRANSFER', 'CAP 26C'][i % 4]); });
+  // every teacher's own questions tab; Anna adds one question of her own
+  g.ensureTeacherQuestionTabs_();
+  const aq = g.SpreadsheetApp.getActive().getSheetByName('Questions · Anna'), al = aq.getLastRow() + 1;
+  aq.getRange(al, 1, 1, 6).setValues([['Shut down', '', "Anna's own: coils the cables over-under", '', false, 'Both']]);
+  g.ensureQuestionIds_();
   console.log('Seeded example students on', ymd(3), 'and', ymd(5));
 }
 // OPS_TRY_QUESTIONS=1: 45 s after start, someone "edits the Questions tab" (rewords the first question, adds a K3 one

@@ -463,7 +463,8 @@ body{margin:0;font-size:15px}
    core:1              the student must not fail it (combined mark under 50% means Resit)
    ask:'…'             a question shown on the sheet for the teacher to ask out loud
    studios:['K3']      only for students booked in those studios (leave it out for everyone)
-   A test date that has been marked keeps the questions it was first marked with (QDAYS). */
+   Each teacher has their own questions tab: a student is asked their teacher's set (QLIVE, '' = shared), and a date
+   that has been marked keeps the set it was first marked with for that teacher (QSETS, keyed date|teacher). */
 const STAGES=[
  {id:'power',short:'Power',name:'Power up & safe listening'},
  {id:'mic',short:'Mic',name:'Connecting a Mic'},
@@ -494,8 +495,9 @@ const CRIT=[
 ];
 // the questions in use: {id,stage,heading,t,ask,core,studios} as the back end sends them, plus s = a stage key for the page
 const DEFAULT_Q=CRIT.map(c=>{const st=STAGES.find(x=>x.id===c.s);return {id:c.id,stage:st.short,heading:st.name,t:c.t,ask:c.ask||'',core:c.core?1:0,studios:c.studios||null}});
+function setQuestions(now,live,sets){QNOW=qset(now);QLIVE={};QSETS={};for(const [k,l] of Object.entries(live||{}))QLIVE[k]=qset(l);for(const [k,l] of Object.entries(sets||{}))QSETS[k]=qset(l)}
 function qset(list){const keys=[];return (list||[]).map(q=>{let i=keys.indexOf(q.stage);if(i<0){keys.push(q.stage);i=keys.length-1}return {...q,s:'g'+i}})}
-let QNOW=qset(DEFAULT_Q),QDAYS={};   // replaced by the last questions this phone saw, then by every refresh
+let QNOW=qset(DEFAULT_Q),QLIVE={},QSETS={};   // replaced by the last questions this phone saw, then by every refresh
 const STUDIOS=['K3','K4'];
 // marks, best first; tolerant on purpose: "Got there" on everything still passes
 const MARK={p:'Perfect',y:'Pass',h:'Hint',g:'Got there',n:'Failed'};
@@ -529,7 +531,7 @@ function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor
 // the back end address comes from config.js (or ?api=… while testing); without one the page runs as a preview
 const API=new URLSearchParams(location.search).get('api')||window.OPS_API||'';
 const S={token:ls.get('ops.token',''),me:ls.get('ops.me',''),role:ls.get('ops.role',''),demo:!API,tests:{},teachers:{},pending:ls.get('ops.pending',{}),view:'roster',open:null,day:ls.get('ops.day',null)||today(),all:false,days:{},dayWant:{},confirm:null,cal:null,sync:'ok',ready:false,loading:false,published:{},dayPicked:false,loadErr:'',stale:false,offline:false,mine:ls.get('ops.mine',true)};
-if(ls.get('ops.q',null)){QNOW=qset(ls.get('ops.q'));for(const [d,l] of Object.entries(ls.get('ops.qdays',{})||{}))QDAYS[d]=qset(l)}
+if(ls.get('ops.q',null))setQuestions(ls.get('ops.q'),ls.get('ops.qlive',{}),ls.get('ops.qsets',{}));
 
 /* ---- each teacher marks on their own: a student keeps one entry per teacher under by.<teacher name>.
    Until a date is revealed the back end sends other teachers' entries only as {_progress: skills marked}. */
@@ -538,7 +540,8 @@ const mine=t=>!S.me?{}:entries(t)[S.me]||{};
 const canMark=()=>!!S.me&&(S.demo||!!S.token);
 const teacherName=n=>n;
 
-const skillsFor=t=>(QDAYS[t.day]||QNOW).filter(c=>!c.studios||c.studios.includes(t.studio));
+const tkey=t=>String(t&&t.teacher||'').trim().toLowerCase().replace(/\s+/g,' ');
+const skillsFor=t=>(QSETS[t.day+'|'+tkey(t)]||QLIVE[tkey(t)]||QLIVE['']||QNOW).filter(c=>!c.studios||c.studios.includes(t.studio));
 // the stages of one student's questions, in order
 const stagesFor=t=>{const out=[];for(const c of skillsFor(t))if(!out.some(x=>x.id===c.s))out.push({id:c.s,short:c.stage,name:c.heading||c.stage});return out};
 const bandOf=p=>GRADES.find(g=>p>=g.min*100-1e-9);
@@ -608,8 +611,8 @@ function applyState(j){
   S.tests=tests;
   S.teachers=Object.fromEntries(j.teachers.map(n=>[n,{name:n}]));
   if(Array.isArray(j.questions)){
-    QNOW=qset(j.questions);QDAYS={};for(const [d,l] of Object.entries(j.qdays||{}))QDAYS[d]=qset(l);
-    ls.set('ops.q',j.questions);ls.set('ops.qdays',j.qdays||{});
+    setQuestions(j.questions,j.qlive||{},j.qsets||{});
+    ls.set('ops.q',j.questions);ls.set('ops.qlive',j.qlive||{});ls.set('ops.qsets',j.qsets||{});
   }
   // drop queued changes for students that no longer exist
   for(const id of Object.keys(S.pending))if(!tests[id]){delete S.pending[id]}
@@ -689,7 +692,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793384284';
+const BUILD='1793384627';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
