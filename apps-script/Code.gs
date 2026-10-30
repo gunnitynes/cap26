@@ -245,8 +245,8 @@ function styleMarks_(n) {
   markRange.setHorizontalAlignment('center');
   const rule = (range, text, bg, fg) => SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(text).setBackground(bg).setFontColor(fg).setBold(true).setRanges([range]).build();
   m.setConditionalFormatRules([
-    rule(markRange, 'Perfect', '#dbe6ff', '#0b43e0'),
-    rule(markRange, 'Pass', '#d8f1e6', '#0f7a57'), rule(markRange, 'Hint', '#fbeccf', '#a35f00'),
+    rule(markRange, 'Perfect', '#d8f1e6', '#0f7a57'),
+    rule(markRange, 'Pass', '#dbe6ff', '#0b43e0'), rule(markRange, 'Hint', '#fbeccf', '#a35f00'),
     rule(markRange, 'Got there', '#fde2d3', '#c2410c'), rule(markRange, 'Failed', '#fbe0e0', '#bf2b2b'),
   ]);
   m.setTabColor(INK);
