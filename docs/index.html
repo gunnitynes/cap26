@@ -865,13 +865,13 @@ function renderRoster(){
   const byDay={};all.forEach(t=>(byDay[t.day]=byDay[t.day]||[]).push(t));
   const days=Object.keys(byDay).sort();
   const dayList=all.filter(t=>t.day===S.day).sort(byTime),myList=dayList.filter(isMine);
-  // until a teacher has students assigned to them anywhere, they simply see everyone
-  const mineView=S.mine&&all.some(isMine),list=mineView?myList:dayList;
+  // the back end sends a teacher only their own students; an admin gets everyone, with a switch to show just theirs
+  const admin=S.role==='admin'||S.demo,mineView=admin&&S.mine&&all.some(isMine),list=mineView?myList:dayList;
   const cnt={todo:0,live:0,done:0};list.forEach(t=>cnt[statusOf(t).k]++);
   const marked=cnt.done;
   const lastStudio=STUDIOS.includes(ls.get('ops.studio',''))?ls.get('ops.studio',''):STUDIOS[0];
   const row=t=>{const st=statusOf(t),ce=scoreOf(mine(t),t).inc.length,nt=Object.keys(entries(t)).length;
-    return `<button class="row" data-open="${t.id}">${ring(t)}<span class="who"><b>${t.time?`<span class="at">${t.time}</span>`:''}${esc(t.name)}${timerOf(t.id)?` <span class="tm-mini" data-timer="${t.id}"><span class="tm-num">${timerOf(t.id).txt}</span></span>`:''}</b><span>${[esc(t.studio||''),mineView?'':t.teacher?esc(t.teacher):'<span class="unas">No teacher</span>',nt?nt+' marking':''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}</span></span><span class="pill ${st.k}">${st.l}</span></button>`};
+    return `<button class="row" data-open="${t.id}">${ring(t)}<span class="who"><b>${t.time?`<span class="at">${t.time}</span>`:''}${esc(t.name)}${timerOf(t.id)?` <span class="tm-mini" data-timer="${t.id}"><span class="tm-num">${timerOf(t.id).txt}</span></span>`:''}</b><span>${[esc(t.studio||''),mineView||!admin?'':t.teacher?esc(t.teacher):'<span class="unas">No teacher</span>',nt?nt+' marking':''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}</span></span><span class="pill ${st.k}">${st.l}</span></button>`};
   const stats=`<div class="stat"><div class="n">${list.length}</div><div class="l">Students</div></div>
       <div class="stat"><div class="n">${marked}</div><div class="l">Marked by you</div></div>
       <div class="stat"><div class="n" style="color:var(--mute)">${cnt.todo}</div><div class="l">Not started</div></div>
@@ -881,17 +881,17 @@ function renderRoster(){
    ${S.demo?`<div class="banner"><b>Preview.</b> These students and the second teacher are examples and nothing here is saved.</div>`:''}
    ${S.stale?`<div class="upd${S.offline?' off':''}" role="status">${S.offline?'Offline · showing what this phone saw last':'<span class="spin" aria-hidden="true"></span>Updating from the Sheet…'}</div>`:''}
    <div class="summary">${stats}</div>
-   ${dayList.length?`<div class="seg whoseg" id="whoSeg" role="group" aria-label="Whose students"><button type="button" data-mine="1" aria-pressed="${mineView}">My students · ${myList.length}</button><button type="button" data-mine="0" aria-pressed="${!mineView}">Everyone · ${dayList.length}</button></div>`:''}
+   ${admin&&dayList.length?`<div class="seg whoseg" id="whoSeg" role="group" aria-label="Whose students"><button type="button" data-mine="1" aria-pressed="${mineView}">My students · ${myList.length}</button><button type="button" data-mine="0" aria-pressed="${!mineView}">Everyone · ${dayList.length}</button></div>`:''}
    <div class="list">
      <div class="dayhead"><b>${fmtDay(S.day)}${S.day===today()?' · today':''}</b><span>${list.length} student${list.length===1?'':'s'}</span></div>
-     ${list.length?list.map(row).join(''):dayList.length?`<div class="empty"><b>None of your students on ${fmtDay(S.day)}</b>${dayList.length} ${dayList.length===1?'student is':'students are'} booked with other teachers or have no teacher yet. Tap Everyone to see them.</div>`:`<div class="empty"><b>No tests on ${fmtDay(S.day)}</b>Add students below, or pick another date.</div>`}
+     ${list.length?list.map(row).join(''):dayList.length?`<div class="empty"><b>None of your students on ${fmtDay(S.day)}</b>${dayList.length} ${dayList.length===1?'student is':'students are'} booked with other teachers or have no teacher yet. Tap Everyone to see them.</div>`:!admin&&!all.length?`<div class="empty"><b>No students on your list yet</b>The organiser puts your name in the Teacher column of the Students tab. Your students then show up here.</div>`:`<div class="empty"><b>No tests for you on ${fmtDay(S.day)}</b>Pick another date, or add students below.</div>`}
    </div>
 
    <form class="card add" id="addForm" autocomplete="off">
      <h3 style="font-size:16px">Add students to ${fmtDay(S.day)}</h3>
      <p class="readout" style="margin:-4px 0 0">Plan ahead: change the date at the top first, then add the students for that day.</p>
      <div class="field"><label for="addNames">Names, one per line. Start a line with the test time, like 10:30 Kim</label><textarea id="addNames" rows="3" placeholder="10:30 Student name"></textarea></div>
-     <div class="field"><label>Teacher</label><div class="seg" id="addTeacher" role="group" aria-label="Teacher">${Object.keys(S.teachers).map(n=>`<button type="button" data-teacher="${esc(n)}" aria-pressed="${n===S.me}">${esc(n)}</button>`).join('')}</div></div>
+     ${!admin?'':`<div class="field"><label>Teacher</label><div class="seg" id="addTeacher" role="group" aria-label="Teacher">${Object.keys(S.teachers).map(n=>`<button type="button" data-teacher="${esc(n)}" aria-pressed="${n===S.me}">${esc(n)}</button>`).join('')}</div></div>`}
      <div class="field"><label>Studio</label><div class="seg" id="addStudio" role="group" aria-label="Studio">${STUDIOS.map(x=>`<button type="button" data-studio="${x}" aria-pressed="${x===lastStudio}">${x}</button>`).join('')}</div></div>
      <button class="primary" type="submit" ${!canMark()?'disabled':''}>Add to ${fmtDay(S.day)}</button>
    </form>
@@ -904,13 +904,13 @@ function renderRoster(){
   $('#app').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>go('test',b.dataset.open));
   $('#gradesBtn').onclick=openGrades;
   $('#whoSeg')?.addEventListener('click',e=>{const b=e.target.closest('[data-mine]');if(!b)return;S.mine=b.dataset.mine==='1';ls.set('ops.mine',S.mine);render()});
-  $('#addTeacher').onclick=e=>{const b=e.target.closest('[data-teacher]');if(!b)return;$('#addTeacher').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b))};
+  if($('#addTeacher'))$('#addTeacher').onclick=e=>{const b=e.target.closest('[data-teacher]');if(!b)return;$('#addTeacher').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b))};
   $('#addStudio').onclick=e=>{const b=e.target.closest('[data-studio]');if(!b)return;$('#addStudio').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b))};
   $('#addForm').onsubmit=async e=>{e.preventDefault();if(!canMark())return;
     const names=$('#addNames').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!names.length){toast('Type at least one name');return}
     const lines=names.map(parseLine);
     const studio=$('#addStudio [aria-pressed="true"]')?.dataset.studio||STUDIOS[0],day=S.day;ls.set('ops.studio',studio);
-    const teacher=$('#addTeacher [aria-pressed="true"]')?.dataset.teacher||'';
+    const teacher=$('#addTeacher [aria-pressed="true"]')?.dataset.teacher||S.me;
     const msg=(names.length>1?`Added ${names.length} students`:`Added ${lines[0].name}`)+' to '+fmtDay(day);
     if(S.demo){lines.forEach(l=>{S.tests[rid()]={name:l.name,time:l.time,studio,teacher,day,by:{}}});render();toast(msg);return}
     const btn=e.target.querySelector('button[type=submit]');btn.disabled=true;btn.textContent='Adding…';
@@ -1011,7 +1011,7 @@ function renderSheet(){
        <p class="readout" id="progTxt" style="margin:0;font-size:14px"></p>
        <div class="field"><label for="summary">Your feedback for the student</label><textarea id="summary" rows="3" placeholder="What went well, what to practise"></textarea></div>
        <div class="pair"><div class="field"><label for="moveDay">Test date</label><input type="date" id="moveDay"></div><div class="field"><label for="moveTime">Test time</label><input type="time" id="moveTime"></div></div>
-       <div class="field"><label for="moveTeacher">Teacher</label><select id="moveTeacher">${[...new Set(['',...Object.keys(S.teachers),t.teacher||''])].map(n=>`<option value="${esc(n)}">${n?esc(n):'No teacher yet'}</option>`).join('')}</select></div>
+       <div class="field"${S.role==='admin'||S.demo?'':' hidden'}><label for="moveTeacher">Teacher</label><select id="moveTeacher">${[...new Set(['',...Object.keys(S.teachers),t.teacher||''])].map(n=>`<option value="${esc(n)}">${n?esc(n):'No teacher yet'}</option>`).join('')}</select></div>
        <div class="foot"><button class="primary" id="doneBtn" type="button">Save and back to students</button><button class="ghost danger" id="delBtn" type="button">Delete</button></div>
      </section>
    </div>`;

@@ -92,7 +92,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   g.setup();
   const ss = g.SpreadsheetApp.getActive(), te = ss.getSheetByName('Teachers'), st = ss.getSheetByName('Students');
   assert.deepEqual(tab(book, 'Students').data[0], ['Test date', 'Test time', 'Student', 'Studio', 'Teacher', 'Removed', 'ID']);
-  te.getRange(2, 1).setValue('Gunni'); g.setTeamPassword_('test-pass-1');
+  te.getRange(2, 1, 1, 2).setValues([['Gunni', 'admin']]); g.setTeamPassword_('test-pass-1');
   const tok = call(g, { action: 'login', name: 'gunni', password: 'test-pass-1' }).token;
   // dates must come from inside the sandbox, like the ones Google hands the script
   const pick = d => { const x = g.toDate_(d); x.setHours(0); return x; };   // what the date picker stores: midnight
@@ -168,7 +168,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const { g, book } = loadScript();
   g.setup();
   const te = g.SpreadsheetApp.getActive().getSheetByName('Teachers');
-  te.getRange(2, 1, 2, 1).setValues([['Gunni'], ['Anna']]); g.setTeamPassword_('test-pass-1');
+  te.getRange(2, 1, 2, 2).setValues([['Gunni', 'admin'], ['Anna', 'admin']]); g.setTeamPassword_('test-pass-1');
   const gt = call(g, { action: 'login', name: 'gunni', password: 'test-pass-1' }).token;
   const at = call(g, { action: 'login', name: 'anna', password: 'test-pass-1' }).token;
   call(g, { action: 'addStudents', token: gt, names: ['Polina', 'Paul'], studio: 'K3', day: '2026-11-04' });
@@ -211,7 +211,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const { g, book } = loadScript();
   g.setup();
   const ss = g.SpreadsheetApp.getActive(), q = ss.getSheetByName('Questions'), te = ss.getSheetByName('Teachers');
-  te.getRange(2, 1).setValue('Gunni'); g.setTeamPassword_('test-pass-1');
+  te.getRange(2, 1, 1, 2).setValues([['Gunni', 'admin']]); g.setTeamPassword_('test-pass-1');
   const tok = call(g, { action: 'login', name: 'gunni', password: 'test-pass-1' }).token;
   let st = call(g, { action: 'state', token: tok });
   assert.equal(st.questions.length, 18);
@@ -280,5 +280,33 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const gd2 = tab(book, 'Grades').data, gh2 = gd2[6];
   assert.equal(gd2.find(r => r[1] === 'Polina')[gh2.indexOf('Marked')], '17/17');
   ok('"Use the current questions for a test date" moves a marked date onto today\'s questions');
+}
+// 9. Each teacher gets only the students they are testing; an admin gets everyone.
+{
+  const { g, book } = loadScript();
+  g.setup();
+  const te = g.SpreadsheetApp.getActive().getSheetByName('Teachers');
+  te.getRange(2, 1, 3, 2).setValues([['Gunni', 'admin'], ['Isuru', 'teacher'], ['Ainsley', 'teacher']]); g.setTeamPassword_('test-pass-1');
+  const tok = n => call(g, { action: 'login', name: n, password: 'test-pass-1' }).token, gt = tok('Gunni'), it = tok('Isuru'), at = tok('Ainsley');
+  call(g, { action: 'addStudents', token: gt, names: ['Kim', 'Lior'], studio: 'K3', day: '2026-11-04', teacher: 'Isuru' });
+  call(g, { action: 'addStudents', token: gt, names: ['Noor'], studio: 'K4', day: '2026-11-04', teacher: 'Ainsley' });
+  call(g, { action: 'addStudents', token: gt, names: ['Sam'], studio: 'K4', day: '2026-11-04' });
+  const names = t => call(g, { action: 'state', token: t }).students.map(x => x.name).sort().join(',');
+  assert.equal(names(it), 'Kim,Lior'); assert.equal(names(at), 'Noor'); assert.equal(names(gt), 'Kim,Lior,Noor,Sam');
+  ok('a teacher only gets the students with their name in the Teacher column; the admin gets everyone');
+  assert.deepEqual(call(g, { action: 'grades', token: it }).students.map(x => x.name).sort(), ['Kim', 'Lior']);
+  ok('the Grades screen shows a teacher only their own students');
+  const noor = call(g, { action: 'state', token: gt }).students.find(x => x.name === 'Noor').id;
+  assert.match(call(g, { action: 'saveEntry', token: it, sid: noor, patch: { marks: { p1: 'y' } } }).error, /not on your list/);
+  assert.match(call(g, { action: 'updateStudent', token: it, id: noor, time: '10:00' }).error, /not on your list/);
+  const kim = call(g, { action: 'state', token: it }).students.find(x => x.name === 'Kim').id;
+  assert.match(call(g, { action: 'updateStudent', token: it, id: kim, teacher: 'Ainsley' }).error, /Only an admin/);
+  ok('a teacher cannot mark, move or hand over another teacher\'s student');
+  call(g, { action: 'addStudents', token: it, names: ['Pia'], studio: 'K3', day: '2026-11-04', teacher: 'Ainsley' });
+  assert.equal(names(it), 'Kim,Lior,Pia');
+  ok('a student a teacher adds on the page goes on their own list');
+  call(g, { action: 'updateStudent', token: gt, id: noor, teacher: 'Isuru' });
+  assert.equal(names(it), 'Kim,Lior,Noor,Pia'); assert.equal(names(at), '');
+  ok('when the admin moves a student to another teacher, it moves between their lists');
 }
 console.log(`\n${n} checks passed`);

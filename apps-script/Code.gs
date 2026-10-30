@@ -124,7 +124,7 @@ function buildStart_() {
     ['Add students', 'Open the Students tab. Type the test date, the test time (like 10:30), the student\'s name and the studio, one student per row.'],
     ['', 'Pasting a whole list? Paste the names into the Student column and type the date once at the top: rows below take the date and studio from the row above. Each student keeps their own time.'],
     ['', 'They appear on the page within a few seconds. Teachers can also add students on the page itself.'],
-    ['Assign a teacher', 'Pick the teacher in the student\'s Teacher column. On the page each teacher sees their own students first (with a switch to see everyone).'],
+    ['Assign a teacher', 'Pick the teacher in the student\'s Teacher column. On the page each teacher sees only their own students; an admin (Role column in Teachers) sees everyone.'],
     ['Remove a student', 'Type anything (for example "absent") in their Removed column. Their row stays, so nothing is lost.'],
     ['Remove a teacher', 'Delete their row in Teachers. Their marks stay in Marks.'],
     ['Change the questions', 'Edit the Questions tab: one row per question, in test order. Add a row, delete a row, reword, tick Core, or set a studio. The page picks it up within a few seconds.'],
@@ -423,7 +423,7 @@ function route_(req) {
     case 'updateStudent':  return withLock_(() => updateStudent_(me, req));
     case 'saveEntry':      return withLock_(() => saveEntry_(me, req));
     case 'publishResults': return withLock_(() => publishResults_(me, req));
-    case 'grades':         return grades_();
+    case 'grades':         return grades_(me);
     case 'logout':         PropertiesService.getScriptProperties().deleteProperty('s_' + req.token); return { ok: true };
     case 'listTeachers':   return admin_(me) || { ok: true, teachers: teachers_().map(t => ({ name: t.name, role: t.role })) };
     case 'addTeacher':     return admin_(me) || withLock_(() => setTeacher_(req.name, req.role === 'admin' ? 'admin' : 'teacher'));
@@ -476,6 +476,10 @@ function auth_(token) {
   if (!t) { props.deleteProperty('s_' + token); return null; }
   return { name: t.name, role: t.role, token };
 }
+
+/** A teacher only ever gets the students whose Teacher column has their name; an admin gets everyone. */
+function sees_(me, s) { return me.role === 'admin' || (!!s.teacher && norm_(s.teacher) === norm_(me.name)); }
+const NOT_YOURS = { ok: false, error: 'This student is not on your list any more. Ask the organiser if they should be.' };
 
 function admin_(me) { return me.role === 'admin' ? null : { ok: false, error: 'Only an admin can do that.' }; }
 
@@ -551,7 +555,7 @@ function marksRows_() {
 }
 
 function state_(me) {
-  const students = students_().filter(s => !s.removed);
+  const students = students_().filter(s => !s.removed && sees_(me, s));
   const dayOf = {}; students.forEach(s => dayOf[s.id] = s.day);
   const entries = [];
   marksRows_().forEach(m => {
@@ -576,7 +580,7 @@ function addStudents_(me, req) {
     .map(l => { const m = l.match(/^(\d{1,2}[:.]\d{2})\s+(.+)$/); return m && time_(m[1]) ? { time: time_(m[1]), name: clean_(m[2], 80) } : { time: '', name: clean_(l, 80) }; });
   if (!lines.length) return { ok: false, error: 'Type at least one name.' };
   const studio = STUDIO_LIST.indexOf(clean_(req.studio, 10)) >= 0 ? clean_(req.studio, 10) : STUDIO_LIST[0], sh = sheet_(SHEETS.STUDENTS);
-  const t = teacherName_(req.teacher);
+  const t = me.role === 'admin' ? teacherName_(req.teacher) : me.name;   // a teacher adds students to their own list
   const rows = lines.map(l => [toDate_(day), l.time, l.name, studio, t, '', newId_()]);
   sh.getRange(sh.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
   return { ok: true, ids: rows.map(r => r[S_.ID]) };
@@ -586,6 +590,8 @@ function updateStudent_(me, req) {
   gradesDirty_();
   const s = students_().find(x => x.id === String(req.id));
   if (!s || s.removed) return { ok: false, error: 'That student is no longer on the list.' };
+  if (!sees_(me, s)) return NOT_YOURS;
+  if (req.teacher !== undefined && me.role !== 'admin') return { ok: false, error: 'Only an admin can move a student to another teacher.' };
   const sh = sheet_(SHEETS.STUDENTS);
   if (req.deleted) {
     const others = marksRows_().filter(m => m.sid === s.id && norm_(m.teacher) !== norm_(me.name) && Object.keys(m.data.marks || {}).length);
@@ -611,6 +617,7 @@ function saveEntry_(me, req) {
   const sid = String(req.sid || '');
   const s = students_().find(x => x.id === sid && !x.removed);
   if (!s) return { ok: false, error: 'That student is no longer on the list.' };
+  if (!sees_(me, s)) return NOT_YOURS;
   const p = req.patch || {}, clean = {};
   if (p.marks) { clean.marks = {}; Object.keys(p.marks).slice(0, 200).forEach(k => { const v = p.marks[k]; if (v === null || v in POINTS) clean.marks[clean_(k, 40)] = v; }); }
   if (p.notes) { clean.notes = {}; Object.keys(p.notes).slice(0, 200).forEach(k => { clean.notes[clean_(k, 40)] = p.notes[k] === null ? null : String(p.notes[k]).slice(0, 1000); }); }
@@ -802,8 +809,8 @@ function gradeList_() {
 }
 
 /** The page's Grades screen: the combined result per student, never one teacher's marks. */
-function grades_() {
-  return { ok: true, students: gradeList_().list.map(({ s, qs, g }) => {
+function grades_(me) {
+  return { ok: true, students: gradeList_().list.filter(x => sees_(me, x.s)).map(({ s, qs, g }) => {
     const stages = [];
     qs.forEach(q => { if (!stages.some(x => x.name === q.stage)) stages.push({ name: q.stage, pct: q.stage in g.stages ? g.stages[q.stage] : null }); });
     return { id: s.id, day: s.day, time: s.time, name: s.name, studio: s.studio, teacher: s.teacher, marked: g.marked, total: qs.length,
