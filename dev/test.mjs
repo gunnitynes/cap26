@@ -497,4 +497,16 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.deepEqual(d.filter(Boolean), ['BAND Isuru', 'Emiliano', 'BAND Ainsley', 'Faddei']);
   ok('the Grades tab lists each teacher\'s students together under a band with the teacher\'s name');
 }
+// 15. The pass bar is 40: mostly "got there" with a few failed (non-core) skills still passes; below 40 is a Resit.
+{
+  const { g } = loadScript();
+  g.setup();
+  const qs = g.questions_(), nonCore = qs.filter(q => !q.core).map(q => q.id);
+  const marks = f => ({ T: { marks: Object.fromEntries(qs.map(q => [q.id, f(q)])) } });
+  const three = nonCore.slice(0, 3), five = nonCore.slice(0, 5);
+  const a = g.gradeOf_(marks(q => three.includes(q.id) ? 'n' : 'g'), qs), b = g.gradeOf_(marks(q => five.includes(q.id) ? 'n' : 'g'), qs);
+  assert.equal(Math.round(a.score), 42); assert.equal(a.band[0], 'Pass');
+  assert.equal(Math.round(b.score), 36); assert.equal(b.band[0], 'Resit');
+  ok('Pass from 40: "got there" with three failed skills passes (42), with five it is a Resit (36)');
+}
 console.log(`\n${n} checks passed`);

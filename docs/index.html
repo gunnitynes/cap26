@@ -513,8 +513,8 @@ const STUDIOS=['K3','K4'];
 const MARK={p:'Perfect',y:'Pass',h:'Hint',g:'Got there',n:'Failed'};
 const POINTS={p:1,y:.8,h:.65,g:.5,n:0};
 const QUICK=['Speakers switched with level up','Phantom switched with fader up','Control-room level dangerously loud while patching'];
-// Grade A from 85, Pass from 50; any critical error or a core skill under 50 is a Resit whatever the score
-const GRADES=[{k:'merit',l:'Grade A',min:.85,col:'ok'},{k:'passg',l:'Pass',min:.5,col:'ink'},{k:'resitg',l:'Resit',min:0,col:'no'}];
+// Grade A from 85, Pass from 40; any critical error or a core skill under 50 is a Resit whatever the score
+const GRADES=[{k:'merit',l:'Grade A',min:.85,col:'ok'},{k:'passg',l:'Pass',min:.4,col:'ink'},{k:'resitg',l:'Resit',min:0,col:'no'}];
 
 /* ------------------------------------------------------------------ helpers */
 const $=s=>document.querySelector(s);
@@ -702,7 +702,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793391193';
+const BUILD='1793391796';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1028,7 +1028,7 @@ function renderGrades(){
       <div class="gc-top"><b>${x.time?`<span class="at">${x.time}${x.end?'–'+x.end:''}</span>`:''}${esc(x.name)}</b><span class="pill ${c.pill}">${esc(c.l||k)}</span></div>
       <div class="gc-sub">${[day==='all'?fmtDay(x.day):'',capTag(x),esc(x.studio),x.teacher?'Teacher '+esc(x.teacher):'',x.teachers.length?'marked by '+esc(x.teachers.join(', ')):''].filter(Boolean).join(' · ')}</div>
       ${!x.marked?'<div class="gc-prog">No marks yet.</div>':`
-      <div class="gc-final"><span class="gc-num" style="color:var(--${col})">${x.final}</span><span class="track" aria-hidden="true"><i style="width:${x.final}%;background:var(--${col})"></i><u style="left:50%"></u><u style="left:85%"></u></span></div>
+      <div class="gc-final"><span class="gc-num" style="color:var(--${col})">${x.final}</span><span class="track" aria-hidden="true"><i style="width:${x.final}%;background:var(--${col})"></i><u style="left:40%"></u><u style="left:85%"></u></span></div>
       <div class="gc-prog">${x.complete?'':'So far · '}score ${x.score} · ${x.marked}/${x.total} skills marked${x.errors.length?` · <b style="color:var(--no)">critical error: Resit</b>`:''}</div>
       <div class="gc-stages" style="grid-template-columns:repeat(${Math.max(1,x.stages.length)},1fr)">${x.stages.map(s=>`<span class="st" title="${esc(s.name)}: ${s.pct==null?'not marked':s.pct+'%'}"><span class="st-n">${s.pct==null?'–':s.pct}</span><span class="st-col">${s.pct==null?'':`<i style="height:${Math.max(6,s.pct)}%;background:var(--${s.pct>=75?'ok':s.pct>=60?'hint':'no'})"></i>`}</span><small>${esc(s.name)}</small></span>`).join('')}</div>
       ${x.coreFails.length?`<div class="gc-flag">Core skill under 50%: ${esc(x.coreFails.join(', '))}</div>`:''}

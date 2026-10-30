@@ -63,8 +63,8 @@ const DEFAULT_QUESTIONS = [
 const Q_ = { STAGE: 0, HEADING: 1, TEXT: 2, ASK: 3, CORE: 4, STUDIO: 5, LABEL: 6, ID: 7 };
 const MARKS_HEAD = ['Test date', 'Student', 'Teacher', 'Skills marked', 'Teacher score %', 'Critical errors'];
 const MARKS_TAIL = ['Feedback', 'Updated', 'Student ID', 'Page data (do not edit)'];
-// Grade A from 85 (needs Perfects), Pass from 50. Any critical error, or a core skill under 50, is a Resit whatever the score.
-const BANDS = [['Grade A', 85, '#0f7a57', '#d8f1e6'], ['Pass', 50, '#5a6276', '#eef0f4'], ['Resit', 0, '#bf2b2b', '#fbe0e0']];
+// Grade A from 85 (needs Perfects), Pass from 40. Any critical error, or a core skill under 50, is a Resit whatever the score.
+const BANDS = [['Grade A', 85, '#0f7a57', '#d8f1e6'], ['Pass', 40, '#5a6276', '#eef0f4'], ['Resit', 0, '#bf2b2b', '#fbe0e0']];
 
 const STUDIO_LIST = ['K3', 'K4'];   // the studios a test can be in
 const CAP_LIST = ['CAP 26A', 'CAP 26B', 'CAP 26C', 'TRANSFER'];   // the CAP groups, a dropdown in the Students tab; TRANSFER = a student from outside the class
@@ -149,7 +149,7 @@ function buildStart_() {
     ['Marks', 'One row per student per teacher, every skill readable. The last column is the page\'s own copy; leave it alone.'],
     ['Grades', 'The overview: every student\'s grade, progress, a colour per test stage and their critical errors. Kept up to date by itself.'],
     ['', ''],
-    ['How the grade works', 'Perfect 100 · Pass 80 · Hint 65 · Got there 50 · Failed 0. Each skill is averaged over every teacher who marked it and every skill counts the same. Grade A from 85, Pass from 50. Resit: any critical error, or a Core skill under 50, or an average under 50.'],
+    ['How the grade works', 'Perfect 100 · Pass 80 · Hint 65 · Got there 50 · Failed 0. Each skill is averaged over every teacher who marked it and every skill counts the same. Grade A from 85, Pass from 40. Resit: any critical error, or a Core skill under 50, or an average under 40.'],
   ];
   sh.getRange(1, 1, rows.length, 2).setValues(rows);
   sh.setColumnWidth(1, 190); sh.setColumnWidth(2, 640);
