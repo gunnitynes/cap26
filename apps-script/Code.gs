@@ -39,32 +39,34 @@ const MARK_LABEL = { p: 'Perfect', y: 'Pass', h: 'Hint', g: 'Got there', n: 'Fai
 
 // The questions live in the Questions tab, where anyone with the Sheet can change them. This is only the first version,
 // written there by setup when the tab does not exist yet. The ids keep marks attached to their question.
-//   stage, stage heading, question, ask out loud, core, studio, column name, id
+//   stage, stage heading, question, ask out loud, studio, column name, id
 const DEFAULT_QUESTIONS = [
-  ['Power', 'Power up & safe listening', 'Powers up in the right order', '', true, 'Both', 'Power-up order', 'p1'],
-  ['', '', 'Control-room level down/mute before any console connections', '', true, 'Both', 'CR level down/mute for connections', 'p2'],
-  ['', '', 'Keeps listening levels safe and works methodically', '', false, 'Both', 'Safe levels, methodical', 'p3'],
-  ['Mic', 'Connecting a Mic', 'Chooses the correct mic and places it sensibly', '', false, 'Both', 'Correct mic, placed', 'm1'],
-  ['', '', 'Connects the live-room wall box to the right desk channel', '', false, 'Both', 'Wall box → right channel', 'm2'],
-  ['', '', 'Gets a healthy signal on the desk', '', true, 'Both', 'Healthy desk signal', 'm3'],
-  ['', '', 'Understands phantom power', 'If I had asked you to use the condenser instead, what would you have needed to do?', true, 'Both', 'Phantom power', 'm4'],
-  ['Route', 'Route to the speakers', 'Routes the channel to the console and hears it in the speakers', '', true, 'Both', 'Console → speakers', 'r1'],
-  ['Record', 'Record & play back in Pro Tools', 'Creates a Pro Tools track with the correct input and output', '', true, 'Both', 'PT track in/out', 't1'],
-  ['', '', 'Healthy record level in Pro Tools', '', false, 'Both', 'PT record level', 't2'],
-  ['', '', 'Records a 1-2-3 test and returns it on a different desk channel', '', true, 'Both', '1-2-3 test, other channel', 't3'],
-  ['', '', 'Plays it back through the path you asked for', '', true, 'Both', 'Playback path', 't4'],
-  ['Cue', 'Headphones & cue mix', 'Builds a usable cue mix on the aux sends', '', true, 'Both', 'Usable cue mix', 'c1'],
-  ['', '', 'Understands pre-fader vs. post-fader', 'Should this send be pre or post fader, and why?', true, 'Both', 'Pre vs post fader', 'c2'],
-  ['', '', 'Routes the cue to the headphone amp and checks it', '', true, 'Both', 'Cue → headphone amp', 'c3'],
-  ['', '', 'Explains sending the cue to a selected Live room', 'Without going there: how would the same cue reach this Live room?', false, 'Both', 'Cue to a Live room', 'c4'],
-  ['Shut down', 'Shut down & pack down', 'Knows the shutdown order', 'If you had to shut down the studio now, what would you switch off first?', true, 'Both', 'Shutdown order', 's1'],
-  ['', '', 'Leaves the studio as it was found', '', false, 'Both', 'Left as found', 's2'],
+  ['Power', 'Power up & safe listening', 'Powers up in the right order', '', 'Both', 'Power-up order', 'p1'],
+  ['', '', 'Control-room level down/mute before any console connections', '', 'Both', 'CR level down/mute for connections', 'p2'],
+  ['', '', 'Keeps listening levels safe and works methodically', '', 'Both', 'Safe levels, methodical', 'p3'],
+  ['Mic', 'Connecting a Mic', 'Chooses the correct mic and places it sensibly', '', 'Both', 'Correct mic, placed', 'm1'],
+  ['', '', 'Connects the live-room wall box to the right desk channel', '', 'Both', 'Wall box → right channel', 'm2'],
+  ['', '', 'Gets a healthy signal on the desk', '', 'Both', 'Healthy desk signal', 'm3'],
+  ['', '', 'Understands phantom power', 'If I had asked you to use the condenser instead, what would you have needed to do?', 'Both', 'Phantom power', 'm4'],
+  ['Route', 'Route to the speakers', 'Routes the channel to the console and hears it in the speakers', '', 'Both', 'Console → speakers', 'r1'],
+  ['Record', 'Record & play back in Pro Tools', 'Creates a Pro Tools track with the correct input and output', '', 'Both', 'PT track in/out', 't1'],
+  ['', '', 'Healthy record level in Pro Tools', '', 'Both', 'PT record level', 't2'],
+  ['', '', 'Records a 1-2-3 test and returns it on a different desk channel', '', 'Both', '1-2-3 test, other channel', 't3'],
+  ['', '', 'Plays it back through the path you asked for', '', 'Both', 'Playback path', 't4'],
+  ['Cue', 'Headphones & cue mix', 'Builds a usable cue mix on the aux sends', '', 'Both', 'Usable cue mix', 'c1'],
+  ['', '', 'Understands pre-fader vs. post-fader', 'Should this send be pre or post fader, and why?', 'Both', 'Pre vs post fader', 'c2'],
+  ['', '', 'Routes the cue to the headphone amp and checks it', '', 'Both', 'Cue → headphone amp', 'c3'],
+  ['', '', 'Explains sending the cue to a selected Live room', 'Without going there: how would the same cue reach this Live room?', 'Both', 'Cue to a Live room', 'c4'],
+  ['Shut down', 'Shut down & pack down', 'Knows the shutdown order', 'If you had to shut down the studio now, what would you switch off first?', 'Both', 'Shutdown order', 's1'],
+  ['', '', 'Leaves the studio as it was found', '', 'Both', 'Left as found', 's2'],
 ];
-const Q_ = { STAGE: 0, HEADING: 1, TEXT: 2, ASK: 3, CORE: 4, STUDIO: 5, LABEL: 6, ID: 7 };
+// the standard column order of a questions tab; tabs are READ by their headings, so a moved or deleted column cannot scramble them
+const Q_ = { STAGE: 0, HEADING: 1, TEXT: 2, ASK: 3, STUDIO: 4, LABEL: 5, ID: 6 };
 const MARKS_HEAD = ['Test date', 'Student', 'Teacher', 'Skills marked', 'Teacher score %', 'Critical errors'];
 const MARKS_TAIL = ['Feedback', 'Updated', 'Student ID', 'Page data (do not edit)'];
 const NOT_ASKED = '–';   // in Marks: this question is not part of that student's test (another teacher's own question)
-// Grade A from 85 (needs Perfects), Pass from 40. Any critical error, or a core skill under 50, is a Resit whatever the score.
+// The score is the share of all the teacher's questions (each worth the same), as a percentage.
+// Grade A from 85 (needs Perfects), Pass from 40. Any critical error is a Resit whatever the score.
 const BANDS = [['Grade A', 85, '#0f7a57', '#d8f1e6'], ['Pass', 40, '#5a6276', '#eef0f4'], ['Resit', 0, '#bf2b2b', '#fbe0e0']];
 
 const STUDIO_LIST = ['K3', 'K4'];   // the studios a test can be in
@@ -76,8 +78,8 @@ const SHEETS = {
   TEACHERS: { name: 'Teachers', header: ['Name', 'Role', 'Last sign-in'], widths: [220, 120, 170] },
   STUDENTS: { name: 'Students', header: ['Test date', 'Test time', 'Student', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID'],
               widths: [110, 110, 220, 110, 90, 140, 220, 110] },
-  QUESTIONS:{ name: 'Questions', header: ['Stage', 'Stage heading', 'Question', 'Ask out loud (optional)', 'Core', 'Studio', 'Column name', 'ID'],
-              widths: [110, 220, 380, 320, 60, 80, 220, 90] },
+  QUESTIONS:{ name: 'Questions', header: ['Stage', 'Stage heading', 'Question', 'Ask out loud (optional)', 'Studio', 'Column name', 'ID'],
+              widths: [110, 220, 380, 320, 80, 220, 90] },
   MARKS:    { name: 'Marks', header: [] },   // its skill columns follow the questions: see syncMarks_
   GRADES:   { name: 'Grades', header: [] },
 };
@@ -95,13 +97,16 @@ function onOpen() {
     .addSeparator()
     .addItem('Refresh the Grades tab', 'buildGrades_')
     .addItem('Use the current questions for a test date…', 'menuUseCurrentQuestions')
+    .addSeparator()
+    .addItem('Reset a student\'s test…', 'menuResetStudent')
+    .addItem('Reset ALL test results…', 'menuResetAll')
     .addToUi();
 }
 
 /** Builds every tab, moves older layouts over without losing anything, and styles it all. Safe to run any time. */
 function setup() {
   const ss = SpreadsheetApp.getActive();
-  migrateTeachers_(); migrateStudents_(); seedQuestions_(); ensureTeacherQuestionTabs_(); ensureQuestionIds_(); migrateMarks_(); migrateDates_();
+  migrateTeachers_(); migrateStudents_(); seedQuestions_(); questionSheets_().forEach(normalizeQuestionTab_); ensureTeacherQuestionTabs_(); ensureQuestionIds_(); migrateMarks_(); migrateDates_();
   splitDayFreezes_();
   Object.keys(SHEETS).forEach(k => { if (k !== 'START' && k !== 'GRADES') sheet_(SHEETS[k]); });
   freezeMarkedDays_();
@@ -139,18 +144,19 @@ function buildStart_() {
     ['Assign a teacher', 'Pick the teacher in the student\'s Teacher column. On the page each teacher sees only their own students; an admin (Role column in Teachers) sees everyone.'],
     ['Remove a student', 'Type anything (for example "absent") in their Removed column. Their row stays, so nothing is lost.'],
     ['Remove a teacher', 'Delete their row in Teachers. Their marks stay in Marks.'],
-    ['Change the questions', 'Each teacher has their own tab, "Questions · their name". Edit yours: one row per question, in test order. Add a row, delete a row, reword, tick Core, or set a studio. Your students are asked your questions; the page picks it up within a few seconds.'],
+    ['Change the questions', 'Each teacher has their own tab, "Questions · their name". Edit yours: one row per question, in test order. Move rows to reorder, replace a question by typing a new one, add or delete rows, or set a studio. Marks stay with their question when it moves. Your students are asked your questions; the page picks it up within a few seconds.'],
     ['', 'The Questions tab is the shared starting point: a new teacher\'s tab starts as a copy of it, and students without a teacher are asked it.'],
     ['', 'A test date keeps the questions it was first marked with, so grades already given never move (rewording still shows). To give a marked date the new questions anyway: Ops Test ▸ Use the current questions for a test date.'],
     ['', ''],
     ['What the tabs hold', ''],
     ['Teachers', 'Who can sign in. Their names are the list on the sign-in page.'],
     ['Students', 'Everyone booked for a test: date, time, name, studio. Type or paste here, or add them on the page.'],
-    ['Questions', 'The test itself: every question, its stage, whether it is Core, and which studio it is for.'],
+    ['Questions', 'The shared test: every question, its stage and which studio it is for. Each teacher\'s own tab starts as a copy of it.'],
+    ['Reset a test', 'On the page: open the student, scroll to the bottom and tap Reset. In this Sheet: Ops Test ▸ Reset a student\'s test… (all teachers\' marks for that student), or Ops Test ▸ Reset ALL test results… (for example after beta testing). Reload the Sheet once if the menu items are missing.'],
     ['Marks', 'One row per student per teacher, every skill readable. The last column is the page\'s own copy; leave it alone.'],
     ['Grades', 'The overview: every student\'s grade, progress, a colour per test stage and their critical errors. Kept up to date by itself.'],
     ['', ''],
-    ['How the grade works', 'Perfect 100 · Pass 80 · Hint 65 · Got there 50 · Failed 0. Each skill is averaged over every teacher who marked it and every skill counts the same. Grade A from 85, Pass from 40. Resit: any critical error, or a Core skill under 50, or an average under 40.'],
+    ['How the grade works', 'Each question counts the same: Perfect 100 · Pass 80 · Hint 65 · Got there 50 · Failed 0. The score is the average over all of the teacher\'s questions, as a percentage (each skill averaged over every teacher who marked it). Grade A from 85%, Pass from 40%. Any critical error means Resit.'],
   ];
   sh.getRange(1, 1, rows.length, 2).setValues(rows);
   sh.setColumnWidth(1, 190); sh.setColumnWidth(2, 640);
@@ -218,14 +224,42 @@ function style_() {
   [t, st].forEach(s => s.setTabColor(INK));
 }
 
-/** One questions tab (the shared one or a teacher's): bold questions, Core ticks, Studio dropdown, notes, hidden IDs. */
+/** Where each column of a questions tab is, found by its heading (-1 when a tab has no such column). */
+function qcols_(sh) {
+  const w = Math.max(1, sh.getLastColumn()), head = sh.getRange(1, 1, 1, w).getValues()[0].map(h => String(h || '').trim().toLowerCase());
+  const at = (...names) => head.findIndex(h => names.some(n => h === n || h.indexOf(n) === 0));
+  return { stage: head.indexOf('stage'), heading: at('stage heading'), text: at('question'),
+           ask: at('ask'), studio: at('studio'), label: at('column name'), id: head.indexOf('id'), width: w };
+}
+/** A questions tab's rows in the standard column order, whatever order its columns are in now. */
+function rowsStd_(sh) {
+  if (!sh || sh.getLastRow() < 2) return [];
+  const c = qcols_(sh), raw = sh.getRange(2, 1, sh.getLastRow() - 1, c.width).getValues();
+  const get = (r, i) => i < 0 ? '' : (typeof r[i] === 'boolean' ? '' : r[i]);
+  return raw.map(r => [get(r, c.stage), get(r, c.heading), get(r, c.text), get(r, c.ask), get(r, c.studio), get(r, c.label), get(r, c.id)]);
+}
+/** Puts a questions tab back into the standard columns (Stage … ID) when someone has moved, added or deleted a column.
+ *  Every question, ask text, studio, column name and ID is kept; a Core column (no longer used) is dropped. */
+function normalizeQuestionTab_(sh) {
+  if (!sh) return;
+  const want = SHEETS.QUESTIONS.header, w = Math.max(1, sh.getLastColumn());
+  const head = sh.getRange(1, 1, 1, w).getValues()[0].map(h => String(h || '').trim());
+  if (head.slice(0, want.length).join('|') === want.join('|') && head.slice(want.length).every(h => !h)) return;
+  const rows = rowsStd_(sh);
+  try { sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).clearDataValidations(); sh.showColumns(1, sh.getMaxColumns()); } catch (e) {}
+  sh.clear();
+  sh.getRange(1, 1, 1, want.length).setValues([want]);
+  if (rows.length) sh.getRange(2, 1, rows.length, want.length).setValues(rows);
+}
+
+/** One questions tab (the shared one or a teacher's): bold questions, Studio dropdown, notes, hidden IDs. */
 /** Questions tab: every stage gets its own soft colour and a line above its first question, so it is clear which
  *  questions belong together (a blank Stage cell still means "the stage above"). Runs on setup and after every edit. */
 const STAGE_TINTS = ['#eaf0ff', '#fff3df', '#e6f5ec', '#fdeaee', '#efe9fb', '#e4f4f6', '#f6f1e3'];
 function colourStages_(q) {
   const last = q.getLastRow(), W = SHEETS.QUESTIONS.header.length;
   if (last < 2) return;
-  const vals = q.getRange(2, 1, last - 1, Q_.TEXT + 1).getValues();
+  const vals = rowsStd_(q);
   const bg = [], starts = [];
   let stage = '', n = -1;
   vals.forEach((r, i) => {
@@ -240,6 +274,7 @@ function colourStages_(q) {
 }
 
 function styleQuestions_(q) {
+  normalizeQuestionTab_(q);
   const qr = q.getMaxRows() - 1, own = q.getName() !== SHEETS.QUESTIONS.name;
   q.getRange(1, 1, 1, SHEETS.QUESTIONS.header.length).setValues([SHEETS.QUESTIONS.header]).setFontWeight('bold').setFontColor('#ffffff')
     .setBackground(own ? INK : BLUE).setVerticalAlignment('middle').setWrap(true);
@@ -251,19 +286,17 @@ function styleQuestions_(q) {
   q.getRange(2, Q_.TEXT + 1, qr, 2).setWrap(true);
   q.getRange(2, Q_.TEXT + 1, qr, 1).setFontWeight('bold');
   q.getRange(2, Q_.ASK + 1, qr, 1).setFontStyle('italic').setFontColor(MUTE);
-  q.getRange(2, Q_.CORE + 1, Math.max(1, q.getLastRow() - 1) + 30, 1).insertCheckboxes();
-  q.getRange(2, Q_.CORE + 1, qr, 2).setHorizontalAlignment('center');
+  q.getRange(2, Q_.STUDIO + 1, qr, 1).setHorizontalAlignment('center');
   q.getRange(2, Q_.STUDIO + 1, qr, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['Both'].concat(STUDIO_LIST), true)
     .setAllowInvalid(true).setHelpText('Both, or a studio: a K3 question is only asked of students tested in K3.').build());
   q.getRange(2, Q_.LABEL + 1, qr, 1).setFontColor(MUTE);
   [['Short stage name: the page\'s stage bar and a Grades column. Leave it blank to keep the stage of the row above.'],
    ['The heading over the stage on the page. Only needed on the first row of a stage.'],
    ['What the teacher marks. One row per question, in the order of the test. Delete the row to remove the question.'],
-   ['Optional: a question the teacher reads out loud, shown under the question.'],
-   ['Tick for a Core skill: a combined mark under 50% means Resit.'],
+   ['Optional: a question the teacher reads out loud, shown under the question. Leave it empty for none.'],
    ['Both, K3 or K4. A K3 question only shows for students tested in K3.'],
    ['Optional: a short name for the Marks and Grades tabs.'],
-   ['Given by the sheet. Keeps marks attached to this question when you reword or move it.']]
+   ['Given by the sheet. Keeps marks attached to this question when you move it (drag, sort, copy or retype) or reword it a little.']]
     .forEach((n, i) => q.getRange(1, i + 1).setNote(n[0]));
   q.hideColumns(Q_.ID + 1);
   q.setTabColor(own ? '#7c8db5' : BLUE);
@@ -473,6 +506,47 @@ function menuUseCurrentQuestions() {
   ui.alert(r.ok ? 'Done: that date now uses the current questions.' : r.error);
 }
 
+/** Ops Test ▸ Reset a student's test: removes every teacher's marks for one student; the student stays on the list. */
+function menuResetStudent() {
+  const ui = SpreadsheetApp.getUi();
+  const p = ui.prompt('Reset a student\'s test', 'The student\'s name as in the Students tab (add the date if the name is there twice, like "Kim 02.11.2026"):', ui.ButtonSet.OK_CANCEL);
+  if (p.getSelectedButton() !== ui.Button.OK) return;
+  const r = withLock_(() => resetStudent_(p.getResponseText()));
+  ui.alert(r.ok ? 'Reset: ' + r.name + ' (' + r.rows + ' marking' + (r.rows === 1 ? '' : 's') + ' removed). The student stays on the list.' : r.error);
+}
+function resetStudent_(text) {
+  const t = clean_(text, 120), m = t.match(/^(.*?)\s+(\d{1,2}[.\/]\d{1,2}[.\/]\d{2,4}|\d{4}-\d{2}-\d{2})$/);
+  const name = norm_(m ? m[1] : t), day = m ? day_(m[2]) : '';
+  const found = students_().filter(s => norm_(s.name) === name && (!day || s.day === day));
+  if (!found.length) return { ok: false, error: 'No student called "' + t + '" in the Students tab.' };
+  if (found.length > 1) return { ok: false, error: 'There are ' + found.length + ' students with that name. Add the date, like "' + found[0].name + ' ' + found[0].day.split('-').reverse().join('.') + '".' };
+  const n = removeMarksRows_(row => row.sid === found[0].id);
+  gradesDirty_(); buildGrades_();
+  return { ok: true, name: found[0].name, rows: n };
+}
+/** Ops Test ▸ Reset ALL test results: every mark is removed and every test date takes the current questions again. */
+function menuResetAll() {
+  const ui = SpreadsheetApp.getUi();
+  const p = ui.prompt('Reset ALL test results', 'This removes every mark, note, critical error and feedback for every student. Students, teachers and questions stay. Type RESET to go ahead:', ui.ButtonSet.OK_CANCEL);
+  if (p.getSelectedButton() !== ui.Button.OK) return;
+  if (p.getResponseText().trim() !== 'RESET') { ui.alert('Nothing was reset (type RESET in capitals to go ahead).'); return; }
+  const n = withLock_(() => resetAll_());
+  ui.alert('Done: ' + n + ' marking' + (n === 1 ? '' : 's') + ' removed.');
+}
+function resetAll_() {
+  const n = removeMarksRows_(() => true);
+  const props = PropertiesService.getScriptProperties();
+  frozenKeys_().forEach(k => props.deleteProperty(k));
+  gradesDirty_(); syncMarks_(); buildGrades_();
+  return n;
+}
+/** Removes the Marks rows that match, keeping the header. Returns how many went. */
+function removeMarksRows_(match) {
+  const sh = sheet_(SHEETS.MARKS), rows = marksRows_().filter(match).map(m => m.row).sort((a, b) => b - a);
+  rows.forEach(r => sh.deleteRow(r));
+  return rows.length;
+}
+
 function menuAddTeacher() {
   const ui = SpreadsheetApp.getUi();
   const n = ui.prompt('Add a teacher', 'Their name, as it should appear on the sign-in page:', ui.ButtonSet.OK_CANCEL);
@@ -670,7 +744,7 @@ function state_(me) {
   const dayOf = {}; students.forEach(s => dayOf[s.id] = s.day);
   const entries = [];
   marksRows_().forEach(m => {
-    if (!(m.sid in dayOf)) return;
+    if (!(m.sid in dayOf) || !m.teacher.trim()) return;   // rows without a teacher do not count
     if (norm_(m.teacher) === norm_(me.name)) entries.push({ sid: m.sid, teacher: m.teacher, data: m.data });
     else entries.push({ sid: m.sid, teacher: m.teacher, progress: Object.keys(m.data.marks || {}).filter(k => m.data.marks[k] in POINTS).length });
   });
@@ -822,7 +896,7 @@ function liveSets_() {
 function ensureTeacherQuestionTabs_() {
   const ss = SpreadsheetApp.getActive(), base = ss.getSheetByName(SHEETS.QUESTIONS.name);
   if (!base) return;
-  const W = SHEETS.QUESTIONS.header.length, rows = base.getLastRow() > 1 ? base.getRange(2, 1, base.getLastRow() - 1, W).getValues() : [];
+  const W = SHEETS.QUESTIONS.header.length, rows = rowsStd_(base);
   teachers_().forEach(t => {
     const name = teacherTabName_(t.name);
     if (ss.getSheetByName(name)) return;
@@ -836,7 +910,7 @@ function ensureTeacherQuestionTabs_() {
 /** The questions as typed in one questions tab, in test order. A blank Stage carries on the stage of the row above. */
 function readQuestions_(sh) {
   if (!sh || sh.getLastRow() < 2) return [];
-  const rows = sh.getRange(2, 1, sh.getLastRow() - 1, SHEETS.QUESTIONS.header.length).getValues();
+  const rows = rowsStd_(sh);
   const out = [], heading = {}, seen = {};
   let stage = '';
   rows.forEach(r => {
@@ -845,7 +919,7 @@ function readQuestions_(sh) {
     const t = clean_(r[Q_.TEXT], 300), id = clean_(r[Q_.ID], 40);
     if (!t || !id || seen[id]) return;
     seen[id] = 1;
-    out.push({ id, stage: stage || 'Test', t, ask: clean_(r[Q_.ASK], 300), core: yes_(r[Q_.CORE]) ? 1 : 0,
+    out.push({ id, stage: stage || 'Test', t, ask: clean_(r[Q_.ASK], 300), core: 0,
       studios: studios_(r[Q_.STUDIO]), label: clean_(r[Q_.LABEL], 40) || shorten_(t) });
   });
   out.forEach(q => q.heading = heading[q.stage] || q.stage);
@@ -860,17 +934,46 @@ function forStudio_(qs, studio) { return qs.filter(q => !q.studios || !studio ||
 /** Every typed question gets an ID in the hidden column; a row copied together with its ID (in the same tab) gets a fresh one.
  *  The same ID in two teachers' tabs is the same question, so marks line up. */
 function ensureQuestionIds_() { questionSheets_().forEach(ensureQuestionIdsIn_); }
+/* Every question keeps an ID (hidden ID column) that its marks hang on. Each tab remembers which text each ID had, so:
+   - a question MOVED by any means (dragging rows, sorting, copying or retyping cells) gets its own ID back;
+   - a question REPLACED by a different one gets a new ID (the old marks do not slide onto it);
+   - a question REWORDED a little keeps its ID. */
 function ensureQuestionIdsIn_(sh) {
   if (!sh || sh.getLastRow() < 2) return;
-  const n = sh.getLastRow() - 1, texts = sh.getRange(2, Q_.TEXT + 1, n, 1).getValues(), idr = sh.getRange(2, Q_.ID + 1, n, 1), ids = idr.getValues();
-  const seen = {}; let changed = false;
+  let c = qcols_(sh);
+  if (c.id < 0) { sh.getRange(1, c.width + 1).setValue('ID'); c = qcols_(sh); }
+  if (c.text < 0) return;
+  const n = sh.getLastRow() - 1, texts = sh.getRange(2, c.text + 1, n, 1).getValues(), idr = sh.getRange(2, c.id + 1, n, 1), ids = idr.getValues();
+  const props = PropertiesService.getScriptProperties(), key = 'qreg_' + sh.getName();
+  let reg = {}; try { reg = JSON.parse(props.getProperty(key) || '{}'); } catch (e) {}
+  const byText = {}; Object.keys(reg).forEach(id => byText[normQ_(reg[id])] = id);
+  const taken = {}, next = {}; let changed = false;
+  // first pass: rows whose ID still holds its own text keep it
+  ids.forEach((r, i) => { const id = String(r[0] || '').trim(), t = String(texts[i][0] || '').trim();
+    if (t && id && reg[id] !== undefined && normQ_(reg[id]) === normQ_(t) && !taken[id]) taken[id] = i + 1; });
   ids.forEach((r, i) => {
-    if (!String(texts[i][0] || '').trim()) return;
+    const t = String(texts[i][0] || '').trim();
+    if (!t) return;
     let id = String(r[0] || '').trim();
-    if (!id || seen[id]) { id = 'q' + newId_().replace(/-/g, '').slice(0, 8); r[0] = id; changed = true; }
-    seen[id] = 1;
+    if (id && taken[id] === i + 1) { next[id] = t; return; }
+    const moved = byText[normQ_(t)];
+    if (moved && !taken[moved]) id = moved;                                              // this text had an ID elsewhere: it moved here
+    else if (id && !taken[id] && (reg[id] === undefined || similar_(reg[id], t))) {}     // first time seen, or a small rewording
+    else id = 'q' + newId_().replace(/-/g, '').slice(0, 8);                             // a new or replaced question
+    taken[id] = i + 1; next[id] = t;
+    if (String(r[0] || '').trim() !== id) { r[0] = id; changed = true; }
   });
   if (changed) idr.setValues(ids);
+  Object.keys(next).forEach(k => next[k] = next[k].slice(0, 160));
+  try { props.setProperty(key, JSON.stringify(next)); } catch (e) {}
+}
+function normQ_(t) { return String(t || '').toLowerCase().replace(/[^a-z0-9äöüßæøåéèáíóúð]+/g, ' ').trim(); }
+/** Two wordings of the same question: most of their words are the same. */
+function similar_(a, b) {
+  const words = t => normQ_(t).split(' ').filter(w => w.length > 2);
+  const A = words(a), B = words(b); if (!A.length || !B.length) return false;
+  const inB = A.filter(w => B.indexOf(w) >= 0).length;
+  return inB / Math.max(A.length, B.length) >= 0.5;
 }
 
 function seedQuestions_() {
@@ -971,9 +1074,9 @@ function gradeOf_(byTeacher, qs) {
   const errors = [];
   Object.keys(byTeacher).forEach(u => Object.keys(byTeacher[u].safety || {}).forEach(k => { const e = byTeacher[u].safety[k]; if (e && errors.indexOf(e.text) < 0) errors.push(e.text); }));
   const final = score;   // no points off: a critical error decides the grade on its own (below)
-  const coreFails = marked.filter(x => x.q.core && x.avg < 0.5).map(x => x.q.label);
+  const coreFails = [];   // (Core skills are no longer used: every question counts the same)
   const complete = qs.length > 0 && marked.length === qs.length;
-  const band = final === null ? null : errors.length || coreFails.length ? BANDS[BANDS.length - 1] : BANDS.find(b => final >= b[1] - 1e-9);
+  const band = final === null ? null : errors.length ? BANDS[BANDS.length - 1] : BANDS.find(b => final >= b[1] - 1e-9);
   const by = {}; marked.forEach(x => (by[x.q.stage] = by[x.q.stage] || []).push(x.avg));
   const stages = {}; Object.keys(by).forEach(k => stages[k] = Math.round(by[k].reduce((a, b) => a + b, 0) / by[k].length * 100));
   return { teachers, marked: marked.length, score, errors, final, coreFails, complete, band, stages };
@@ -982,7 +1085,8 @@ function gradeOf_(byTeacher, qs) {
 /** Every student with their combined grade, each on their own date's questions. Used by the Grades tab and the page. */
 function gradeList_() {
   const students = students_().filter(s => !s.removed).sort(byTestTime_);
-  const marks = {}; marksRows_().forEach(m => { (marks[m.sid] = marks[m.sid] || {})[m.teacher] = m.data; });
+  // a Marks row whose Teacher cell is empty cannot be anyone's marking (e.g. cleared by hand): it does not count
+  const marks = {}; marksRows_().forEach(m => { if (m.teacher.trim()) (marks[m.sid] = marks[m.sid] || {})[m.teacher] = m.data; });
   const sets = liveSets_(), byKey = {};
   const list = students.map(s => {
     const k = s.day + '|' + norm_(s.teacher);
@@ -1020,8 +1124,8 @@ function buildGrades_() {
   live.concat(...list.map(x => x.qs)).forEach(q => { if (stageNames.indexOf(q.stage) < 0) stageNames.push(q.stage); });
   const nS = stageNames.length, top = 8;
   const head = ['Test date', 'Student', 'Studio', 'Teachers', 'Marked', 'Progress'].concat(stageNames)
-    .concat(['Score', 'Errors', 'Final', '', 'Grade', 'Core skill under 50%', 'Critical errors']);
-  const W = head.length, C = { STAGE: 7, SCORE: 7 + nS, ERR: 8 + nS, FINAL: 9 + nS, BAR: 10 + nS, GRADE: 11 + nS };
+    .concat(['Score %', 'Errors', '', 'Grade', 'Critical errors']);
+  const W = head.length, C = { STAGE: 7, SCORE: 7 + nS, ERR: 8 + nS, BAR: 9 + nS, GRADE: 10 + nS };
 
   const counts = { 'Grade A': 0, Pass: 0, Resit: 0, Unfinished: 0 };
   const values = [], bars = [], groupStarts = [], bandRows = [];
@@ -1042,8 +1146,7 @@ function buildGrades_() {
     if (s.day !== prevDay) { if (prevDay) groupStarts.push(top + values.length); prevDay = s.day; }
     values.push([toDate_(s.day), s.name, s.studio, g.teachers.join(', '), g.marked + '/' + N, '']
       .concat(stageNames.map(n => n in g.stages ? g.stages[n] : ''))
-      .concat([g.score === null ? '' : Math.round(g.score), g.errors.length || '', g.final === null ? '' : Math.round(g.final), '',
-               label, g.coreFails.join(', '), g.errors.join('; ')]));
+      .concat([g.score === null ? '' : Math.round(g.score), g.errors.length || '', '', label, g.errors.join('; ')]));
     const col = g.complete ? g.band[2] : '#9aa3b5';
     bars.push(['=SPARKLINE(' + g.marked + ',{"charttype","bar";"max",' + Math.max(1, N) + ';"color1","' + BLUE + '"})',
                g.final === null ? '' : '=SPARKLINE(' + Math.round(g.final) + ',{"charttype","bar";"max",100;"color1","' + col + '"})']);
@@ -1080,10 +1183,10 @@ function buildGrades_() {
     sh.getRange(top, 1, values.length, 1).setNumberFormat(DATE_FMT).setHorizontalAlignment('left');
     sh.getRange(top, 2, values.length, 1).setFontWeight('bold');
     if (nS) sh.getRange(top, C.STAGE, values.length, nS).setHorizontalAlignment('center').setNumberFormat('0');
-    sh.getRange(top, C.SCORE, values.length, 3).setHorizontalAlignment('center').setNumberFormat('0');
-    sh.getRange(top, C.FINAL, values.length, 1).setFontWeight('bold').setFontSize(12);
+    sh.getRange(top, C.SCORE, values.length, 2).setHorizontalAlignment('center').setNumberFormat('0');
+    sh.getRange(top, C.SCORE, values.length, 1).setFontWeight('bold').setFontSize(12);
     sh.getRange(top, C.GRADE, values.length, 1).setHorizontalAlignment('center').setFontWeight('bold');
-    sh.getRange(top, C.GRADE + 1, values.length, 2).setFontColor(MUTE).setWrap(true);
+    sh.getRange(top, C.GRADE + 1, values.length, 1).setFontColor(MUTE).setWrap(true);
     // a heavier line where a new test date starts
     groupStarts.forEach(r => { try { sh.getRange(r, 1, 1, W).setBorder(true, null, null, null, null, null, INK, SpreadsheetApp.BorderStyle.SOLID_MEDIUM); } catch (e) {} });
     for (let r = top; r < top + values.length; r++) sh.setRowHeight(r, 26);
@@ -1098,7 +1201,7 @@ function buildGrades_() {
     const gradeCol = sh.getRange(top, C.GRADE, values.length, 1);
     const text = (t, bg, fg) => SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(t).setBackground(bg).setFontColor(fg).setBold(true).setRanges([gradeCol]).build();
     sh.setConditionalFormatRules((nS ? [heat(sh.getRange(top, C.STAGE, values.length, nS))] : []).concat([
-      heat(sh.getRange(top, C.SCORE, values.length, 1)), heat(sh.getRange(top, C.FINAL, values.length, 1)),
+      heat(sh.getRange(top, C.SCORE, values.length, 1)),
       text('Grade A', BANDS[0][3], BANDS[0][2]), text('Pass', BANDS[1][3], INK), text('Resit', BANDS[2][3], BANDS[2][2]),
       text('Unfinished', PAPER, MUTE), text('Not started', '#ffffff', '#9aa3b5'),
       SpreadsheetApp.newConditionalFormatRule().whenNumberGreaterThan(0).setFontColor(BANDS[2][2]).setBold(true).setRanges([sh.getRange(top, C.ERR, values.length, 1)]).build(),
@@ -1106,7 +1209,7 @@ function buildGrades_() {
   } else {
     sh.getRange(top, 1).setValue('No students yet. Add them in the Students tab or on the page.').setFontColor(MUTE);
   }
-  [110, 170, 90, 150, 64, 110].concat(stageNames.map(() => 66)).concat([58, 58, 58, 110, 104, 200, 300]).forEach((w, i) => sh.setColumnWidth(i + 1, w));
+  [110, 170, 90, 150, 64, 110].concat(stageNames.map(() => 66)).concat([70, 58, 110, 104, 300]).forEach((w, i) => sh.setColumnWidth(i + 1, w));
   sh.setFrozenRows(top - 1); sh.setFrozenColumns(2);
   sh.setHiddenGridlines(true);
   sh.setTabColor(BLUE);

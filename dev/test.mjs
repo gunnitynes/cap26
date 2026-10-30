@@ -216,12 +216,12 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const d = tab(book, 'Grades').data, head = d[6];
   const row = name => d.find(r => r[1] === name), col = (name, c) => row(name)[head.indexOf(c)];
   // Polina: Pass 80 on 17 skills, m4 (Hint 65 + Pass 80)/2 → 79.6 → Pass
-  assert.equal(col('Polina', 'Score'), 80); assert.equal(col('Polina', 'Grade'), 'Pass'); assert.equal(col('Polina', 'Teachers'), 'Gunni, Anna');
+  assert.equal(col('Polina', 'Score %'), 80); assert.equal(col('Polina', 'Grade'), 'Pass'); assert.equal(col('Polina', 'Teachers'), 'Gunni, Anna');
   assert.equal(col('Polina', 'Mic'), 78);   // (80+80+80+72.5)/4
-  assert.equal(col('Kim', 'Score'), 100); assert.equal(col('Kim', 'Errors'), 1); assert.equal(col('Kim', 'Grade'), 'Resit');
-  assert.equal(col('Lior', 'Score'), 98); assert.equal(col('Lior', 'Grade'), 'Grade A');
-  assert.equal(col('Ida', 'Score'), 50); assert.equal(col('Ida', 'Grade'), 'Pass');
-  assert.equal(col('Paul', 'Grade'), 'Unfinished'); assert.equal(col('Paul', 'Core skill under 50%'), 'Console → speakers');
+  assert.equal(col('Kim', 'Score %'), 100); assert.equal(col('Kim', 'Errors'), 1); assert.equal(col('Kim', 'Grade'), 'Resit');
+  assert.equal(col('Lior', 'Score %'), 98); assert.equal(col('Lior', 'Grade'), 'Grade A');
+  assert.equal(col('Ida', 'Score %'), 50); assert.equal(col('Ida', 'Grade'), 'Pass');
+  assert.equal(col('Paul', 'Grade'), 'Unfinished'); assert.equal(head.indexOf('Core skill under 50%'), -1);
   assert.equal(head.indexOf('In the app'), -1);
   ok('Perfect 100 · Pass 80 · Hint 65 · Got there 50: Grade A from 85, "got there" on everything still passes');
   ok('any critical error is a Resit, even with every skill Perfect');
@@ -235,7 +235,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(gp.grade, 'Pass'); assert.equal(gp.final, 80); assert.equal(gp.score, 80); assert.equal(gp.errors.length, 0); assert.equal(gp.complete, true);
   assert.equal(gk.grade, 'Resit'); assert.equal(gk.errors.length, 1);
   assert.equal(gp.stages.find(x => x.name === 'Mic').pct, 78); assert.deepEqual(gp.teachers, ['Gunni', 'Anna']);
-  assert.equal(gq.complete, false); assert.equal(gq.marked, 2); assert.deepEqual(gq.coreFails, ['Console → speakers']);
+  assert.equal(gq.complete, false); assert.equal(gq.marked, 2); assert.deepEqual(gq.coreFails, []);
   assert.ok(!JSON.stringify(gr).includes('"marks"'));
   ok('the page\'s Grades screen gets each student\'s combined result, and no teacher\'s single marks');
   const seen = call(g, { action: 'state', token: at }).entries.filter(e => e.sid === pol);
@@ -254,8 +254,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(st.qlive[''].length, 18);
   assert.deepEqual([...new Set(st.qlive[''].map(x => x.stage))], ['Power', 'Mic', 'Route', 'Record', 'Cue', 'Shut down']);
   const m4 = st.qlive[''].find(x => x.id === 'm4');
-  assert.equal(m4.heading, 'Connecting a Mic'); assert.equal(m4.core, 1); assert.match(m4.ask, /condenser/); assert.equal(m4.studios, null);
-  assert.equal(st.qlive[''].find(x => x.id === 'p3').core, 0);
+  assert.equal(m4.heading, 'Connecting a Mic'); assert.match(m4.ask, /condenser/); assert.equal(m4.studios, null);
   ok('setup writes the 18 questions into the Questions tab and the page reads them from there');
 
   call(g, { action: 'addStudents', token: tok, names: ['Polina'], studio: 'K3', day: '2026-11-04' });
@@ -263,17 +262,17 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const [pol, tal] = call(g, { action: 'state', token: tok }).students.map(s => s.id);
   call(g, { action: 'saveEntry', token: tok, sid: pol, patch: { marks: { p1: 'y' } } });
 
-  // a new core question for K4 only, typed under the last row with no stage: it joins "Shut down"
+  // a new question for K4 only, typed under the last row with no stage: it joins "Shut down"
   const last = q.getLastRow() + 1;
-  q.getRange(last, 3, 1, 4).setValues([['Patches the headphone line to the K4 booth', '', true, 'K4']]);
-  g.onEdit({ range: q.getRange(last, 3, 1, 4) });
-  const newId = q.getRange(last, 8).getValue();
+  q.getRange(last, 3, 1, 3).setValues([['Patches the headphone line to the K4 booth', '', 'K4']]);
+  g.onEdit({ range: q.getRange(last, 3, 1, 3) });
+  const newId = q.getRange(last, 7).getValue();
   assert.match(String(newId), /^q[0-9a-f]{8}$/);
   // reword an existing one
   q.getRange(2, 3).setValue('Powers up in the right order, speakers last');
   st = call(g, { action: 'state', token: tok });
   const nq = st.qlive[''].find(x => x.id === newId);
-  assert.equal(st.qlive[''].length, 19); assert.equal(nq.stage, 'Shut down'); assert.deepEqual(nq.studios, ['K4']); assert.equal(nq.core, 1);
+  assert.equal(st.qlive[''].length, 19); assert.equal(nq.stage, 'Shut down'); assert.deepEqual(nq.studios, ['K4']);
   ok('a question typed in the tab gets an ID, its stage from the row above, and its studio');
   assert.equal(st.qsets['2026-11-04|'].length, 18);
   assert.equal(st.qsets['2026-11-04|'][0].t, 'Powers up in the right order, speakers last');
@@ -290,7 +289,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   ok('Marks gains a column for it, and every row is rewritten without losing a mark');
 
   // remove a question from the tab: gone from today's set, still counted on the date that was marked with it
-  const rows = tab(book, 'Questions').data; const at = rows.findIndex(r => r[7] === 's2') + 1;
+  const rows = tab(book, 'Questions').data; const at = rows.findIndex(r => r[6] === 's2') + 1;
   q.deleteRow(at);
   call(g, { action: 'tidy', token: tok });
   st = call(g, { action: 'state', token: tok });
@@ -387,8 +386,8 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   call(g, { action: 'addStudents', token: gt, names: ['Noor'], studio: 'K3', day: '2026-11-04', teacher: 'Ainsley' });
   // Isuru adds a question of his own and rewords one; Ainsley's tab is untouched
   const iq = ss.getSheetByName('Questions · Isuru'), last = iq.getLastRow() + 1;
-  iq.getRange(last, 1, 1, 6).setValues([['Shut down', '', 'Coils the cables over-under', '', false, 'Both']]);
-  g.onEdit({ range: iq.getRange(last, 1, 1, 6) });
+  iq.getRange(last, 1, 1, 5).setValues([['Shut down', '', 'Coils the cables over-under', '', 'Both']]);
+  g.onEdit({ range: iq.getRange(last, 1, 1, 5) });
   iq.getRange(2, 3).setValue('Powers up in Isuru\'s order');
   let si = call(g, { action: 'state', token: it }), sa = call(g, { action: 'state', token: at });
   assert.equal(si.questions.length, 19); assert.equal(si.questions[0].t, 'Powers up in Isuru\'s order');
@@ -485,7 +484,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   g.PropertiesService.getScriptProperties().setProperty('q_2026-11-02', JSON.stringify(g.questions_()));
   // Isuru writes his own questions over the rows (IDs stay) and adds a Shut down question at the end
   const iq = ss.getSheetByName('Questions · Isuru'), rows = tab(book, 'Questions · Isuru').data;
-  const s1 = rows.findIndex(r => r[7] === 's1') + 1;
+  const s1 = rows.findIndex(r => r[6] === 's1') + 1;
   iq.getRange(s1, 1).setValue('');                                    // s1 and s2 now fall under the stage above (Cue)
   const last = iq.getLastRow() + 1;
   iq.getRange(last, 1, 1, 3).setValues([['Shut down', 'Shut down & pack down', 'Demonstrated correct shutdown & reset procedures']]);
@@ -515,5 +514,87 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(Math.round(a.score), 42); assert.equal(a.band[0], 'Pass');
   assert.equal(Math.round(b.score), 36); assert.equal(b.band[0], 'Resit');
   ok('Pass from 40: "got there" with three failed skills passes (42), with five it is a Resit (36)');
+}
+// 16. A Marks row whose Teacher cell was cleared by hand does not count towards a grade.
+{
+  const { g, book } = loadScript();
+  g.setup();
+  const te = g.SpreadsheetApp.getActive().getSheetByName('Teachers');
+  te.getRange(2, 1, 1, 2).setValues([['Ainsley', 'teacher']]); g.setTeamPassword_('team-pass-1');
+  const at = call(g, { action: 'login', name: 'Ainsley', password: 'team-pass-1' }).token;
+  call(g, { action: 'addStudents', token: at, names: ['Ayham'], studio: 'K3', day: '2026-11-03' });
+  const sid = call(g, { action: 'state', token: at }).students[0].id, all = v => Object.fromEntries(g.questions_().map(q => [q.id, v]));
+  call(g, { action: 'saveEntry', token: at, sid, patch: { marks: all('n') } });
+  const mk = g.SpreadsheetApp.getActive().getSheetByName('Marks');
+  mk.getRange(2, 2, 1, 2).setValues([['', '']]);   // someone clears Student and Teacher on that row
+  call(g, { action: 'saveEntry', token: at, sid, patch: { marks: all('p') } });   // Ainsley marks again: a new row
+  const gr = call(g, { action: 'grades', token: at }).students[0];
+  assert.equal(gr.score, 100); assert.deepEqual(gr.teachers, ['Ainsley']);
+  ok('a Marks row with its Teacher cell cleared is ignored: only the teacher\'s own row counts');
+}
+// 17. A questions tab with a column deleted (Gunni's case) is read by its headings and put back in order by setup.
+{
+  const { g, book } = loadScript();
+  g.setup();
+  const ss = g.SpreadsheetApp.getActive(), te = ss.getSheetByName('Teachers');
+  te.getRange(2, 1, 1, 2).setValues([['Gunni', 'admin']]); g.onEdit({ range: te.getRange(2, 1, 1, 2) });
+  // Gunni deleted "Ask out loud": Stage | Stage heading | Question | Core | Studio | Column name | (empty) | ID
+  const gq = ss.getSheetByName('Questions · Gunni');
+  gq.clear();
+  gq.getRange(1, 1, 3, 8).setValues([
+    ['Stage', 'Stage heading', 'Question', 'Core', 'Studio', 'Column name', '', 'ID'],
+    ['Power', 'Power up', 'Power in the right order', true, 'Both', 'Turning on', '', 'p1'],
+    ['', '', 'Mute before console connections', false, 'K3', 'CR mute', '', 'p2']]);
+  let qs = g.questions_('Gunni');
+  assert.deepEqual(JSON.parse(JSON.stringify(qs.map(q => [q.id, q.t, q.ask, q.label]))), [['p1', 'Power in the right order', '', 'Turning on'], ['p2', 'Mute before console connections', '', 'CR mute']]);
+  assert.deepEqual(JSON.parse(JSON.stringify(qs[1].studios)), ['K3']);
+  ok('a tab with a deleted column is read by its headings: an empty Ask stays empty (no "true")');
+  g.setup();
+  assert.deepEqual(tab(book, 'Questions · Gunni').data[0], ['Stage', 'Stage heading', 'Question', 'Ask out loud (optional)', 'Studio', 'Column name', 'ID']);
+  assert.deepEqual(tab(book, 'Questions · Gunni').data[2], ['', '', 'Mute before console connections', '', 'K3', 'CR mute', 'p2']);
+  ok('setup puts the tab back in the standard columns, keeping every question, studio, column name and ID (Core is gone)');
+}
+// 18. Moving, replacing and rewording questions: marks stay with their question.
+{
+  const { g, book } = loadScript();
+  g.setup();
+  const q = g.SpreadsheetApp.getActive().getSheetByName('Questions');
+  g.ensureQuestionIds_();   // the tab remembers which text each ID has
+  const textOf = id => g.questions_().find(x => x.id === id)?.t;
+  const t1 = textOf('p1'), t2 = textOf('p2');
+  // retype p1's and p2's texts the other way round (the hidden IDs stay in their rows)
+  q.getRange(2, 3).setValue(t2); q.getRange(3, 3).setValue(t1);
+  g.onEdit({ range: q.getRange(2, 3, 2, 1) });
+  assert.equal(textOf('p1'), t1); assert.equal(textOf('p2'), t2);
+  assert.deepEqual(JSON.parse(JSON.stringify(g.questions_().slice(0, 2).map(x => x.id))), ['p2', 'p1']);
+  ok('questions swapped by retyping keep their own IDs, so their marks follow them');
+  q.getRange(4, 3).setValue('Labels every cable on the patch bay'); g.onEdit({ range: q.getRange(4, 3) });
+  assert.equal(textOf('p3'), undefined); assert.match(g.questions_()[2].id, /^q[0-9a-f]{8}$/);
+  ok('a question replaced by a different one gets a new ID (old marks do not slide onto it)');
+  q.getRange(5, 3).setValue('Chooses the correct mic and places it well'); g.onEdit({ range: q.getRange(5, 3) });
+  assert.equal(textOf('m1'), 'Chooses the correct mic and places it well');
+  ok('a small rewording keeps the ID');
+}
+// 19. Resetting from the Sheet: one student, or everything.
+{
+  const { g, book } = loadScript();
+  g.setup();
+  const te = g.SpreadsheetApp.getActive().getSheetByName('Teachers');
+  te.getRange(2, 1, 1, 2).setValues([['Gunni', 'admin']]); g.setTeamPassword_('team-pass-1');
+  const tok = call(g, { action: 'login', name: 'Gunni', password: 'team-pass-1' }).token;
+  call(g, { action: 'addStudents', token: tok, names: ['Kim', 'Lior'], studio: 'K3', day: '2026-11-02' });
+  call(g, { action: 'addStudents', token: tok, names: ['Kim'], studio: 'K3', day: '2026-11-03' });
+  const st = call(g, { action: 'state', token: tok }).students;
+  st.forEach(x => call(g, { action: 'saveEntry', token: tok, sid: x.id, patch: { marks: { p1: 'y' } } }));
+  assert.match(g.resetStudent_('Kim').error, /2 students with that name/);
+  const r = g.resetStudent_('Kim 02.11.2026');
+  assert.equal(r.ok, true); assert.equal(r.rows, 1);
+  assert.equal(tab(book, 'Marks').data.filter(x => x[1] === 'Kim').length, 1);
+  assert.equal(call(g, { action: 'state', token: tok }).students.length, 3);
+  ok('"Reset a student\'s test" removes that student\'s marks (a date picks between two with one name); students stay');
+  g.resetAll_();
+  assert.equal(tab(book, 'Marks').data.filter(x => x[1]).length, 1);   // only the header
+  assert.equal(g.frozenKeys_().length, 0);
+  ok('"Reset ALL test results" removes every mark and unfixes every test date');
 }
 console.log(`\n${n} checks passed`);

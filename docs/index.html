@@ -472,7 +472,6 @@ body{margin:0;font-size:15px}
 /* ------------------------------------------------------------------ rubric
    The test is edited in the Sheet's Questions tab; the back end sends it with every refresh. The lists below are
    only the first version: used before the first load and in the preview without a back end.
-   core:1              the student must not fail it (combined mark under 50% means Resit)
    ask:'…'             a question shown on the sheet for the teacher to ask out loud
    studios:['K3']      only for students booked in those studios (leave it out for everyone)
    Each teacher has their own questions tab: a student is asked their teacher's set (QLIVE, '' = shared), and a date
@@ -515,7 +514,8 @@ const STUDIOS=['K3','K4'];
 const MARK={p:'Perfect',y:'Pass',h:'Hint',g:'Got there',n:'Failed'};
 const POINTS={p:1,y:.8,h:.65,g:.5,n:0};
 const QUICK=['Speakers switched with level up','Phantom switched with fader up','Control-room level dangerously loud while patching'];
-// Grade A from 85, Pass from 40; any critical error or a core skill under 50 is a Resit whatever the score
+// the score is the share of all the teacher's questions, each worth the same, as a percentage;
+// Grade A from 85, Pass from 40; any critical error is a Resit whatever the score
 const GRADES=[{k:'merit',l:'Grade A',min:.85,col:'ok'},{k:'passg',l:'Pass',min:.4,col:'ink'},{k:'resitg',l:'Resit',min:0,col:'no'}];
 
 /* ------------------------------------------------------------------ helpers */
@@ -568,7 +568,7 @@ function scoreOf(e,t){
    1. each skill's mark is the average of every teacher's mark on it
    2. the score is the average over all skills, so every skill weighs the same
    3. any critical error that any teacher logged means Resit
-   4. a core skill whose combined mark is under 50% means Resit */
+   (every question counts the same; there are no core skills any more) */
 function gradeOf(t){
   const skills=skillsFor(t),es=entries(t),uids=Object.keys(es);
   const per=skills.map(c=>{const v=uids.map(u=>es[u].marks?.[c.id]).filter(x=>x in POINTS).map(x=>POINTS[x]);return {c,n:v.length,avg:v.length?v.reduce((a,b)=>a+b,0)/v.length:null}});
@@ -576,8 +576,8 @@ function gradeOf(t){
   const score=marked.length?marked.reduce((a,x)=>a+x.avg,0)/marked.length*100:0;
   const errors=[...new Set(uids.flatMap(u=>Object.values(es[u].safety||{}).filter(Boolean).map(i=>i.text)))];
   const deduction=0,final=score;
-  const coreFails=marked.filter(x=>x.c.core&&x.avg<.5).map(x=>x.c);
-  const grade=errors.length||coreFails.length?GRADES[GRADES.length-1]:bandOf(final);
+  const coreFails=[];
+  const grade=errors.length?GRADES[GRADES.length-1]:bandOf(final);
   return {skills,per,marked:marked.length,total:skills.length,complete:marked.length===skills.length,score,errors,deduction,final,coreFails,grade,teachers:uids.filter(u=>Object.values(es[u].marks||{}).some(v=>v in POINTS))};
 }
 // The app is for marking only. Grades are worked out later, by the teachers, in the Sheet's Grades tab.
@@ -704,7 +704,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793395692';
+const BUILD='1793404012';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1030,10 +1030,9 @@ function renderGrades(){
       <div class="gc-top"><b>${x.time?`<span class="at">${x.time}${x.end?'–'+x.end:''}</span>`:''}${esc(x.name)}</b><span class="pill ${c.pill}">${esc(c.l||k)}</span></div>
       <div class="gc-sub">${[day==='all'?fmtDay(x.day):'',capTag(x),esc(x.studio),x.teacher?'Teacher '+esc(x.teacher):'',x.teachers.length?'marked by '+esc(x.teachers.join(', ')):''].filter(Boolean).join(' · ')}</div>
       ${!x.marked?'<div class="gc-prog">No marks yet.</div>':`
-      <div class="gc-final"><span class="gc-num" style="color:var(--${col})">${x.final}</span><span class="track" aria-hidden="true"><i style="width:${x.final}%;background:var(--${col})"></i><u style="left:40%"></u><u style="left:85%"></u></span></div>
-      <div class="gc-prog">${x.complete?'':'So far · '}score ${x.score} · ${x.marked}/${x.total} skills marked${x.errors.length?` · <b style="color:var(--no)">critical error: Resit</b>`:''}</div>
+      <div class="gc-final"><span class="gc-num" style="color:var(--${col})">${x.final}<small style="font-size:15px;opacity:.7">%</small></span><span class="track" aria-hidden="true"><i style="width:${x.final}%;background:var(--${col})"></i><u style="left:40%"></u><u style="left:85%"></u></span></div>
+      <div class="gc-prog">${x.complete?'':'So far · '}${x.score}% of ${x.total} questions · ${x.marked}/${x.total} marked${x.errors.length?` · <b style="color:var(--no)">critical error: Resit</b>`:''}</div>
       <div class="gc-stages" style="grid-template-columns:repeat(${Math.max(1,x.stages.length)},1fr)">${x.stages.map(s=>`<span class="st" title="${esc(s.name)}: ${s.pct==null?'not marked':s.pct+'%'}"><span class="st-n">${s.pct==null?'–':s.pct}</span><span class="st-col">${s.pct==null?'':`<i style="height:${Math.max(6,s.pct)}%;background:var(--${s.pct>=75?'ok':s.pct>=60?'hint':'no'})"></i>`}</span><small>${esc(s.name)}</small></span>`).join('')}</div>
-      ${x.coreFails.length?`<div class="gc-flag">Core skill under 50%: ${esc(x.coreFails.join(', '))}</div>`:''}
       ${x.errors.length?`<div class="gc-flag">Critical: ${esc(x.errors.join('; '))}</div>`:''}`}
     </article>`};
   app.innerHTML=`
@@ -1157,7 +1156,7 @@ function syncSheet(first){
   stagesFor(t).forEach(s=>{const cs=skillsFor(t).filter(c=>c.s===s.id);if(!cs.length||!app.querySelector(`[data-count="${s.id}"]`))return;
     const vals=cs.map(c=>e.marks?.[c.id]);const done=vals.filter(Boolean).length;
     app.querySelector(`[data-count="${s.id}"]`).textContent=`${done}/${vals.length}`;
-    const flag=cs.some(c=>c.core&&e.marks?.[c.id]==='n');
+    const flag=cs.some(c=>e.marks?.[c.id]==='n');   // a stage with a Failed mark is flagged
     app.querySelector(`.stagenav [data-st="${s.id}"]`).dataset.s=flag?'flag':done===vals.length?'done':done?'part':''});
   const inc=Object.entries(e.safety||{}).filter(([,v])=>v).sort((a,b)=>a[1].t-b[1].t);
   const on=new Set(inc.map(([,i])=>i.text)),chips=[...QUICK,...[...on].filter(x=>!QUICK.includes(x))];
