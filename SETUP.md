@@ -46,6 +46,25 @@ Send each teacher the link plus their own name and password, ideally in person. 
 
 Saving the script is not enough. Use **Deploy ▸ Manage deployments ▸ ✎ Edit ▸ Version: New version ▸ Deploy**. The `/exec` address stays the same.
 
+## Changing the questions
+
+Edit the **Questions** tab in the Sheet. Each row is one question, in test order:
+
+| Column | What it does |
+| --- | --- |
+| Stage | Short stage name (stage bar on the page, a Grades column). Blank keeps the stage of the row above. |
+| Stage heading | The heading on the page. Only needed on the first row of a stage. |
+| Question | What the teacher marks. Delete the row to remove the question. |
+| Ask out loud | Optional question for the teacher to read out. |
+| Core | Ticked: a combined mark under 50% means Resit. |
+| Studio | Both, K3 or K4. |
+| Column name | Optional short name for the Marks and Grades tabs. |
+| ID (hidden) | Given by the sheet; keeps marks attached when a question is reworded or moved. |
+
+Phones pick up the change within about 10 seconds. A test date keeps the questions it was first marked with, so grades already given never move (rewording still shows there). **Ops Test ▸ Use the current questions for a test date** moves a marked date onto the current questions.
+
+Try it locally: `OPS_TRY_QUESTIONS=1 node dev/server.mjs` edits the tab 45 seconds after start, so an open page shows the change.
+
 ## What is where in the Sheet
 
 | Tab | What it holds |

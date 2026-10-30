@@ -151,4 +151,77 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const gun = seen.find(e => e.teacher === 'Gunni'); assert.equal(gun.data, undefined); assert.equal(gun.progress, 18);
   ok('in the app a teacher only ever sees their own marks, and how far the others have got');
 }
+// 8. The questions come from the Questions tab, and a marked test date keeps its own.
+{
+  const { g, book } = loadScript();
+  g.setup();
+  const ss = g.SpreadsheetApp.getActive(), q = ss.getSheetByName('Questions'), te = ss.getSheetByName('Teachers');
+  te.getRange(2, 1).setValue('Gunni'); g.setTeamPassword_('test-pass-1');
+  const tok = call(g, { action: 'login', name: 'gunni', password: 'test-pass-1' }).token;
+  let st = call(g, { action: 'state', token: tok });
+  assert.equal(st.questions.length, 18);
+  assert.deepEqual([...new Set(st.questions.map(x => x.stage))], ['Power', 'Mic', 'Route', 'Record', 'Cue', 'Shut down']);
+  const m4 = st.questions.find(x => x.id === 'm4');
+  assert.equal(m4.heading, 'Connecting a Mic'); assert.equal(m4.core, 1); assert.match(m4.ask, /condenser/); assert.equal(m4.studios, null);
+  assert.equal(st.questions.find(x => x.id === 'p3').core, 0);
+  ok('setup writes the 18 questions into the Questions tab and the page reads them from there');
+
+  call(g, { action: 'addStudents', token: tok, names: ['Polina'], studio: 'K3', day: '2026-11-04' });
+  call(g, { action: 'addStudents', token: tok, names: ['Tales'], studio: 'K4', day: '2026-11-11' });
+  const [pol, tal] = call(g, { action: 'state', token: tok }).students.map(s => s.id);
+  call(g, { action: 'saveEntry', token: tok, sid: pol, patch: { marks: { p1: 'y' } } });
+
+  // a new core question for K4 only, typed under the last row with no stage: it joins "Shut down"
+  const last = q.getLastRow() + 1;
+  q.getRange(last, 3, 1, 4).setValues([['Patches the headphone line to the K4 booth', '', true, 'K4']]);
+  g.onEdit({ range: q.getRange(last, 3, 1, 4) });
+  const newId = q.getRange(last, 8).getValue();
+  assert.match(String(newId), /^q[0-9a-f]{8}$/);
+  // reword an existing one
+  q.getRange(2, 3).setValue('Powers up in the right order, speakers last');
+  st = call(g, { action: 'state', token: tok });
+  const nq = st.questions.find(x => x.id === newId);
+  assert.equal(st.questions.length, 19); assert.equal(nq.stage, 'Shut down'); assert.deepEqual(nq.studios, ['K4']); assert.equal(nq.core, 1);
+  ok('a question typed in the tab gets an ID, its stage from the row above, and its studio');
+  assert.equal(st.qdays['2026-11-04'].length, 18);
+  assert.equal(st.qdays['2026-11-04'][0].t, 'Powers up in the right order, speakers last');
+  assert.equal(st.qdays['2026-11-11'], undefined);
+  ok('a marked date keeps its 18 questions (with the new wording); an unmarked date gets the new set');
+  const head = tab(book, 'Marks').data[0];
+  assert.ok(head.includes('Patches the headphone line…') || head.some(h => /^Patches the headphone/.test(h)));
+  assert.equal(head.at(-1), 'Page data (do not edit)');
+  call(g, { action: 'saveEntry', token: tok, sid: tal, patch: { marks: { [newId]: 'n', p1: 'y' } } });
+  const mk = tab(book, 'Marks').data, mh = mk[0], trow = mk.find(r => r[1] === 'Tales'), prow = mk.find(r => r[1] === 'Polina');
+  assert.equal(trow[mh.indexOf('Skills marked')], '2/19'); assert.equal(prow[mh.indexOf('Skills marked')], '1/18');
+  assert.equal(JSON.parse(prow.at(-1)).marks.p1, 'y');
+  ok('Marks gains a column for it, and every row is rewritten without losing a mark');
+
+  // remove a question from the tab: gone from today's set, still counted on the date that was marked with it
+  const rows = tab(book, 'Questions').data; const at = rows.findIndex(r => r[7] === 's2') + 1;
+  q.deleteRow(at);
+  st = call(g, { action: 'state', token: tok });
+  assert.ok(!st.questions.some(x => x.id === 's2'));
+  assert.ok(st.qdays['2026-11-04'].some(x => x.id === 's2'));
+  assert.ok(tab(book, 'Marks').data[0].includes('Left as found (old)'));
+  ok('a removed question disappears from new tests but stays on dates already marked with it');
+
+  // the Grades tab: each date's own set. Tales's date was first marked while there were 19 questions, Polina's with 18
+  const IDS18 = ['p1','p2','p3','m1','m2','m3','m4','r1','t1','t2','t3','t4','c1','c2','c3','c4','s1','s2'];
+  call(g, { action: 'saveEntry', token: tok, sid: pol, patch: { marks: Object.fromEntries(IDS18.map(id => [id, 'y'])) } });
+  assert.equal(st.qdays['2026-11-11'].length, 19);
+  const tq = st.qdays['2026-11-11'].map(x => x.id);
+  call(g, { action: 'saveEntry', token: tok, sid: tal, patch: { marks: Object.fromEntries(tq.map(id => [id, 'y'])) } });
+  g.buildGrades_();
+  const gd = tab(book, 'Grades').data, gh = gd[6], gr = n => gd.find(r => r[1] === n);
+  assert.equal(gr('Polina')[gh.indexOf('Grade')], 'Grade A'); assert.equal(gr('Polina')[gh.indexOf('Marked')], '18/18');
+  assert.equal(gr('Tales')[gh.indexOf('Grade')], 'Grade A'); assert.equal(gr('Tales')[gh.indexOf('Marked')], '19/19');
+  ok('Grades marks each student out of their own date\'s questions');
+
+  g.useCurrentQuestions_('2026-11-04');
+  st = call(g, { action: 'state', token: tok });
+  assert.equal(st.qdays['2026-11-04'].length, 18);   // today's 18; the page and Grades leave out the K4 one for her
+  const gd2 = tab(book, 'Grades').data, gh2 = gd2[6];
+  assert.equal(gd2.find(r => r[1] === 'Polina')[gh2.indexOf('Marked')], '17/17');
+  ok('"Use the current questions for a test date" moves a marked date onto today\'s questions');
+}
 console.log(`\n${n} checks passed`);

@@ -39,6 +39,8 @@ export function loadScript() {
     appendRow(row) { this.data.splice(this.getLastRow(), 0, row.slice()); }
     deleteRow(r) { this.data.splice(r - 1, 1); }
     clear() { this.data = []; return this; }
+    clearContents() { this.data = []; return this; }
+    getMaxColumns() { return Math.max(26, this.getLastColumn()); }
     getBandings() { return []; }
   }
   const book = { sheets: [new Sheet('Sheet1')] };

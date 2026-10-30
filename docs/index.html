@@ -403,11 +403,12 @@ body{margin:0;font-size:15px}
 
 <script>
 /* ------------------------------------------------------------------ rubric
-   To change the test, edit STAGES and CRIT. Every skill counts the same.
+   The test is edited in the Sheet's Questions tab; the back end sends it with every refresh. The lists below are
+   only the first version: used before the first load and in the preview without a back end.
    core:1              the student must not fail it (combined mark under 50% means Resit)
    ask:'…'             a question shown on the sheet for the teacher to ask out loud
    studios:['K3']      only for students booked in those studios (leave it out for everyone)
-   Marks already given on a removed skill are ignored; a new skill simply starts unmarked. */
+   A test date that has been marked keeps the questions it was first marked with (QDAYS). */
 const STAGES=[
  {id:'power',short:'Power',name:'Power up & safe listening'},
  {id:'mic',short:'Mic',name:'Connecting a Mic'},
@@ -436,6 +437,10 @@ const CRIT=[
  {id:'s1',s:'down',core:1,safety:1,t:'Knows the shutdown order',ask:'If you had to shut down the studio now, what would you switch off first?',look:'Control-room level down, then speakers off first. Then outboard and desk, computer last after saving and quitting Pro Tools.'},
  {id:'s2',s:'down',t:'Leaves the studio as it was found',look:'Patch cables out, phantom off, sends and EQ back to zero, faders down, mic and cables put away, session saved and closed.'}
 ];
+// the questions in use: {id,stage,heading,t,ask,core,studios} as the back end sends them, plus s = a stage key for the page
+const DEFAULT_Q=CRIT.map(c=>{const st=STAGES.find(x=>x.id===c.s);return {id:c.id,stage:st.short,heading:st.name,t:c.t,ask:c.ask||'',core:c.core?1:0,studios:c.studios||null}});
+function qset(list){const keys=[];return (list||[]).map(q=>{let i=keys.indexOf(q.stage);if(i<0){keys.push(q.stage);i=keys.length-1}return {...q,s:'g'+i}})}
+let QNOW=qset(DEFAULT_Q),QDAYS={};   // replaced by the last questions this phone saw, then by every refresh
 const STUDIOS=['K3','K4'];
 const MARK={y:'Pass',h:'Hint',g:'Got there',n:'Failed'};
 const POINTS={y:1,h:.75,g:.5,n:0};
@@ -467,6 +472,7 @@ function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor
 // the back end address comes from config.js (or ?api=… while testing); without one the page runs as a preview
 const API=new URLSearchParams(location.search).get('api')||window.OPS_API||'';
 const S={token:ls.get('ops.token',''),me:ls.get('ops.me',''),role:ls.get('ops.role',''),demo:!API,tests:{},teachers:{},pending:ls.get('ops.pending',{}),view:'roster',open:null,day:ls.get('ops.day',null)||today(),all:false,days:{},dayWant:{},confirm:null,cal:null,sync:'ok',ready:false,loading:false,published:{}};
+if(ls.get('ops.q',null)){QNOW=qset(ls.get('ops.q'));for(const [d,l] of Object.entries(ls.get('ops.qdays',{})||{}))QDAYS[d]=qset(l)}
 
 /* ---- each teacher marks on their own: a student keeps one entry per teacher under by.<teacher name>.
    Until a date is revealed the back end sends other teachers' entries only as {_progress: skills marked}. */
@@ -475,12 +481,14 @@ const mine=t=>!S.me?{}:entries(t)[S.me]||{};
 const canMark=()=>!!S.me&&(S.demo||!!S.token);
 const teacherName=n=>n;
 
-const skillsFor=t=>CRIT.filter(c=>!c.studios||c.studios.includes(t.studio));
+const skillsFor=t=>(QDAYS[t.day]||QNOW).filter(c=>!c.studios||c.studios.includes(t.studio));
+// the stages of one student's questions, in order
+const stagesFor=t=>{const out=[];for(const c of skillsFor(t))if(!out.some(x=>x.id===c.s))out.push({id:c.s,short:c.stage,name:c.heading||c.stage});return out};
 const ERR_POINTS=10;
 const bandOf=p=>GRADES.find(g=>p>=g.min*100-1e-9);
 // one teacher's own progress and score; shown next to the combined result, never used for it
 function scoreOf(e,t){
-  const skills=t?skillsFor(t):CRIT,m=e.marks||{};let pts=0,n=0;
+  const skills=t?skillsFor(t):QNOW,m=e.marks||{};let pts=0,n=0;
   for(const c of skills){const v=m[c.id];if(v in POINTS){n++;pts+=POINTS[v]}}
   const inc=[...new Set(Object.values(e.safety||{}).filter(Boolean).map(i=>i.text))];
   return {pct:n?pts/n:0,n,total:skills.length,left:skills.length-n,complete:n===skills.length,inc};
@@ -529,6 +537,10 @@ async function load(){
   for(const e of j.entries)if(tests[e.sid])tests[e.sid].by[e.teacher]=e.data||{_progress:e.progress||0};
   S.tests=tests;
   S.teachers=Object.fromEntries(j.teachers.map(n=>[n,{name:n}]));
+  if(Array.isArray(j.questions)){
+    QNOW=qset(j.questions);QDAYS={};for(const [d,l] of Object.entries(j.qdays||{}))QDAYS[d]=qset(l);
+    ls.set('ops.q',j.questions);ls.set('ops.qdays',j.qdays||{});
+  }
   // drop queued changes for students that no longer exist
   for(const id of Object.keys(S.pending))if(!tests[id]){delete S.pending[id]}
   ls.set('ops.pending',S.pending);
@@ -606,7 +618,7 @@ function startDemo(){
   S.teachers={'Gunnar':{name:'Gunnar'},'Anna':{name:'Anna'}};
   const d=today();
   const nx=new Date();nx.setDate(nx.getDate()+6);const later=nx.getFullYear()+'-'+String(nx.getMonth()+1).padStart(2,'0')+'-'+String(nx.getDate()).padStart(2,'0');
-  const all=v=>Object.fromEntries(CRIT.map(c=>[c.id,v(c)]));
+  const all=v=>Object.fromEntries(QNOW.map(c=>[c.id,v(c)]));
   const mk=(name,day,by)=>{const id=rid();S.tests[id]={name,studio:'K3',day,createdAt:Date.now()-Math.random()*1e6,by}};
   mk('Example · Lena',d,{'Gunnar':{marks:{p1:'y',p2:'y',p3:'y',m1:'y',m2:'h',m3:'y',m4:'y',r1:'y',t1:'y',t2:'g',t3:'y'}}});
   mk('Example · Jonas',d,{'Gunnar':{marks:all(c=>c.id==='t2'?'h':'y')},'Anna':{marks:all(c=>c.id==='m2'||c.id==='c4'?'g':'y'),safety:{a:{t:Date.now(),text:'Phantom switched with fader up'}}}});
@@ -664,7 +676,9 @@ function renderBar(){
   const h=document.querySelector('.bar').offsetHeight;document.documentElement.style.setProperty('--barh',h+'px');
 }
 function go(v,id){S.view=v;S.open=id||null;renderBar();render();scrollTo(0,0);wake(v==='test')}
-function refresh(){if(S.view==='test')syncSheet();else if(S.view==='roster')render();else if(S.view==='account')renderAccount(true)}
+// the open sheet is rebuilt only when its questions changed (someone edited the Questions tab), otherwise synced in place
+const sheetSig=t=>JSON.stringify(skillsFor(t).map(c=>[c.id,c.t,c.ask,c.s,c.heading]));
+function refresh(){if(S.view==='test'){const raw=view(S.open);if(raw&&!raw.deleted&&sheetSig({id:S.open,...raw})!==S.sheetSig)renderSheet();else syncSheet()}else if(S.view==='roster')render();else if(S.view==='account')renderAccount(true)}
 function render(){S.view==='login'?renderLogin():S.view==='account'?renderAccount():S.view==='test'&&view(S.open)?renderSheet():renderRoster()}
 
 function renderLogin(){
@@ -827,11 +841,12 @@ function renderSheet(){
      <div class="tm-read"><span class="tm-label eyebrow">Timer</span><span class="tm-num">10:00</span></div>
      <div class="tm-btns"><button class="primary" id="tmStart" type="button">Start</button><button class="ghost" id="tmReset" type="button">Reset</button></div>
    </section>
-   <nav class="stagenav" id="stageNav">${STAGES.filter(s=>skillsFor(t).some(c=>c.s===s.id)).map((s,i)=>`<a href="#st-${s.id}" data-st="${s.id}"><span class="mono">${i+1}</span>${s.short}<i class="dot"></i></a>`).join('')}<a href="#st-errors" data-st="errors"><span class="mono">!</span>Errors</a><a href="#st-result" data-st="result"><span class="mono">✓</span>Finish</a></nav>
+   <nav class="stagenav" id="stageNav">${stagesFor(t).map((s,i)=>`<a href="#st-${s.id}" data-st="${s.id}"><span class="mono">${i+1}</span>${esc(s.short)}<i class="dot"></i></a>`).join('')}<a href="#st-errors" data-st="errors"><span class="mono">!</span>Errors</a><a href="#st-result" data-st="result"><span class="mono">✓</span>Finish</a></nav>
    <div class="sheet">
-     ${STAGES.filter(s=>skillsFor(t).some(c=>c.s===s.id)).map((s,i)=>`
+     ${skillsFor(t).length?'':'<section class="card"><p class="readout" style="margin:0">No questions yet. Add them in the Questions tab of the Sheet.</p></section>'}
+     ${stagesFor(t).map((s,i)=>`
      <section class="stage" id="st-${s.id}">
-       <div class="stage-h"><span class="mono">${String(i+1).padStart(2,'0')}</span><h2>${s.name}</h2><span class="count" data-count="${s.id}"></span></div>
+       <div class="stage-h"><span class="mono">${String(i+1).padStart(2,'0')}</span><h2>${esc(s.name)}</h2><span class="count" data-count="${s.id}"></span></div>
        ${skillsFor(t).filter(c=>c.s===s.id).map(c=>`
        <article class="crit" data-crit="${c.id}">
          <div class="crit-top"><div class="t"><h3>${esc(c.t)}</h3>
@@ -884,6 +899,7 @@ function renderSheet(){
   let tmArm=0;$('#tmReset').onclick=()=>{if(Date.now()-tmArm>3000){tmArm=Date.now();$('#tmReset').textContent='Tap again to reset';return}
     setTimer(S.open,false);syncTimer();renderBar()};
   syncTimer();
+  S.sheetSig=sheetSig(t);
   syncSheet(true);
 }
 function autosize(n){n.style.height='auto';n.style.height=Math.min(n.scrollHeight+2,220)+'px'}
@@ -896,7 +912,7 @@ function syncSheet(first){
   app.querySelectorAll('.marks').forEach(g=>{const v=e.marks?.[g.dataset.crit];g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===v));(g.closest('.crit')).dataset.m=v||''});
   app.querySelectorAll('[data-note]').forEach(n=>{const v=e.notes?.[n.dataset.note]||'';if(document.activeElement!==n&&n.value!==v){n.value=v}if(v){n.hidden=false;const ab=app.querySelector(`[data-addnote="${n.dataset.note}"]`);if(ab)ab.hidden=true}if(!n.hidden)autosize(n)});
   const sm=$('#summary');if(document.activeElement!==sm&&sm.value!==(e.summary||''))sm.value=e.summary||'';
-  STAGES.forEach(s=>{const cs=skillsFor(t).filter(c=>c.s===s.id);if(!cs.length||!app.querySelector(`[data-count="${s.id}"]`))return;
+  stagesFor(t).forEach(s=>{const cs=skillsFor(t).filter(c=>c.s===s.id);if(!cs.length||!app.querySelector(`[data-count="${s.id}"]`))return;
     const vals=cs.map(c=>e.marks?.[c.id]);const done=vals.filter(Boolean).length;
     app.querySelector(`[data-count="${s.id}"]`).textContent=`${done}/${vals.length}`;
     const flag=cs.some(c=>c.core&&e.marks?.[c.id]==='n');

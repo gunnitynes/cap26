@@ -17,6 +17,7 @@
  *   Start here  what this is and how to add a teacher
  *   Teachers    Name | Role | Last sign-in
  *   Students    one row per student and test date; type or paste names here (a date picker on the date column)
+ *   Questions   the test itself: one row per question, in order; the page reads it, so editing it changes the test
  *   Marks       one row per student per teacher, every skill readable; the last column is the page's own copy
  *   Grades      the overview: every student's combined grade, stages, progress and errors, rebuilt by the script
  */
@@ -31,18 +32,32 @@ const TEAM_LABEL = 'Team password';
 const POINTS = { y: 1, h: 0.75, g: 0.5, n: 0 };
 const MARK_LABEL = { y: 'Pass', h: 'Hint', g: 'Got there', n: 'Failed' };
 
-// The skills, in test order. Keep the ids in step with CRIT in docs/index.html; the labels are only column headers here.
-const SKILLS = [
-  ['p1', 'Power-up order'], ['p2', 'CR level down/mute for connections'], ['p3', 'Safe levels, methodical'],
-  ['m1', 'Correct mic, placed'], ['m2', 'Wall box → right channel'], ['m3', 'Healthy desk signal'], ['m4', 'Phantom power'],
-  ['r1', 'Console → speakers'],
-  ['t1', 'PT track in/out'], ['t2', 'PT record level'], ['t3', '1-2-3 test, other channel'], ['t4', 'Playback path'],
-  ['c1', 'Usable cue mix'], ['c2', 'Pre vs post fader'], ['c3', 'Cue → headphone amp'], ['c4', 'Cue to a Live room'],
-  ['s1', 'Shutdown order'], ['s2', 'Left as found'],
+// The questions live in the Questions tab, where anyone with the Sheet can change them. This is only the first version,
+// written there by setup when the tab does not exist yet. The ids keep marks attached to their question.
+//   stage, stage heading, question, ask out loud, core, studio, column name, id
+const DEFAULT_QUESTIONS = [
+  ['Power', 'Power up & safe listening', 'Powers up in the right order', '', true, 'Both', 'Power-up order', 'p1'],
+  ['', '', 'Control-room level down/mute before any console connections', '', true, 'Both', 'CR level down/mute for connections', 'p2'],
+  ['', '', 'Keeps listening levels safe and works methodically', '', false, 'Both', 'Safe levels, methodical', 'p3'],
+  ['Mic', 'Connecting a Mic', 'Chooses the correct mic and places it sensibly', '', false, 'Both', 'Correct mic, placed', 'm1'],
+  ['', '', 'Connects the live-room wall box to the right desk channel', '', false, 'Both', 'Wall box → right channel', 'm2'],
+  ['', '', 'Gets a healthy signal on the desk', '', true, 'Both', 'Healthy desk signal', 'm3'],
+  ['', '', 'Understands phantom power', 'If I had asked you to use the condenser instead, what would you have needed to do?', true, 'Both', 'Phantom power', 'm4'],
+  ['Route', 'Route to the speakers', 'Routes the channel to the console and hears it in the speakers', '', true, 'Both', 'Console → speakers', 'r1'],
+  ['Record', 'Record & play back in Pro Tools', 'Creates a Pro Tools track with the correct input and output', '', true, 'Both', 'PT track in/out', 't1'],
+  ['', '', 'Healthy record level in Pro Tools', '', false, 'Both', 'PT record level', 't2'],
+  ['', '', 'Records a 1-2-3 test and returns it on a different desk channel', '', true, 'Both', '1-2-3 test, other channel', 't3'],
+  ['', '', 'Plays it back through the path you asked for', '', true, 'Both', 'Playback path', 't4'],
+  ['Cue', 'Headphones & cue mix', 'Builds a usable cue mix on the aux sends', '', true, 'Both', 'Usable cue mix', 'c1'],
+  ['', '', 'Understands pre-fader vs. post-fader', 'Should this send be pre or post fader, and why?', true, 'Both', 'Pre vs post fader', 'c2'],
+  ['', '', 'Routes the cue to the headphone amp and checks it', '', true, 'Both', 'Cue → headphone amp', 'c3'],
+  ['', '', 'Explains sending the cue to a selected Live room', 'Without going there: how would the same cue reach this Live room?', false, 'Both', 'Cue to a Live room', 'c4'],
+  ['Shut down', 'Shut down & pack down', 'Knows the shutdown order', 'If you had to shut down the studio now, what would you switch off first?', true, 'Both', 'Shutdown order', 's1'],
+  ['', '', 'Leaves the studio as it was found', '', false, 'Both', 'Left as found', 's2'],
 ];
-// Core skills (a combined mark under 50% means Resit) and the six stages, as on the page.
-const CORE = { p1: 1, p2: 1, m3: 1, m4: 1, r1: 1, t1: 1, t3: 1, t4: 1, c1: 1, c2: 1, c3: 1, s1: 1 };
-const STAGES = [['p', 'Power'], ['m', 'Mic'], ['r', 'Route'], ['t', 'Record'], ['c', 'Cue'], ['s', 'Shut down']];
+const Q_ = { STAGE: 0, HEADING: 1, TEXT: 2, ASK: 3, CORE: 4, STUDIO: 5, LABEL: 6, ID: 7 };
+const MARKS_HEAD = ['Test date', 'Student', 'Teacher', 'Skills marked', 'Teacher score %', 'Critical errors'];
+const MARKS_TAIL = ['Feedback', 'Updated', 'Student ID', 'Page data (do not edit)'];
 const BANDS = [['Grade A', 75, '#0f7a57', '#d8f1e6'], ['Pass', 60, '#5a6276', '#eef0f4'], ['Resit', 0, '#bf2b2b', '#fbe0e0']];
 const ERR_POINTS = 10;
 
@@ -54,9 +69,9 @@ const SHEETS = {
   TEACHERS: { name: 'Teachers', header: ['Name', 'Role', 'Last sign-in'], widths: [220, 120, 170] },
   STUDENTS: { name: 'Students', header: ['Test date', 'Student', 'Studio', 'Added by', 'Added at', 'Removed', 'ID'],
               widths: [100, 200, 110, 120, 140, 220, 110] },
-  MARKS:    { name: 'Marks', header: ['Test date', 'Student', 'Teacher', 'Skills marked', 'Teacher score %', 'Critical errors']
-                .concat(SKILLS.map(s => s[1])).concat(['Feedback', 'Updated', 'Student ID', 'Page data (do not edit)']),
-              widths: [100, 170, 120, 100, 110, 220].concat(SKILLS.map(() => 92)).concat([260, 140, 110, 120]) },
+  QUESTIONS:{ name: 'Questions', header: ['Stage', 'Stage heading', 'Question', 'Ask out loud (optional)', 'Core', 'Studio', 'Column name', 'ID'],
+              widths: [110, 220, 380, 320, 60, 80, 220, 90] },
+  MARKS:    { name: 'Marks', header: [] },   // its skill columns follow the questions: see syncMarks_
   GRADES:   { name: 'Grades', header: [] },
 };
 const T = { NAME: 0, ROLE: 1, LAST: 2 };
@@ -71,14 +86,17 @@ function onOpen() {
     .addItem('Remove a teacher…', 'menuRemoveTeacher')
     .addSeparator()
     .addItem('Refresh the Grades tab', 'buildGrades_')
+    .addItem('Use the current questions for a test date…', 'menuUseCurrentQuestions')
     .addToUi();
 }
 
 /** Builds every tab, moves older layouts over without losing anything, and styles it all. Safe to run any time. */
 function setup() {
   const ss = SpreadsheetApp.getActive();
-  migrateTeachers_(); migrateStudents_(); migrateMarks_(); migrateDates_();
+  migrateTeachers_(); migrateStudents_(); seedQuestions_(); ensureQuestionIds_(); migrateMarks_(); migrateDates_();
   Object.keys(SHEETS).forEach(k => { if (k !== 'START' && k !== 'GRADES') sheet_(SHEETS[k]); });
+  freezeMarkedDays_();
+  syncMarks_();
   ['Results', 'Days'].forEach(n => { const old = ss.getSheetByName(n); if (old) ss.deleteSheet(old); });   // no longer used: grading happens in Grades
   buildStart_();
   style_();
@@ -108,10 +126,13 @@ function buildStart_() {
     ['', 'They appear on the page within a few seconds. Teachers can also add students on the page itself.'],
     ['Remove a student', 'Type anything (for example "absent") in their Removed column. Their row stays, so nothing is lost.'],
     ['Remove a teacher', 'Delete their row in Teachers. Their marks stay in Marks.'],
+    ['Change the questions', 'Edit the Questions tab: one row per question, in test order. Add a row, delete a row, reword, tick Core, or set a studio. The page picks it up within a few seconds.'],
+    ['', 'A test date keeps the questions it was first marked with, so grades already given never move (rewording still shows). To give a marked date the new questions anyway: Ops Test ▸ Use the current questions for a test date.'],
     ['', ''],
     ['What the tabs hold', ''],
     ['Teachers', 'Who can sign in. Their names are the list on the sign-in page.'],
     ['Students', 'Everyone booked for a test: date, name, studio. Type or paste here, or add them on the page.'],
+    ['Questions', 'The test itself: every question, its stage, whether it is Core, and which studio it is for.'],
     ['Marks', 'One row per student per teacher, every skill readable. The last column is the page\'s own copy; leave it alone.'],
     ['Grades', 'The overview: every student\'s grade, progress, a colour per test stage and their critical errors. Kept up to date by itself.'],
     ['', ''],
@@ -131,7 +152,7 @@ function buildStart_() {
   rows.forEach((r, i) => { if (r[0] && i > 1) sh.getRange(i + 1, 1).setFontWeight('bold'); });
   const tabsAt = rows.findIndex(r => r[0] === 'What the tabs hold') + 1;   // (row numbers move when rows are added above)
   sh.getRange(tabsAt, 1, 1, 2).setBackground(PAPER);
-  sh.getRange(tabsAt + 1, 1, 5, 1).setFontColor(BLUE);
+  sh.getRange(tabsAt + 1, 1, 6, 1).setFontColor(BLUE);
   sh.setHiddenGridlines(true);
   sh.setTabColor(BLUE);
   sh.setFrozenRows(0);
@@ -139,7 +160,7 @@ function buildStart_() {
 
 function style_() {
   Object.keys(SHEETS).forEach(k => {
-    if (k === 'START' || k === 'GRADES') return;
+    if (k === 'START' || k === 'GRADES' || k === 'MARKS') return;
     const def = SHEETS[k], sh = sheet_(def), n = def.header.length;
     sh.getRange(1, 1, 1, n).setValues([def.header]).setFontWeight('bold').setFontColor('#ffffff').setBackground(BLUE)
       .setVerticalAlignment('middle').setWrap(true);
@@ -166,19 +187,56 @@ function style_() {
     SpreadsheetApp.newDataValidation().requireValueInList(STUDIO_LIST, true).setAllowInvalid(false).setHelpText('K3 or K4').build());
   st.getRange(2, 4, st.getMaxRows() - 1, 3).setFontColor(MUTE);
   st.hideColumns(7);
-  const m = sheet_(SHEETS.MARKS), mh = SHEETS.MARKS.header.length;
-  m.getRange(2, 1, m.getMaxRows() - 1, 1).setNumberFormat(DATE_FMT).setHorizontalAlignment('left'); m.setFrozenColumns(3);
-  m.getRange(2, mh - 2, m.getMaxRows() - 1, 1).setNumberFormat('dd.MM.yyyy HH:mm');
-  m.hideColumns(mh - 1, 2);
-  m.getRange(1, 7, 1, SKILLS.length).setTextRotation(0).setHorizontalAlignment('center');
-  m.getRange(2, 7, m.getMaxRows() - 1, SKILLS.length).setHorizontalAlignment('center');
-  const markRange = m.getRange(2, 7, m.getMaxRows() - 1, SKILLS.length);
+  const q = sheet_(SHEETS.QUESTIONS), qr = q.getMaxRows() - 1;
+  q.getRange(2, Q_.STAGE + 1, qr, 1).setFontWeight('bold').setFontColor(BLUE);
+  q.getRange(2, Q_.HEADING + 1, qr, 1).setFontColor(MUTE);
+  q.getRange(2, Q_.TEXT + 1, qr, 2).setWrap(true);
+  q.getRange(2, Q_.TEXT + 1, qr, 1).setFontWeight('bold');
+  q.getRange(2, Q_.ASK + 1, qr, 1).setFontStyle('italic').setFontColor(MUTE);
+  q.getRange(2, Q_.CORE + 1, Math.max(1, q.getLastRow() - 1) + 30, 1).insertCheckboxes();
+  q.getRange(2, Q_.CORE + 1, qr, 2).setHorizontalAlignment('center');
+  q.getRange(2, Q_.STUDIO + 1, qr, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['Both'].concat(STUDIO_LIST), true)
+    .setAllowInvalid(true).setHelpText('Both, or a studio: a K3 question is only asked of students tested in K3.').build());
+  q.getRange(2, Q_.LABEL + 1, qr, 1).setFontColor(MUTE);
+  [['Short stage name: the page\'s stage bar and a Grades column. Leave it blank to keep the stage of the row above.'],
+   ['The heading over the stage on the page. Only needed on the first row of a stage.'],
+   ['What the teacher marks. One row per question, in the order of the test. Delete the row to remove the question.'],
+   ['Optional: a question the teacher reads out loud, shown under the question.'],
+   ['Tick for a Core skill: a combined mark under 50% means Resit.'],
+   ['Both, K3 or K4. A K3 question only shows for students tested in K3.'],
+   ['Optional: a short name for the Marks and Grades tabs.'],
+   ['Given by the sheet. Keeps marks attached to this question when you reword or move it.']]
+    .forEach((n, i) => q.getRange(1, i + 1).setNote(n[0]));
+  q.hideColumns(Q_.ID + 1);
+  styleMarks_(markColumns_().length);
+  [t, st].forEach(s => s.setTabColor(INK));
+  q.setTabColor(BLUE);
+}
+
+/** Marks: dates, the skill columns in colour, the page's own copy hidden. Run again whenever the columns change. */
+function styleMarks_(n) {
+  const m = sheet_(SHEETS.MARKS), w = MARKS_HEAD.length + n + MARKS_TAIL.length, rows = m.getMaxRows() - 1;
+  try { m.showColumns(1, m.getMaxColumns()); } catch (e) {}
+  const head = m.getRange(1, 1, 1, w);
+  head.setFontWeight('bold').setFontColor('#ffffff').setBackground(BLUE).setVerticalAlignment('middle').setWrap(true);
+  m.setRowHeight(1, 40); m.setFrozenRows(1); m.setFrozenColumns(3);
+  MARKS_HEAD.map((x, i) => [100, 170, 120, 100, 110, 220][i]).concat(Array(n).fill(92)).concat([260, 140, 110, 120]).forEach((x, i) => m.setColumnWidth(i + 1, x));
+  m.getRange(2, 1, rows, w).setFontFamily('Arial').setFontSize(10).setVerticalAlignment('middle');
+  try { m.getBandings().forEach(b => b.remove()); m.getRange(1, 1, m.getMaxRows(), w).applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY, true, false); } catch (e) {}
+  head.setBackground(BLUE).setFontColor('#ffffff');
+  m.getRange(2, 1, rows, 1).setNumberFormat(DATE_FMT).setHorizontalAlignment('left');
+  m.getRange(2, w - 2, rows, 1).setNumberFormat('dd.MM.yyyy HH:mm');
+  m.hideColumns(w - 1, 2);
+  if (!n) { m.setConditionalFormatRules([]); m.setTabColor(INK); return; }
+  m.getRange(1, 7, 1, n).setTextRotation(0).setHorizontalAlignment('center');
+  const markRange = m.getRange(2, 7, rows, n);
+  markRange.setHorizontalAlignment('center');
   const rule = (range, text, bg, fg) => SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(text).setBackground(bg).setFontColor(fg).setBold(true).setRanges([range]).build();
   m.setConditionalFormatRules([
     rule(markRange, 'Pass', '#d8f1e6', '#0f7a57'), rule(markRange, 'Hint', '#fbeccf', '#a35f00'),
     rule(markRange, 'Got there', '#fde2d3', '#c2410c'), rule(markRange, 'Failed', '#fbe0e0', '#bf2b2b'),
   ]);
-  [t, st, m].forEach(s => s.setTabColor(INK));
+  m.setTabColor(INK);
 }
 
 // ─────────────────────────────────────────────────────────────── typing in the Teachers tab
@@ -189,6 +247,7 @@ function onEdit(e) {
     const sh = e && e.range && e.range.getSheet(), name = sh && sh.getName(), r = e.range.getRow();
     if (name === SHEETS.STUDENTS.name && r >= 2) { studentsTyped_(sh, r, e.range.getNumRows()); gradesDirty_(); return; }
     if (name === SHEETS.START.name) { storeTeamPassword_(); return; }
+    if (name === SHEETS.QUESTIONS.name && r >= 2) { ensureQuestionIds_(); gradesDirty_(); return; }
     if (name === SHEETS.TEACHERS.name && r >= 2) {
       const last = Math.min(sh.getLastRow(), r + e.range.getNumRows() - 1);
       for (let i = r; i <= last; i++) if (sh.getRange(i, T.NAME + 1).getValue() && !sh.getRange(i, T.ROLE + 1).getValue()) sh.getRange(i, T.ROLE + 1).setValue('teacher');
@@ -258,6 +317,17 @@ function menuTeamPassword() {
   ui.alert('Team password set.');
 }
 
+function menuUseCurrentQuestions() {
+  const ui = SpreadsheetApp.getUi();
+  const p = ui.prompt('Use the current questions for a test date',
+    'A marked test date keeps the questions it was first marked with. Type a date (like 04.11.2026) to give it the questions in the Questions tab now. Marks on removed questions stop counting; new questions start unmarked.', ui.ButtonSet.OK_CANCEL);
+  if (p.getSelectedButton() !== ui.Button.OK) return;
+  const day = day_(p.getResponseText());
+  if (!day) { ui.alert('That is not a date. Type it like 04.11.2026.'); return; }
+  const r = withLock_(() => useCurrentQuestions_(day));
+  ui.alert(r.ok ? 'Done: that date now uses the current questions.' : r.error);
+}
+
 function menuAddTeacher() {
   const ui = SpreadsheetApp.getUi();
   const n = ui.prompt('Add a teacher', 'Their name, as it should appear on the sign-in page:', ui.ButtonSet.OK_CANCEL);
@@ -300,7 +370,7 @@ function route_(req) {
   const me = auth_(req.token);
   if (!me) return { ok: false, error: 'Please sign in again.', code: 'auth' };
   switch (a) {
-    case 'state':          withLock_(() => { ensureStudentIds_(); maybeBuildGrades_(); return {}; }); return state_(me);
+    case 'state':          withLock_(() => { ensureStudentIds_(); ensureQuestionIds_(); syncMarks_(); maybeBuildGrades_(); return {}; }); return state_(me);
     case 'addStudents':    return withLock_(() => addStudents_(me, req));
     case 'updateStudent':  return withLock_(() => updateStudent_(me, req));
     case 'saveEntry':      return withLock_(() => saveEntry_(me, req));
@@ -405,10 +475,15 @@ function students_() {
     .filter(s => s.id && s.name && s.day);
 }
 function marksRows_() {
-  const dataCol = SHEETS.MARKS.header.length - 1, idCol = dataCol - 1;
-  return rows_(SHEETS.MARKS).map((r, i) => {
+  const sh = sheet_(SHEETS.MARKS), last = sh.getLastRow(), w = sh.getLastColumn();
+  if (last < 2 || !w) return [];
+  const head = sh.getRange(1, 1, 1, w).getValues()[0].map(String);
+  let dataCol = head.indexOf(MARKS_TAIL[3]), idCol = head.indexOf(MARKS_TAIL[2]);
+  if (dataCol < 0) { dataCol = w - 1; idCol = w - 2; }
+  const upCol = head.indexOf(MARKS_TAIL[1]);
+  return sh.getRange(2, 1, last - 1, w).getValues().map((r, i) => {
     let data = {}; try { data = JSON.parse(r[dataCol] || '{}'); } catch (e) {}
-    return { row: i + 2, sid: String(r[idCol] || ''), teacher: String(r[2] || ''), data };
+    return { row: i + 2, sid: String(r[idCol] || ''), teacher: String(r[2] || ''), data, day: day_(r[0]), name: String(r[1] || ''), updated: upCol >= 0 ? r[upCol] : '' };
   }).filter(x => x.sid);
 }
 
@@ -421,9 +496,13 @@ function state_(me) {
     if (norm_(m.teacher) === norm_(me.name)) entries.push({ sid: m.sid, teacher: m.teacher, data: m.data });
     else entries.push({ sid: m.sid, teacher: m.teacher, progress: Object.keys(m.data.marks || {}).filter(k => m.data.marks[k] in POINTS).length });
   });
+  // the questions: today's, plus the frozen set of every listed date that has been marked
+  const questions = questions_(), qdays = {};
+  students.forEach(s => { if (!(s.day in qdays)) qdays[s.day] = frozen_(s.day) ? questionsFor_(s.day, questions) : null; });
+  Object.keys(qdays).forEach(d => { if (!qdays[d]) delete qdays[d]; });
   return { ok: true, me: { name: me.name, role: me.role },
     students: students.map(s => ({ id: s.id, day: s.day, name: s.name, studio: s.studio, addedBy: s.addedBy, createdAt: s.createdAt })),
-    entries, teachers: teachers_().map(t => t.name) };
+    entries, teachers: teachers_().map(t => t.name), questions, qdays };
 }
 
 function addStudents_(me, req) {
@@ -452,6 +531,7 @@ function updateStudent_(me, req) {
   if (req.day !== undefined) {
     const day = checkDay_(req.day); if (!day) return { ok: false, error: 'That date is not valid.' };
     sh.getRange(s.row, S_.DAY + 1).setValue(toDate_(day));
+    if (marksRows_().some(m => m.sid === s.id && Object.keys(m.data.marks || {}).length)) freezeDay_(day);
     marksRows_().filter(m => m.sid === s.id).forEach(m => sheet_(SHEETS.MARKS).getRange(m.row, 1).setValue(toDate_(day)));
   }
   if (req.studio !== undefined) sh.getRange(s.row, S_.STUDIO + 1).setValue(clean_(req.studio, 40));
@@ -469,23 +549,140 @@ function saveEntry_(me, req) {
   if (p.notes) { clean.notes = {}; Object.keys(p.notes).slice(0, 200).forEach(k => { clean.notes[clean_(k, 40)] = p.notes[k] === null ? null : String(p.notes[k]).slice(0, 1000); }); }
   if (p.safety) { clean.safety = {}; Object.keys(p.safety).slice(0, 50).forEach(k => { const v = p.safety[k]; clean.safety[clean_(k, 40)] = v === null ? null : { t: Number(v.t) || Date.now(), text: clean_(v.text, 200) }; }); }
   if (p.summary !== undefined) clean.summary = String(p.summary || '').slice(0, 3000);
+  if (clean.marks && Object.keys(clean.marks).some(k => clean.marks[k])) freezeDay_(s.day);   // the first mark fixes this date's questions
+  const ctx = syncMarks_();
   const mine = marksRows_().find(m => m.sid === sid && norm_(m.teacher) === norm_(me.name));
   const data = merge_(mine ? mine.data : {}, clean);
-  const sh = sheet_(SHEETS.MARKS), row = marksRow_(s, me.name, data);
+  const sh = sheet_(SHEETS.MARKS), row = marksRow_(s, me.name, data, ctx);
   const r = mine ? mine.row : sh.getLastRow() + 1;
   sh.getRange(r, 1, 1, row.length).setValues([row]);
   return { ok: true };
 }
 
 /** The readable row in Marks: every skill spelled out, plus the page's own copy in the last column. */
-function marksRow_(s, teacher, data) {
-  const m = data.marks || {}, ids = SKILLS.map(x => x[0]);
+function marksRow_(s, teacher, data, ctx, updated) {
+  ctx = ctx || marksCtx_();
+  const m = data.marks || {}, ids = forStudio_(questionsFor_(s.day, ctx.live), s.studio).map(q => q.id);
   const marked = ids.filter(id => m[id] in POINTS);
   const score = marked.length ? Math.round(marked.reduce((a, id) => a + POINTS[m[id]], 0) / marked.length * 100) : '';
   const errors = Object.keys(data.safety || {}).map(k => data.safety[k]).filter(Boolean).map(x => x.text);
-  return [toDate_(s.day), s.name, teacher, marked.length + '/' + ids.length, score, errors.join('; ')]
-    .concat(ids.map(id => MARK_LABEL[m[id]] || ''))
-    .concat([data.summary || '', new Date(), s.id, JSON.stringify(data)]);
+  return [s.day ? toDate_(s.day) : '', s.name, teacher, marked.length + '/' + ids.length, score, errors.join('; ')]
+    .concat(ctx.cols.map(c => MARK_LABEL[m[c.id]] || ''))
+    .concat([data.summary || '', updated || new Date(), s.id, JSON.stringify(data)]);
+}
+
+/** Keeps the Marks columns in step with the questions. When they change, every row is rewritten from its own page copy. */
+function syncMarks_() {
+  const ctx = marksCtx_(), head = marksHeader_(ctx.cols), sh = sheet_(SHEETS.MARKS), w = sh.getLastColumn();
+  const now = w ? sh.getRange(1, 1, 1, w).getValues()[0].map(String) : [];
+  if (now.join('\u0001') === head.join('\u0001')) return ctx;
+  const studs = {}; students_().forEach(s => studs[s.id] = s);
+  const rows = marksRows_().map(m => marksRow_(studs[m.sid] || { id: m.sid, day: m.day, name: m.name, studio: '' }, m.teacher, m.data, ctx, m.updated));
+  if (sh.getMaxColumns() < head.length) sh.insertColumnsAfter(sh.getMaxColumns(), head.length - sh.getMaxColumns());
+  sh.clearContents();
+  sh.getRange(1, 1, 1, head.length).setValues([head]);
+  if (rows.length) sh.getRange(2, 1, rows.length, head.length).setValues(rows);
+  styleMarks_(ctx.cols.length);
+  return ctx;
+}
+function marksCtx_() { const live = questions_(); return { live, cols: markColumns_(live) }; }
+function marksHeader_(cols) { return MARKS_HEAD.concat(cols.map(c => c.label)).concat(MARKS_TAIL); }
+/** The skill columns in Marks: today's questions, then any that only a marked test date still uses. */
+function markColumns_(live) {
+  live = live || questions_();
+  const cols = live.map(q => ({ id: q.id, label: q.label })), have = {};
+  cols.forEach(c => have[c.id] = 1);
+  frozenDays_().forEach(d => questionsFor_(d, live).forEach(q => { if (!have[q.id]) { have[q.id] = 1; cols.push({ id: q.id, label: q.label + ' (old)' }); } }));
+  return cols;
+}
+
+// ─────────────────────────────────────────────────────────────── the questions (the Questions tab)
+
+/** The questions as typed in the Questions tab, in test order. A blank Stage carries on the stage of the row above. */
+function questions_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEETS.QUESTIONS.name);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const rows = sh.getRange(2, 1, sh.getLastRow() - 1, SHEETS.QUESTIONS.header.length).getValues();
+  const out = [], heading = {}, seen = {};
+  let stage = '';
+  rows.forEach(r => {
+    if (clean_(r[Q_.STAGE], 40)) stage = clean_(r[Q_.STAGE], 40);
+    if (stage && clean_(r[Q_.HEADING], 80) && !heading[stage]) heading[stage] = clean_(r[Q_.HEADING], 80);
+    const t = clean_(r[Q_.TEXT], 300), id = clean_(r[Q_.ID], 40);
+    if (!t || !id || seen[id]) return;
+    seen[id] = 1;
+    out.push({ id, stage: stage || 'Test', t, ask: clean_(r[Q_.ASK], 300), core: yes_(r[Q_.CORE]) ? 1 : 0,
+      studios: studios_(r[Q_.STUDIO]), label: clean_(r[Q_.LABEL], 40) || shorten_(t) });
+  });
+  out.forEach(q => q.heading = heading[q.stage] || q.stage);
+  return out;
+}
+function yes_(v) { return v === true || /^(y|yes|x|✓|core|true|1)$/i.test(String(v == null ? '' : v).trim()); }
+/** 'K3' → ['K3']; 'Both', blank or every studio → null (asked everywhere). */
+function studios_(v) { const s = STUDIO_LIST.filter(k => new RegExp('\\b' + k + '\\b', 'i').test(String(v || ''))); return s.length && s.length < STUDIO_LIST.length ? s : null; }
+function shorten_(t) { return t.length > 32 ? t.slice(0, 31).replace(/\s+\S*$/, '') + '…' : t; }
+function forStudio_(qs, studio) { return qs.filter(q => !q.studios || !studio || q.studios.indexOf(studio) >= 0); }
+
+/** Every typed question gets an ID in the hidden column; a row copied together with its ID gets a fresh one. */
+function ensureQuestionIds_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEETS.QUESTIONS.name);
+  if (!sh || sh.getLastRow() < 2) return;
+  const n = sh.getLastRow() - 1, texts = sh.getRange(2, Q_.TEXT + 1, n, 1).getValues(), idr = sh.getRange(2, Q_.ID + 1, n, 1), ids = idr.getValues();
+  const seen = {}; let changed = false;
+  ids.forEach((r, i) => {
+    if (!String(texts[i][0] || '').trim()) return;
+    let id = String(r[0] || '').trim();
+    if (!id || seen[id]) { id = 'q' + newId_().replace(/-/g, '').slice(0, 8); r[0] = id; changed = true; }
+    seen[id] = 1;
+  });
+  if (changed) idr.setValues(ids);
+}
+
+function seedQuestions_() {
+  const ss = SpreadsheetApp.getActive();
+  if (ss.getSheetByName(SHEETS.QUESTIONS.name)) return;
+  const sh = sheet_(SHEETS.QUESTIONS);
+  sh.getRange(2, 1, DEFAULT_QUESTIONS.length, DEFAULT_QUESTIONS[0].length).setValues(DEFAULT_QUESTIONS);
+  try { const at = ss.getSheets().map(s => s.getName()).indexOf(SHEETS.STUDENTS.name); if (at >= 0) { ss.setActiveSheet(sh); ss.moveActiveSheet(at + 2); } } catch (e) {}
+}
+
+/* A test date keeps the questions it was first marked with, so changing the test never moves a grade already given.
+   Rewording a question still shows on that date; adding, removing, Core and Studio changes do not.
+   Stored as script property q_<date>; Ops Test ▸ Use the current questions for a test date removes it. */
+function frozen_(day) { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('q_' + day) || 'null'); } catch (e) { return null; } }
+function frozenDays_() { return Object.keys(PropertiesService.getScriptProperties().getProperties()).filter(k => /^q_\d{4}-\d{2}-\d{2}$/.test(k)).map(k => k.slice(2)).sort(); }
+function freezeDay_(day, qs) {
+  if (!day || frozen_(day)) return;
+  qs = qs || questions_();
+  if (!qs.length) return;
+  let s = JSON.stringify(qs);   // a script property holds 9 KB: drop the long text first, it comes from the tab anyway
+  if (s.length > 8500) s = JSON.stringify(qs.map(q => ({ id: q.id, stage: q.stage, t: q.t.slice(0, 60), core: q.core, studios: q.studios, label: q.label })));
+  if (s.length > 8500) s = JSON.stringify(qs.map(q => ({ id: q.id, core: q.core, studios: q.studios })));
+  PropertiesService.getScriptProperties().setProperty('q_' + day, s);
+}
+/** One date's questions: its frozen set with today's wording, or the current questions if nothing is marked yet. */
+function questionsFor_(day, live) {
+  live = live || questions_();
+  const f = frozen_(day);
+  if (!f) return live;
+  const byId = {}; live.forEach(q => byId[q.id] = q);
+  return f.map(q => {
+    const l = byId[q.id], o = Object.assign({ stage: 'Test', t: '(removed question)', ask: '', label: q.id }, q);
+    if (l) Object.assign(o, { stage: l.stage, heading: l.heading, t: l.t, ask: l.ask, label: l.label });
+    o.heading = o.heading || o.stage;
+    return o;
+  });
+}
+function freezeMarkedDays_() {
+  const dayOf = {}; students_().forEach(s => dayOf[s.id] = s.day);
+  const days = {}; marksRows_().forEach(m => { if (dayOf[m.sid] && Object.keys(m.data.marks || {}).length) days[dayOf[m.sid]] = 1; });
+  const qs = questions_(); Object.keys(days).forEach(d => freezeDay_(d, qs));
+}
+function useCurrentQuestions_(day) {
+  PropertiesService.getScriptProperties().deleteProperty('q_' + day);
+  if (marksRows_().length) freezeMarkedDays_();   // still marked, so it is fixed again, now to the current questions
+  syncMarks_(); buildGrades_();
+  return { ok: true };
 }
 
 /** Kept for older pages that still ask: rebuilds the overview now. */
@@ -506,21 +703,22 @@ function maybeBuildGrades_() {
 
 /** The same sum the page uses: each skill averaged over every teacher who marked it, the average of the skills,
  *  minus 10 per different critical error, a core skill under 50% means Resit. */
-function gradeOf_(byTeacher) {
+function gradeOf_(byTeacher, qs) {
   const teachers = Object.keys(byTeacher).filter(u => Object.keys(byTeacher[u].marks || {}).some(k => byTeacher[u].marks[k] in POINTS));
-  const per = SKILLS.map(([id]) => {
-    const v = teachers.map(u => byTeacher[u].marks[id]).filter(x => x in POINTS).map(x => POINTS[x]);
-    return { id, avg: v.length ? v.reduce((a, b) => a + b, 0) / v.length : null };
+  const per = qs.map(q => {
+    const v = teachers.map(u => byTeacher[u].marks[q.id]).filter(x => x in POINTS).map(x => POINTS[x]);
+    return { q, avg: v.length ? v.reduce((a, b) => a + b, 0) / v.length : null };
   });
   const marked = per.filter(x => x.avg !== null);
   const score = marked.length ? marked.reduce((a, x) => a + x.avg, 0) / marked.length * 100 : null;
   const errors = [];
   Object.keys(byTeacher).forEach(u => Object.keys(byTeacher[u].safety || {}).forEach(k => { const e = byTeacher[u].safety[k]; if (e && errors.indexOf(e.text) < 0) errors.push(e.text); }));
   const final = score === null ? null : Math.max(0, score - errors.length * ERR_POINTS);
-  const coreFails = marked.filter(x => CORE[x.id] && x.avg < 0.5).map(x => SKILLS.find(s => s[0] === x.id)[1]);
-  const complete = marked.length === SKILLS.length;
+  const coreFails = marked.filter(x => x.q.core && x.avg < 0.5).map(x => x.q.label);
+  const complete = qs.length > 0 && marked.length === qs.length;
   const band = final === null ? null : coreFails.length ? BANDS[BANDS.length - 1] : BANDS.find(b => final >= b[1] - 1e-9);
-  const stages = STAGES.map(([p]) => { const xs = marked.filter(x => x.id[0] === p); return xs.length ? Math.round(xs.reduce((a, x) => a + x.avg, 0) / xs.length * 100) : ''; });
+  const by = {}; marked.forEach(x => (by[x.q.stage] = by[x.q.stage] || []).push(x.avg));
+  const stages = {}; Object.keys(by).forEach(k => stages[k] = Math.round(by[k].reduce((a, b) => a + b, 0) / by[k].length * 100));
   return { teachers, marked: marked.length, score, errors, final, coreFails, complete, band, stages };
 }
 
@@ -534,25 +732,29 @@ function buildGrades_() {
 
   const students = students_().filter(s => !s.removed).sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : a.name.localeCompare(b.name));
   const marks = {}; marksRows_().forEach(m => { (marks[m.sid] = marks[m.sid] || {})[m.teacher] = m.data; });
-  const N = SKILLS.length, top = 8;
-  const head = ['Test date', 'Student', 'Studio', 'Teachers', 'Marked', 'Progress'].concat(STAGES.map(x => x[1]))
+  // each student is graded on their own date's questions; the stage columns follow today's stages, then any older ones
+  const live = questions_(), byDay = {}, qsOf = s => forStudio_(byDay[s.day] = byDay[s.day] || questionsFor_(s.day, live), s.studio);
+  const stageNames = [];
+  live.concat(...students.map(s => qsOf(s))).forEach(q => { if (stageNames.indexOf(q.stage) < 0) stageNames.push(q.stage); });
+  const nS = stageNames.length, top = 8;
+  const head = ['Test date', 'Student', 'Studio', 'Teachers', 'Marked', 'Progress'].concat(stageNames)
     .concat(['Score', 'Errors', 'Final', '', 'Grade', 'Core skill under 50%', 'Critical errors']);
-  const W = head.length, C = { STAGE: 7, SCORE: 13, ERR: 14, FINAL: 15, BAR: 16, GRADE: 17 };
+  const W = head.length, C = { STAGE: 7, SCORE: 7 + nS, ERR: 8 + nS, FINAL: 9 + nS, BAR: 10 + nS, GRADE: 11 + nS };
 
   const counts = { 'Grade A': 0, Pass: 0, Resit: 0, Unfinished: 0 };
   const values = [], bars = [], groupStarts = [];
   let prevDay = '';
   students.forEach((s, i) => {
-    const g = gradeOf_(marks[s.id] || {});
+    const qs = qsOf(s), N = qs.length, g = gradeOf_(marks[s.id] || {}, qs);
     const label = !g.marked ? 'Not started' : g.complete ? g.band[0] : 'Unfinished';
     if (g.complete) counts[g.band[0]]++; else counts.Unfinished++;
     if (s.day !== prevDay) { groupStarts.push(top + i); prevDay = s.day; }
     values.push([toDate_(s.day), s.name, s.studio, g.teachers.join(', '), g.marked + '/' + N, '']
-      .concat(g.stages)
+      .concat(stageNames.map(n => n in g.stages ? g.stages[n] : ''))
       .concat([g.score === null ? '' : Math.round(g.score), g.errors.length ? -g.errors.length * ERR_POINTS : '', g.final === null ? '' : Math.round(g.final), '',
                label, g.coreFails.join(', '), g.errors.join('; ')]));
     const col = g.complete ? g.band[2] : '#9aa3b5';
-    bars.push(['=SPARKLINE(' + g.marked + ',{"charttype","bar";"max",' + N + ';"color1","' + BLUE + '"})',
+    bars.push(['=SPARKLINE(' + g.marked + ',{"charttype","bar";"max",' + Math.max(1, N) + ';"color1","' + BLUE + '"})',
                g.final === null ? '' : '=SPARKLINE(' + Math.round(g.final) + ',{"charttype","bar";"max",100;"color1","' + col + '"})']);
   });
 
@@ -586,7 +788,7 @@ function buildGrades_() {
     sh.getRange(top, C.BAR, bars.length, 1).setFormulas(bars.map(b => [b[1]]));
     sh.getRange(top, 1, values.length, 1).setNumberFormat(DATE_FMT).setHorizontalAlignment('left');
     sh.getRange(top, 2, values.length, 1).setFontWeight('bold');
-    sh.getRange(top, C.STAGE, values.length, 6).setHorizontalAlignment('center').setNumberFormat('0');
+    if (nS) sh.getRange(top, C.STAGE, values.length, nS).setHorizontalAlignment('center').setNumberFormat('0');
     sh.getRange(top, C.SCORE, values.length, 3).setHorizontalAlignment('center').setNumberFormat('0');
     sh.getRange(top, C.FINAL, values.length, 1).setFontWeight('bold').setFontSize(12);
     sh.getRange(top, C.GRADE, values.length, 1).setHorizontalAlignment('center').setFontWeight('bold');
@@ -600,16 +802,16 @@ function buildGrades_() {
       .setGradientMaxpointWithValue('#b7e1cd', SpreadsheetApp.InterpolationType.NUMBER, '100').setRanges([range]).build();
     const gradeCol = sh.getRange(top, C.GRADE, values.length, 1);
     const text = (t, bg, fg) => SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(t).setBackground(bg).setFontColor(fg).setBold(true).setRanges([gradeCol]).build();
-    sh.setConditionalFormatRules([
-      heat(sh.getRange(top, C.STAGE, values.length, 6)), heat(sh.getRange(top, C.SCORE, values.length, 1)), heat(sh.getRange(top, C.FINAL, values.length, 1)),
+    sh.setConditionalFormatRules((nS ? [heat(sh.getRange(top, C.STAGE, values.length, nS))] : []).concat([
+      heat(sh.getRange(top, C.SCORE, values.length, 1)), heat(sh.getRange(top, C.FINAL, values.length, 1)),
       text('Grade A', BANDS[0][3], BANDS[0][2]), text('Pass', BANDS[1][3], INK), text('Resit', BANDS[2][3], BANDS[2][2]),
       text('Unfinished', PAPER, MUTE), text('Not started', '#ffffff', '#9aa3b5'),
       SpreadsheetApp.newConditionalFormatRule().whenNumberLessThan(0).setFontColor(BANDS[2][2]).setBold(true).setRanges([sh.getRange(top, C.ERR, values.length, 1)]).build(),
-    ]);
+    ]));
   } else {
     sh.getRange(top, 1).setValue('No students yet. Add them in the Students tab or on the page.').setFontColor(MUTE);
   }
-  [110, 170, 90, 150, 64, 110].concat(STAGES.map(() => 66)).concat([58, 58, 58, 110, 104, 200, 300]).forEach((w, i) => sh.setColumnWidth(i + 1, w));
+  [110, 170, 90, 150, 64, 110].concat(stageNames.map(() => 66)).concat([58, 58, 58, 110, 104, 200, 300]).forEach((w, i) => sh.setColumnWidth(i + 1, w));
   sh.setFrozenRows(top - 1); sh.setFrozenColumns(2);
   sh.setHiddenGridlines(true);
   sh.setTabColor(BLUE);
@@ -656,11 +858,12 @@ function migrateMarks_() {
   if (!o || o.head[0] === 'Test date') return;
   // v1 layout: Student ID | Teacher | Marks (JSON) | Updated
   const studs = {}; students_().forEach(s => studs[s.id] = s);
+  const ctx = marksCtx_();
   const rows = o.rows.filter(r => r[0] && studs[String(r[0])]).map(r => {
     let data = {}; try { data = JSON.parse(r[2] || '{}'); } catch (e) {}
-    return marksRow_(studs[String(r[0])], String(r[1]), data);
+    return marksRow_(studs[String(r[0])], String(r[1]), data, ctx);
   });
-  o.sh.clear(); const h = SHEETS.MARKS.header;
+  o.sh.clear(); const h = marksHeader_(ctx.cols);
   o.sh.getRange(1, 1, 1, h.length).setValues([h]);
   if (rows.length) o.sh.getRange(2, 1, rows.length, h.length).setValues(rows);
 }

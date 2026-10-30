@@ -19,6 +19,16 @@ g.setTeacher_('Gunnar', 'admin');
 g.setTeacher_('Anna', 'teacher');
 g.setTeamPassword_('catalyst');                    // everyone signs in with this
 const call = body => JSON.parse(g.doPost({ postData: { contents: body } }).s);
+// OPS_TRY_QUESTIONS=1: 45 s after start, someone "edits the Questions tab" (rewords the first question, adds a K3 one
+// to Mic), so you can watch an open page pick it up.
+if (process.env.OPS_TRY_QUESTIONS) setTimeout(() => {
+  const q = g.SpreadsheetApp.getActive().getSheetByName('Questions');
+  q.getRange(2, 3).setValue('Powers up in the right order (speakers last)');
+  const at = q.getLastRow() + 1;   // a later row with Stage "Mic" still lands in the Mic stage
+  q.getRange(at, 1, 1, 7).setValues([['Mic', '', 'Checks the K3 mic splitter is set to the desk', 'Where does the second feed go?', false, 'K3', '']]);
+  g.onEdit({ range: q.getRange(at, 1, 1, 7) });
+  console.log('Questions tab edited');
+}, 45000);
 
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json' };
 http.createServer((req, res) => {
