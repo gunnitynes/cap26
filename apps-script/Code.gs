@@ -62,6 +62,7 @@ const BANDS = [['Grade A', 75, '#0f7a57', '#d8f1e6'], ['Pass', 60, '#5a6276', '#
 const ERR_POINTS = 10;
 
 const STUDIO_LIST = ['K3', 'K4'];   // the studios a test can be in
+const CAP_LIST = ['CAP 26A', 'CAP 26B', 'CAP 26C'];   // the CAP groups, a dropdown in the Students tab
 const DATE_FMT = 'dd.mm.yyyy';
 const BLUE = '#0b43e0', INK = '#10131c', PAPER = '#f4f6fa', MUTE = '#5a6276';
 const SHEETS = {
@@ -124,7 +125,7 @@ function buildStart_() {
     ['Add students', 'Open the Students tab. Type the test date, the test time (like 10:30), the student\'s name and the studio, one student per row.'],
     ['', 'Pasting a whole list? Paste the names into the Student column and type the date once at the top: rows below take the date and studio from the row above. Each student keeps their own time.'],
     ['', 'They appear on the page within a few seconds. Teachers can also add students on the page itself.'],
-    ['CAP', 'Type the student\'s CAP in the CAP column (for example CAP 1). The page shows it next to the student.'],
+    ['CAP', 'Pick the student\'s CAP in the CAP column (CAP 26A, CAP 26B or CAP 26C). The page shows it next to the student.'],
     ['Assign a teacher', 'Pick the teacher in the student\'s Teacher column. On the page each teacher sees only their own students; an admin (Role column in Teachers) sees everyone.'],
     ['Remove a student', 'Type anything (for example "absent") in their Removed column. Their row stays, so nothing is lost.'],
     ['Remove a teacher', 'Delete their row in Teachers. Their marks stay in Marks.'],
@@ -187,8 +188,9 @@ function style_() {
   st.getRange(2, S_.TIME + 1, sr, 1).setNumberFormat('HH:mm').setHorizontalAlignment('center').setFontFamily('Courier New').setFontWeight('bold');
   st.getRange(1, S_.TIME + 1).setNote('The student\'s test time, like 10:30 (9.30 or 930 also work).');
   st.getRange(2, S_.NAME + 1, sr, 1).setFontWeight('bold');
-  st.getRange(2, S_.CAP + 1, sr, 1).setHorizontalAlignment('center');
-  st.getRange(1, S_.CAP + 1).setNote('The student\'s CAP, for example CAP 1. Shown next to their name on the page.');
+  st.getRange(2, S_.CAP + 1, sr, 1).setHorizontalAlignment('center').setDataValidation(
+    SpreadsheetApp.newDataValidation().requireValueInList(CAP_LIST, true).setAllowInvalid(false).setHelpText(CAP_LIST.join(', ')).build());
+  st.getRange(1, S_.CAP + 1).setNote('The student\'s CAP: ' + CAP_LIST.join(', ') + '. Shown next to their name on the page.');
   st.getRange(2, S_.STUDIO + 1, sr, 1).setHorizontalAlignment('center').setDataValidation(
     SpreadsheetApp.newDataValidation().requireValueInList(STUDIO_LIST, true).setAllowInvalid(false).setHelpText('K3 or K4').build());
   st.getRange(2, S_.TEACHER + 1, sr, 1).setHorizontalAlignment('center').setDataValidation(
