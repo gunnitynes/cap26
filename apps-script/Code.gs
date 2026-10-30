@@ -534,7 +534,7 @@ function buildGrades_() {
 
   const students = students_().filter(s => !s.removed).sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : a.name.localeCompare(b.name));
   const marks = {}; marksRows_().forEach(m => { (marks[m.sid] = marks[m.sid] || {})[m.teacher] = m.data; });
-  const N = SKILLS.length, top = 9;
+  const N = SKILLS.length, top = 8;
   const head = ['Test date', 'Student', 'Studio', 'Teachers', 'Marked', 'Progress'].concat(STAGES.map(x => x[1]))
     .concat(['Score', 'Errors', 'Final', '', 'Grade', 'Core skill under 50%', 'Critical errors']);
   const W = head.length, C = { STAGE: 7, SCORE: 13, ERR: 14, FINAL: 15, BAR: 16, GRADE: 17 };
@@ -560,23 +560,23 @@ function buildGrades_() {
   try { sh.getBandings().forEach(b => b.remove()); } catch (e) {}
   sh.setConditionalFormatRules([]);
   const total = students.length || 1;
-  const stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd.MM.yyyy HH:mm');
-  sh.getRange(1, 1, 2, 1).setValues([['Grades'], ['Every student, combined over all teachers. Updated ' + stamp + '. This is where the grading happens; the app is only for marking.']]);
+  sh.getRange(1, 1).setValue('Grades');
   sh.getRange('A1').setFontSize(22).setFontWeight('bold').setFontColor(BLUE);
-  sh.getRange('A2').setFontColor(MUTE);
+  sh.setRowHeights(1, top - 1, 21);                    // reset the heights a previous layout may have left
+  sh.setRowHeight(2, 8);                                // a thin gap under the title
   // the summary: one block per grade, with a bar showing its share of all students
   const names = ['Merit', 'Pass', 'Resit', 'Unfinished'];
   const colours = [BANDS[0], BANDS[1], BANDS[2], ['', 0, '#9aa3b5', PAPER]];
-  sh.getRange(4, 1, 2, 1).setValues([['Overview'], [students.length + (students.length === 1 ? ' student' : ' students')]]);
-  sh.getRange('A4').setFontWeight('bold'); sh.getRange('A5').setFontColor(MUTE);
+  sh.getRange(3, 1, 2, 1).setValues([['Overview'], [students.length + (students.length === 1 ? ' student' : ' students')]]);
+  sh.getRange('A3').setFontWeight('bold'); sh.getRange('A4').setFontColor(MUTE);
   names.forEach((n, i) => {
     const c = 2 + i;
-    sh.getRange(4, c).setValue(n).setFontWeight('bold').setFontColor(colours[i][2]);
-    sh.getRange(5, c).setValue(counts[n]).setFontSize(24).setFontWeight('bold').setFontColor(colours[i][2]).setHorizontalAlignment('left');
-    sh.getRange(6, c).setFormula('=SPARKLINE(' + counts[n] + ',{"charttype","bar";"max",' + total + ';"color1","' + colours[i][2] + '"})');
-    sh.getRange(4, c, 3, 1).setBackground(colours[i][3]);
+    sh.getRange(3, c).setValue(n).setFontWeight('bold').setFontColor(colours[i][2]);
+    sh.getRange(4, c).setValue(counts[n]).setFontSize(24).setFontWeight('bold').setFontColor(colours[i][2]).setHorizontalAlignment('left');
+    sh.getRange(5, c).setFormula('=SPARKLINE(' + counts[n] + ',{"charttype","bar";"max",' + total + ';"color1","' + colours[i][2] + '"})');
+    sh.getRange(3, c, 3, 1).setBackground(colours[i][3]);
   });
-  sh.setRowHeight(5, 40);
+  sh.setRowHeight(4, 40);
 
   sh.getRange(top - 1, 1, 1, W).setValues([head]).setFontWeight('bold').setFontColor('#ffffff').setBackground(BLUE).setVerticalAlignment('middle').setWrap(true);
   sh.setRowHeight(top - 1, 36);

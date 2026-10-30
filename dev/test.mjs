@@ -133,7 +133,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const tabs = book.sheets.map(s => s.name);
   assert.ok(tabs.includes('Grades') && !tabs.includes('Results') && !tabs.includes('Days'));
   assert.equal(tabs[1], 'Grades');
-  const d = tab(book, 'Grades').data, head = d[7];
+  const d = tab(book, 'Grades').data, head = d[6];
   const row = name => d.find(r => r[1] === name);
   const P = row('Polina'), Q = row('Paul');
   // Polina: m4 averages (75+100)/2 → score 99, one critical error → final 89 → Merit
@@ -143,7 +143,8 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(Q[head.indexOf('Grade')], 'Unfinished'); assert.equal(Q[head.indexOf('Core skill under 50%')], 'Console → speakers');
   assert.equal(head.indexOf('In the app'), -1);
   ok('the Grades tab works out the same grade as the page, per stage, with errors and core fails');
-  assert.equal(d[4][1], 1); assert.equal(d[4][4], 1);   // one Merit, one Unfinished in the summary
+  assert.equal(d[3][1], 1); assert.equal(d[3][4], 1);   // one Merit, one Unfinished in the summary
+  assert.equal((d[1] || []).join(''), '');   // row 2 stays empty: no subtitle line
   ok('the summary counts each grade');
   const seen = call(g, { action: 'state', token: at }).entries.filter(e => e.sid === pol);
   assert.ok(seen.find(e => e.teacher === 'Anna').data);
