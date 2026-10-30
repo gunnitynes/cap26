@@ -293,6 +293,11 @@ details.guide[open] summary::after{content:"–"}
 .door-h{font-size:clamp(46px,15vw,64px);line-height:.92;font-weight:800;letter-spacing:-.035em;margin:4px 0 0}
 .door-form{display:flex;flex-direction:column;gap:12px}
 .door.typing{padding-bottom:70vh}
+/* a slim bar sliding while the teachers' names load */
+.nbar{display:block;position:relative;width:100%;max-width:220px;height:4px;border-radius:2px;background:var(--line);overflow:hidden;margin:16px 0}
+.nbar i{position:absolute;inset:0 auto 0 0;width:40%;border-radius:2px;background:var(--led);animation:nbar 1.1s ease-in-out infinite}
+@keyframes nbar{from{left:-40%}to{left:100%}}
+@media (prefers-reduced-motion:reduce){.nbar i{animation-duration:3s}}
 .door-field{display:flex;flex-direction:column;gap:6px}
 .door-field span{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
 .door-field input{font-size:18px;padding:14px 16px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
@@ -692,7 +697,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793384627';
+const BUILD='1793385831';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -805,13 +810,13 @@ function renderLogin(){
     </div>
     <form class="door-form" id="loginForm" autocomplete="off">
       <p class="readout info" id="lInfo" hidden></p>
-      <div class="door-field"><span>Who are you?</span><div class="names" id="lNames" role="radiogroup" aria-label="Your name"><span class="readout" style="margin:0">Loading the teachers…</span></div></div>
+      <div class="door-field"><span>Who are you?</span><div class="names" id="lNames" role="radiogroup" aria-label="Your name"><span class="nbar" role="progressbar" aria-label="Loading the teachers"><i></i></span></div></div>
       <label class="door-field"><span>Team password</span><input type="text" id="lPass" class="masked" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="PASSWORD"></label>
       <button class="primary door-btn" type="submit" id="lBtn">Sign in</button>
       <p class="readout err" id="lErr" hidden></p>
       ${S.demo?'<p class="readout">Preview: any name opens the example students.</p>':''}
     </form>
-    <p class="door-foot">Your name is missing? Ask the test organiser to add it to the Teachers tab.<br>After signing in, this phone stays signed in.</p>
+    <p class="door-foot">After signing in, this phone stays signed in.</p>
   </div>`;
   const f=$('#loginForm');let picked=last;
   /* The phone keyboard covers the lower half of the screen (and a home-screen app does not shrink the page for it):
