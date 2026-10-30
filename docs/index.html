@@ -185,6 +185,11 @@ details.guide[open] summary::after{content:"–"}
 .detail{font-size:13.5px;color:var(--mute);display:flex;flex-direction:column;gap:8px}
 .detail .ask{color:var(--ink);background:var(--sunk);border-left:3px solid var(--led);padding:8px 10px;border-radius:0 8px 8px 0}
 .detail .ask::before{content:"ASK  ";font-family:var(--mono);font-size:10px;font-weight:700;color:var(--led);letter-spacing:.1em}
+/* a skill left unmarked when the teacher tried to save */
+.crit.missing{border-color:var(--hint);box-shadow:0 0 0 2px var(--hint-soft);animation:missing 1.2s ease 2}
+.crit.missing h3::after{content:"Not marked";display:inline-block;margin-left:8px;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--hint);border:1px solid var(--hint);border-radius:4px;padding:0 5px;vertical-align:2px}
+@keyframes missing{50%{box-shadow:0 0 0 6px var(--hint-soft)}}
+@media (prefers-reduced-motion:reduce){.crit.missing{animation:none}}
 .marks{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
 .marks button{border:1px solid var(--line);background:var(--sunk);border-radius:9px;padding:10px 2px 9px;font-size:12.5px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:5px;transition:background .12s,border-color .12s}
 .marks button i{width:9px;height:9px;border-radius:50%;background:var(--line);transition:background .12s,box-shadow .12s}
@@ -697,7 +702,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793389905';
+const BUILD='1793391193';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1100,7 +1105,18 @@ function renderSheet(){
   $('#moveTeacher').onchange=e=>{const v=e.target.value;patch(S.open,{teacher:v});toast(v?'Teacher: '+v:'No teacher')};
   $('#moveTime').onchange=e=>{const v=e.target.value||'';patch(S.open,{time:v});toast(v?'Test time '+v:'Test time cleared')};
   $('#incText').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();logInc($('#incText').value.trim())}};
-  $('#doneBtn').onclick=()=>{flushSoon(0);go('roster')};
+  /* Saving with a skill still unmarked: say so, jump to the first one and outline every one. A second tap saves anyway. */
+  let saveArm=0;
+  $('#doneBtn').onclick=()=>{
+    const t={id:S.open,...view(S.open)},m=mine(t).marks||{},missing=skillsFor(t).filter(c=>!(m[c.id] in POINTS));
+    if(missing.length&&canMark()&&Date.now()-saveArm>8000){
+      saveArm=Date.now();
+      app.querySelectorAll('article.crit').forEach(a=>a.classList.toggle('missing',missing.some(c=>c.id===a.dataset.crit)));
+      app.querySelector(`article.crit[data-crit="${missing[0].id}"]`)?.scrollIntoView({behavior:'smooth',block:'center'});
+      toast(missing.length===1?'1 skill is not marked yet':missing.length+' skills are not marked yet');
+      const b=$('#doneBtn');b.textContent='Save anyway';setTimeout(()=>{if($('#doneBtn')===b)b.textContent='Save and back to students'},8000);
+      return}
+    flushSoon(0);go('roster')};
   let delArm=0;$('#delBtn').onclick=async()=>{if(Date.now()-delArm>3000){delArm=Date.now();$('#delBtn').textContent='Tap again to delete';setTimeout(()=>$('#delBtn')&&($('#delBtn').textContent='Delete'),3000);return}
     if(S.demo){delete S.tests[S.open];toast('Student removed');go('roster');return}
     const j=await api('updateStudent',{id:S.open,deleted:true});
@@ -1123,7 +1139,7 @@ function syncSheet(first){
   const mtc=$('#moveTeacher');if(document.activeElement!==mtc)mtc.value=t.teacher||'';
   const md=$('#moveDay');if(document.activeElement!==md)md.value=t.day||'';
   const mt=$('#moveTime');if(document.activeElement!==mt)mt.value=t.time||'';
-  app.querySelectorAll('.marks').forEach(g=>{const v=e.marks?.[g.dataset.crit];g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===v));(g.closest('.crit')).dataset.m=v||''});
+  app.querySelectorAll('.marks').forEach(g=>{const v=e.marks?.[g.dataset.crit];g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===v));const a=g.closest('.crit');a.dataset.m=v||'';if(v)a.classList.remove('missing')});
   app.querySelectorAll('[data-note]').forEach(n=>{const v=e.notes?.[n.dataset.note]||'';if(document.activeElement!==n&&n.value!==v){n.value=v}if(v){n.hidden=false;const ab=app.querySelector(`[data-addnote="${n.dataset.note}"]`);if(ab)ab.hidden=true}if(!n.hidden)autosize(n)});
   const sm=$('#summary');if(document.activeElement!==sm&&sm.value!==(e.summary||''))sm.value=e.summary||'';
   stagesFor(t).forEach(s=>{const cs=skillsFor(t).filter(c=>c.s===s.id);if(!cs.length||!app.querySelector(`[data-count="${s.id}"]`))return;

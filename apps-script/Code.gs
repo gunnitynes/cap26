@@ -101,6 +101,7 @@ function onOpen() {
 function setup() {
   const ss = SpreadsheetApp.getActive();
   migrateTeachers_(); migrateStudents_(); seedQuestions_(); ensureTeacherQuestionTabs_(); ensureQuestionIds_(); migrateMarks_(); migrateDates_();
+  splitDayFreezes_();
   Object.keys(SHEETS).forEach(k => { if (k !== 'START' && k !== 'GRADES') sheet_(SHEETS[k]); });
   freezeMarkedDays_();
   syncMarks_();
@@ -883,6 +884,25 @@ function questionsFor_(day, teacher, sets) {
     return o;
   });
 }
+/** Dates fixed before teachers had their own tabs (q_<date>, one set for everyone) become one fixed set per teacher.
+ *  A teacher whose tab still holds the same questions keeps that set exactly; a teacher who has since changed which
+ *  questions are in their tab gets their current tab, since the old shared set was never theirs to choose. */
+function splitDayFreezes_() {
+  const props = PropertiesService.getScriptProperties(), studs = students_().filter(s => !s.removed);
+  Object.keys(props.getProperties()).filter(k => /^q_\d{4}-\d{2}-\d{2}$/.test(k)).forEach(k => {
+    const day = k.slice(2), old = frozenRaw_(k) || [], oldIds = old.map(q => q.id).sort().join('|');
+    const teachersThatDay = {};
+    studs.filter(x => x.day === day).forEach(x => teachersThatDay[norm_(x.teacher)] = x.teacher);
+    Object.keys(teachersThatDay).forEach(t => {
+      const key = 'q_' + day + '|' + t;
+      if (props.getProperty(key)) return;
+      const live = questions_(teachersThatDay[t]);
+      const same = live.map(q => q.id).sort().join('|') === oldIds;
+      props.setProperty(key, same ? JSON.stringify(old) : JSON.stringify(live));
+    });
+    props.deleteProperty(k);
+  });
+}
 function freezeMarkedDays_() {
   const of = {}; students_().forEach(s => of[s.id] = s);
   marksRows_().forEach(m => { const s = of[m.sid]; if (s && Object.keys(m.data.marks || {}).length) freezeSet_(s.day, s.teacher); });
@@ -965,7 +985,10 @@ function buildGrades_() {
   cache.remove('grades_dirty'); cache.put('grades_recent', '1', 20);
 
   // each student is graded on their own date's questions; the stage columns follow today's stages, then any older ones
-  const { live, list } = gradeList_(), students = list.map(x => x.s);
+  // grouped by teacher (in the order of the Teachers tab, students without a teacher last), then date and time
+  const g0 = gradeList_(), live = g0.live, order = teachers_().map(t => norm_(t.name));
+  const rank = s => { const i = order.indexOf(norm_(s.teacher)); return i < 0 ? order.length : i; };
+  const list = g0.list.slice().sort((a, b) => rank(a.s) - rank(b.s) || byTestTime_(a.s, b.s)), students = list.map(x => x.s);
   const stageNames = [];
   live.concat(...list.map(x => x.qs)).forEach(q => { if (stageNames.indexOf(q.stage) < 0) stageNames.push(q.stage); });
   const nS = stageNames.length, top = 8;
@@ -974,13 +997,22 @@ function buildGrades_() {
   const W = head.length, C = { STAGE: 7, SCORE: 7 + nS, ERR: 8 + nS, FINAL: 9 + nS, BAR: 10 + nS, GRADE: 11 + nS };
 
   const counts = { 'Grade A': 0, Pass: 0, Resit: 0, Unfinished: 0 };
-  const values = [], bars = [], groupStarts = [];
-  let prevDay = '';
-  list.forEach(({ s, qs, g }, i) => {
+  const values = [], bars = [], groupStarts = [], bandRows = [];
+  let prevDay = '', prevTeacher = null;
+  list.forEach(({ s, qs, g }) => {
     const N = qs.length;
     const label = !g.marked ? 'Not started' : g.complete ? g.band[0] : 'Unfinished';
     if (g.complete) counts[g.band[0]]++; else counts.Unfinished++;
-    if (s.day !== prevDay) { groupStarts.push(top + i); prevDay = s.day; }
+    const tk = rank(s);
+    if (tk !== prevTeacher) {
+      // a band naming the teacher and how far their students are
+      const mine = list.filter(x => rank(x.s) === tk), done = mine.filter(x => x.g.complete).length;
+      bandRows.push(top + values.length);
+      values.push([(s.teacher || 'No teacher yet') + '  ·  ' + mine.length + ' student' + (mine.length === 1 ? '' : 's') + '  ·  ' + done + ' graded'].concat(Array(W - 1).fill('')));
+      bars.push(['', '']);
+      prevTeacher = tk; prevDay = '';
+    }
+    if (s.day !== prevDay) { if (prevDay) groupStarts.push(top + values.length); prevDay = s.day; }
     values.push([toDate_(s.day), s.name, s.studio, g.teachers.join(', '), g.marked + '/' + N, '']
       .concat(stageNames.map(n => n in g.stages ? g.stages[n] : ''))
       .concat([g.score === null ? '' : Math.round(g.score), g.errors.length || '', g.final === null ? '' : Math.round(g.final), '',
@@ -1028,6 +1060,10 @@ function buildGrades_() {
     // a heavier line where a new test date starts
     groupStarts.forEach(r => { try { sh.getRange(r, 1, 1, W).setBorder(true, null, null, null, null, null, INK, SpreadsheetApp.BorderStyle.SOLID_MEDIUM); } catch (e) {} });
     for (let r = top; r < top + values.length; r++) sh.setRowHeight(r, 26);
+    bandRows.forEach(r => { try {
+      sh.getRange(r, 1, 1, W).setBackground(INK).setFontColor('#ffffff').setFontWeight('bold').setFontSize(11).setNumberFormat('@').setBorder(null, null, null, null, null, null);
+      sh.setRowHeight(r, 30);
+    } catch (e) {} });
     const heat = range => SpreadsheetApp.newConditionalFormatRule()
       .setGradientMinpointWithValue('#f4c7c3', SpreadsheetApp.InterpolationType.NUMBER, '0')
       .setGradientMidpointWithValue('#fce8b2', SpreadsheetApp.InterpolationType.NUMBER, '60')

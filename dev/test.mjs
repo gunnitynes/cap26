@@ -464,4 +464,37 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(call(g, { action: 'state', token: recent }).ok, true); assert.equal(call(g, { action: 'state', token: stale }).code, 'auth');
   ok('older 400-day sign-ins now also end 30 days after they began');
 }
+// 14. Isuru's case: a date fixed for everyone before teachers had their own tabs, then a teacher changes their tab.
+{
+  const { g, book } = loadScript();
+  g.setup();
+  const ss = g.SpreadsheetApp.getActive(), te = ss.getSheetByName('Teachers');
+  te.getRange(2, 1, 3, 2).setValues([['Gunni', 'admin'], ['Isuru', 'teacher'], ['Ainsley', 'teacher']]); g.onEdit({ range: te.getRange(2, 1, 3, 2) });
+  g.setTeamPassword_('team-pass-1');
+  const gt = call(g, { action: 'login', name: 'Gunni', password: 'team-pass-1' }).token;
+  call(g, { action: 'addStudents', token: gt, names: ['Emiliano'], studio: 'K3', day: '2026-11-02', teacher: 'Isuru' });
+  call(g, { action: 'addStudents', token: gt, names: ['Faddei'], studio: 'K4', day: '2026-11-02', teacher: 'Ainsley' });
+  // the old, day-wide fixed set: the 18 shared questions
+  g.PropertiesService.getScriptProperties().setProperty('q_2026-11-02', JSON.stringify(g.questions_()));
+  // Isuru writes his own questions over the rows (IDs stay) and adds a Shut down question at the end
+  const iq = ss.getSheetByName('Questions · Isuru'), rows = tab(book, 'Questions · Isuru').data;
+  const s1 = rows.findIndex(r => r[7] === 's1') + 1;
+  iq.getRange(s1, 1).setValue('');                                    // s1 and s2 now fall under the stage above (Cue)
+  const last = iq.getLastRow() + 1;
+  iq.getRange(last, 1, 1, 3).setValues([['Shut down', 'Shut down & pack down', 'Demonstrated correct shutdown & reset procedures']]);
+  g.onEdit({ range: iq.getRange(last, 1, 1, 3) });
+  const before = g.questionsFor_('2026-11-02', 'Isuru');
+  assert.ok(!before.some(q => q.stage === 'Shut down'));
+  g.setup();   // the update runs setup
+  const isu = g.questionsFor_('2026-11-02', 'Isuru'), ain = g.questionsFor_('2026-11-02', 'Ainsley');
+  assert.ok(isu.some(q => q.stage === 'Shut down' && /shutdown & reset/.test(q.t))); assert.equal(isu.length, 19);
+  assert.equal(ain.length, 18);
+  assert.equal(g.PropertiesService.getScriptProperties().getProperty('q_2026-11-02'), null);
+  ok('an old day-wide set follows a teacher\'s changed tab (Isuru gets his Shut down question); unchanged teachers keep theirs');
+  // the Grades tab: one band per teacher, then their students
+  g.buildGrades_();
+  const d = tab(book, 'Grades').data.slice(7).map(r => String(r[0]).startsWith('Isuru') || String(r[0]).startsWith('Ainsley') ? 'BAND ' + r[0].split('  ')[0] : r[1]);
+  assert.deepEqual(d.filter(Boolean), ['BAND Isuru', 'Emiliano', 'BAND Ainsley', 'Faddei']);
+  ok('the Grades tab lists each teacher\'s students together under a band with the teacher\'s name');
+}
 console.log(`\n${n} checks passed`);
