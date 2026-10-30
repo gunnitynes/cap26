@@ -30,6 +30,8 @@ const MAX_TRIES = 8;            // wrong passwords per name before a 10-minute p
 const MIN_PASSWORD = 6;
 const SET = '●●●●●● set';       // what Start here shows once the team password is stored
 const TEAM_LABEL = 'Team password';
+const PIN_LABEL = 'Admin PIN';
+const MIN_PIN = 4;
 // Marks, best first. Tolerant on purpose: "Got there" on everything still passes.
 const POINTS = { p: 1, y: 0.8, h: 0.65, g: 0.5, n: 0 };
 const MARK_LABEL = { p: 'Perfect', y: 'Pass', h: 'Hint', g: 'Got there', n: 'Failed' };
@@ -85,6 +87,7 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu('Ops Test')
     .addItem('Set up / tidy the sheet', 'setup')
     .addItem('Set the team password…', 'menuTeamPassword')
+    .addItem('Set the admin PIN…', 'menuAdminPin')
     .addItem('Add a teacher…', 'menuAddTeacher')
     .addItem('Remove a teacher…', 'menuRemoveTeacher')
     .addSeparator()
@@ -113,7 +116,7 @@ function buildStart_() {
   const ss = SpreadsheetApp.getActive();
   let sh = ss.getSheetByName(SHEETS.START.name);
   if (!sh) sh = ss.insertSheet(SHEETS.START.name, 0);
-  storeTeamPassword_();                       // keep a password typed there before the tab is rebuilt
+  storeTeamPassword_(); storeAdminPin_();     // keep a password or PIN typed there before the tab is rebuilt
   sh.clear();
   const rows = [
     ['Catalyst Operations Test', ''],
@@ -123,6 +126,8 @@ function buildStart_() {
     ['', ''],
     [TEAM_LABEL, ''],
     ['', 'Everyone signs in with this one password. Type it in the cell above (6 characters or more); it is hidden as soon as you press Enter. Type a new one over the dots to change it.'],
+    [PIN_LABEL, ''],
+    ['', 'Only for admins (Role "admin" in the Teachers tab): asked after the team password, so the team password alone never opens an admin account. Type it in the cell above (4 characters or more); it is hidden at once. Setting it signs admins out once; teachers are not affected.'],
     ['Add a teacher', 'Type their name in the Teachers tab. It then appears on the sign-in page: they pick it and type the team password.'],
     ['Add students', 'Open the Students tab. Type the test date, the test time (like 10:30), the student\'s name and the studio, one student per row.'],
     ['', 'Pasting a whole list? Paste the names into the Student column and type the date once at the top: rows below take the date and studio from the row above. Each student keeps their own time.'],
@@ -155,6 +160,10 @@ function buildStart_() {
   sh.getRange(tr, 2).setNumberFormat('@').setNote(teamSetNote_()).setValue(teamHash_() ? SET : '').setBackground('#fff8d6').setFontWeight('bold').setFontFamily('Courier New')
     .setBorder(true, true, true, true, null, null, BLUE, SpreadsheetApp.BorderStyle.SOLID);
   sh.getRange(tr + 1, 2).setFontColor(MUTE);
+  const pr = rows.findIndex(r => r[0] === PIN_LABEL) + 1;
+  sh.getRange(pr, 2).setNumberFormat('@').setValue(adminPinHash_() ? SET : '').setBackground('#fff8d6').setFontWeight('bold').setFontFamily('Courier New')
+    .setBorder(true, true, true, true, null, null, BLUE, SpreadsheetApp.BorderStyle.SOLID);
+  sh.getRange(pr + 1, 2).setFontColor(MUTE);
   rows.forEach((r, i) => { if (r[0] && i > 1) sh.getRange(i + 1, 1).setFontWeight('bold'); });
   const tabsAt = rows.findIndex(r => r[0] === 'What the tabs hold') + 1;   // (row numbers move when rows are added above)
   sh.getRange(tabsAt, 1, 1, 2).setBackground(PAPER);
@@ -271,7 +280,7 @@ function onEdit(e) {
   try {
     const sh = e && e.range && e.range.getSheet(), name = sh && sh.getName(), r = e.range.getRow();
     if (name === SHEETS.STUDENTS.name && r >= 2) { studentsTyped_(sh, r, e.range.getNumRows()); gradesDirty_(); return; }
-    if (name === SHEETS.START.name) { storeTeamPassword_(); return; }
+    if (name === SHEETS.START.name) { storeTeamPassword_(); storeAdminPin_(); return; }
     if (isQuestionSheet_(name) && r >= 2) { ensureQuestionIds_(); gradesDirty_(); return; }
     if (name === SHEETS.TEACHERS.name && r >= 2) {
       const last = Math.min(sh.getLastRow(), r + e.range.getNumRows() - 1);
@@ -289,6 +298,40 @@ function teamCell_() {
   const i = col.findIndex(r => String(r[0]) === TEAM_LABEL);
   return i < 0 ? null : sh.getRange(i + 1, 2);
 }
+/* The admin PIN: asked of admins after the team password, typed once on Start here, kept only as a salted hash.
+   An admin's session remembers that the PIN was given; without it, an admin account works as a plain teacher. */
+function pinCell_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEETS.START.name);
+  if (!sh) return null;
+  const col = sh.getRange(1, 1, Math.max(1, sh.getLastRow()), 1).getValues();
+  const i = col.findIndex(r => String(r[0]) === PIN_LABEL);
+  return i < 0 ? null : sh.getRange(i + 1, 2);
+}
+function adminPinHash_() { const p = PropertiesService.getScriptProperties(); const h = p.getProperty('pin_hash'); return h ? { hash: h, salt: p.getProperty('pin_salt') } : null; }
+function storeAdminPin_() {
+  const cell = pinCell_(); if (!cell) return;
+  const typed = typedTeamPassword_(cell);
+  if (!typed || typed === SET) return;
+  if (typed.length < MIN_PIN) { cell.setNote('Use ' + MIN_PIN + ' characters or more.'); return; }
+  setAdminPin_(typed);
+  cell.setNumberFormat('@').setValue(SET).setNote('');
+}
+/** Stores the PIN and signs admins out once, so every admin session from now on has given it. Teachers stay signed in. */
+function setAdminPin_(pin) {
+  const salt = Utilities.getUuid().replace(/-/g, '');
+  PropertiesService.getScriptProperties().setProperties({ pin_hash: hash_(pin, salt), pin_salt: salt });
+  teachers_().filter(t => t.role === 'admin').forEach(t => endSessions_(t.name));
+}
+function menuAdminPin() {
+  const ui = SpreadsheetApp.getUi();
+  const p = ui.prompt('Admin PIN', 'The PIN admins type after the team password (' + MIN_PIN + ' characters or more):', ui.ButtonSet.OK_CANCEL);
+  if (p.getSelectedButton() !== ui.Button.OK) return;
+  const pin = p.getResponseText().trim();
+  if (pin.length < MIN_PIN) { ui.alert('Use ' + MIN_PIN + ' characters or more.'); return; }
+  setAdminPin_(pin); const cell = pinCell_(); if (cell) cell.setValue(SET);
+  ui.alert('Admin PIN set. Admins sign in again once with it.');
+}
+
 function teamHash_() { const p = PropertiesService.getScriptProperties(); const h = p.getProperty('team_hash'); return h ? { hash: h, salt: p.getProperty('team_salt') } : null; }
 function storeTeamPassword_() {
   const cell = teamCell_(); if (!cell) return;
@@ -443,7 +486,7 @@ function route_(req) {
   const a = String(req.action || '');
   if (a === 'ping') return { ok: true };
   if (a === 'teachers') return { ok: true, teachers: teachers_().map(t => t.name) };   // the names on the sign-in page
-  if (a === 'login') return withLock_(() => login_(req.name, req.password));
+  if (a === 'login') return withLock_(() => login_(req.name, req.password, req.pin));
   const me = auth_(req.token);
   if (!me) return { ok: false, error: 'Please sign in again.', code: 'auth' };
   switch (a) {
@@ -465,7 +508,7 @@ function route_(req) {
 // ─────────────────────────────────────────────────────────────── sign-in
 
 /** A teacher picks their name from the list and types the team password. */
-function login_(name, password) {
+function login_(name, password, pin) {
   name = clean_(name, 40); password = String(password || '').trim();
   if (!name) return { ok: false, error: 'Pick your name.' };
   if (!password) return { ok: false, error: 'Type the team password.' };
@@ -486,13 +529,20 @@ function login_(name, password) {
     if (pending && pending !== SET) return { ok: false, error: 'That password is not right. A new password was typed on the Start here tab but it is too short, so the old one still applies. Type one with ' + MIN_PASSWORD + ' characters or more there.' };
     return { ok: false, error: 'That password is not right.' };
   }
+  // an admin also gives the admin PIN (once one is set); a wrong PIN counts as a wrong try
+  const adminPin = adminPinHash_();
+  if (t.role === 'admin' && adminPin) {
+    pin = String(pin || '').trim();
+    if (!pin) return { ok: false, needPin: true, error: 'Type your admin PIN.' };
+    if (hash_(pin, adminPin.salt) !== adminPin.hash) { cache.put(key, String(fails + 1), 600); return { ok: false, needPin: true, error: 'That admin PIN is not right.' }; }
+  }
   cache.remove(key);
-  return startSession_(t);
+  return startSession_(t, t.role === 'admin' && !!adminPin);
 }
 
-function startSession_(t) {
+function startSession_(t, pin) {
   const token = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
-  PropertiesService.getScriptProperties().setProperty('s_' + token, JSON.stringify({ name: t.name, exp: Date.now() + SESSION_DAYS * 864e5 }));
+  PropertiesService.getScriptProperties().setProperty('s_' + token, JSON.stringify({ name: t.name, pin: !!pin, exp: Date.now() + SESSION_DAYS * 864e5 }));
   try { sheet_(SHEETS.TEACHERS).getRange(t.row, T.LAST + 1).setValue(new Date()); } catch (e) {}
   return { ok: true, token, name: t.name, role: t.role, days: SESSION_DAYS };
 }
@@ -506,7 +556,9 @@ function auth_(token) {
   if (s.exp < Date.now()) { props.deleteProperty('s_' + token); return null; }
   const t = teachers_().find(x => norm_(x.name) === norm_(s.name));
   if (!t) { props.deleteProperty('s_' + token); return null; }
-  return { name: t.name, role: t.role, token };
+  // admin rights only for a session that gave the admin PIN (when one is set); otherwise the account works as a teacher
+  const role = t.role === 'admin' && (s.pin || !adminPinHash_()) ? 'admin' : 'teacher';
+  return { name: t.name, role, token };
 }
 
 /** A teacher only ever gets the students whose Teacher column has their name; an admin gets everyone. */

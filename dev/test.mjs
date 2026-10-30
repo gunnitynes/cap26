@@ -418,4 +418,33 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.ok(book.sheets.some(x => x.name === 'Questions · Mila'));
   ok('a teacher typed into the Teachers tab gets their own questions tab at once');
 }
+// 12. The admin PIN: admins give it after the team password; teachers are not affected.
+{
+  const { g, book } = loadScript();
+  g.setup();
+  const te = g.SpreadsheetApp.getActive().getSheetByName('Teachers');
+  te.getRange(2, 1, 2, 2).setValues([['Gunni', 'admin'], ['Isuru', 'teacher']]); g.setTeamPassword_('team-pass-1');
+  const login = (n, p, pin) => call(g, { action: 'login', name: n, password: p, pin });
+  const oldAdmin = login('Gunni', 'team-pass-1').token, oldTeacher = login('Isuru', 'team-pass-1').token;
+  assert.ok(oldAdmin && oldTeacher);
+  ok('before a PIN is set, admins sign in as before');
+  const cell = g.pinCell_(); cell.setValue('4711'); g.onEdit({ range: cell });
+  assert.equal(cell.getValue(), '●●●●●● set'); assert.ok(!JSON.stringify(tab(book, 'Start here').data).includes('4711'));
+  ok('the admin PIN typed on Start here is hidden at once');
+  assert.equal(call(g, { action: 'state', token: oldTeacher }).ok, true);
+  assert.equal(call(g, { action: 'state', token: oldAdmin }).code, 'auth');
+  ok('setting the PIN signs admins out once; teachers stay signed in');
+  assert.equal(login('Isuru', 'team-pass-1').ok, true);
+  let r = login('Gunni', 'team-pass-1'); assert.equal(r.ok, false); assert.equal(r.needPin, true);
+  r = login('Gunni', 'team-pass-1', '0000'); assert.equal(r.ok, false); assert.match(r.error, /PIN is not right/);
+  assert.equal(login('Gunni', 'wrong-pass', '4711').ok, false);
+  r = login('Gunni', 'team-pass-1', '4711'); assert.equal(r.ok, true); assert.equal(r.role, 'admin');
+  assert.equal(call(g, { action: 'state', token: r.token }).me.role, 'admin');
+  ok('an admin needs the team password and the PIN; a teacher still needs only the team password');
+  // a teacher's session does not become an admin's when someone changes the role in the sheet
+  const it = login('Isuru', 'team-pass-1').token;
+  te.getRange(3, 2).setValue('admin');
+  assert.equal(call(g, { action: 'state', token: it }).me.role, 'teacher');
+  ok('admin rights need a session that gave the PIN, even if a role is changed in the sheet');
+}
 console.log(`\n${n} checks passed`);

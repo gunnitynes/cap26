@@ -697,7 +697,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793386697';
+const BUILD='1793388403';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -812,6 +812,7 @@ function renderLogin(){
       <p class="readout info" id="lInfo" hidden></p>
       <div class="door-field"><span>Teacher</span><div class="names" id="lNames" role="radiogroup" aria-label="Your name"><span class="nbar" role="progressbar" aria-label="Loading the teachers"><i></i></span></div></div>
       <label class="door-field"><span>Team password</span><input type="text" id="lPass" class="masked" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="PASSWORD"></label>
+      <label class="door-field" id="lPinWrap" hidden><span>Admin PIN</span><input type="text" id="lPin" class="masked" inputmode="numeric" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="PIN"></label>
       <button class="primary door-btn" type="submit" id="lBtn">Sign in</button>
       <p class="readout err" id="lErr" hidden></p>
       ${S.demo?'<p class="readout">Preview: any name opens the example students.</p>':''}
@@ -822,13 +823,13 @@ function renderLogin(){
   /* The phone keyboard covers the lower half of the screen (and a home-screen app does not shrink the page for it):
      scroll only as far as needed for the password field and the Sign in button to sit just above the keyboard. */
   const pass=$('#lPass'),door=document.querySelector('.door');
-  const lift=()=>{if(document.activeElement!==pass)return;door.classList.add('typing');
+  const lift=()=>{if(document.activeElement!==pass&&document.activeElement!==$('#lPin'))return;door.classList.add('typing');
     const vv=window.visualViewport,top=vv?vv.offsetTop:0,bottom=top+(vv?vv.height:innerHeight);
     const btn=$('#lBtn').getBoundingClientRect(),field=pass.getBoundingClientRect();
     let by=btn.bottom+12-bottom;                       // how far the button is hidden behind the keyboard
     by=Math.min(by,field.top-top-12);                  // never push the field itself out of sight at the top
     if(by>4)scrollBy({top:by,behavior:'smooth'})};
-  if(touchDevice)pass.addEventListener('focus',()=>{door.classList.add('typing');setTimeout(lift,60);setTimeout(lift,400)});
+  if(touchDevice)[pass,$('#lPin')].forEach(el=>el.addEventListener('focus',()=>{door.classList.add('typing');setTimeout(lift,60);setTimeout(lift,400)}));
   if(touchDevice)window.visualViewport?.addEventListener('resize',lift);
   const drawNames=names=>{
     $('#lNames').innerHTML=names.length?names.map(n=>`<button type="button" role="radio" aria-checked="${norm(n)===norm(picked)}" data-name="${esc(n)}">${esc(n)}</button>`).join('')
@@ -836,7 +837,8 @@ function renderLogin(){
   };
   const norm=x=>String(x||'').trim().toLowerCase();
   $('#lNames').onclick=e=>{const b=e.target.closest('[data-name]');if(!b)return;picked=b.dataset.name;
-    $('#lNames').querySelectorAll('[data-name]').forEach(x=>x.setAttribute('aria-checked',x===b));$('#lErr').hidden=true};
+    $('#lNames').querySelectorAll('[data-name]').forEach(x=>x.setAttribute('aria-checked',x===b));$('#lErr').hidden=true;
+    $('#lPinWrap').hidden=true;$('#lPin').value=''};   // the PIN is asked again only if the new name is an admin
   (async()=>{
     if(S.demo){drawNames(['Gunnar','Anna']);return}
     const j=await api('teachers');
@@ -849,8 +851,12 @@ function renderLogin(){
     err.hidden=true;if(!picked){err.textContent='Tap your name first.';err.hidden=false;return}
     if(S.demo){go('roster');return}
     btn.disabled=true;btn.textContent='Signing in…';
-    const j=await api('login',{name:picked,password});
+    const pin=$('#lPinWrap').hidden?'':$('#lPin').value.trim();
+    const j=await api('login',{name:picked,password,pin});
     btn.disabled=false;btn.textContent='Sign in';
+    // an admin: the team password was right, now the admin PIN
+    if(!j.ok&&j.needPin){const first=$('#lPinWrap').hidden;$('#lPinWrap').hidden=false;
+      if(first){err.hidden=true;$('#lPin').focus()}else{err.textContent=j.error;err.hidden=false;$('#lPin').select()}return}
     if(!j.ok){err.textContent=j.error;err.hidden=false;return}
     S.token=j.token;S.me=j.name;S.role=j.role;ls.set('ops.token',S.token);ls.set('ops.me',S.me);ls.set('ops.role',S.role);ls.set('ops.lastName',j.name);
     ls.set('ops.until',Date.now()+(j.days||400)*864e5);

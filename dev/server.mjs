@@ -1,7 +1,7 @@
 // Runs ../apps-script/Code.gs on this computer with stand-ins for Google's services, and serves ../docs/
 // with the API at /api, so the whole thing can be tried before anything is deployed.
 //   node dev/server.mjs [port]      then open http://localhost:8787/?api=/api
-// Starts with two teachers, Gunnar (admin) and Anna; the team password is "catalyst".
+// Starts with two teachers, Gunnar (admin) and Anna; the team password is "catalyst", Gunnar's admin PIN "2468".
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,11 +18,12 @@ g.setup();
 g.setTeacher_('Gunnar', 'admin');
 g.setTeacher_('Anna', 'teacher');
 g.setTeamPassword_('catalyst');                    // everyone signs in with this
+g.setAdminPin_('2468');                            // and Gunnar (admin) also with this admin PIN
 const call = body => JSON.parse(g.doPost({ postData: { contents: body } }).s);
 // OPS_SEED=1: example students on the next two test days (three and five days from now), some already marked by both teachers.
 if (process.env.OPS_SEED) {
   const ymd = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
-  const tok = n => call(JSON.stringify({ action: 'login', name: n, password: 'catalyst' })).token, gt = tok('Gunnar'), at = tok('Anna');
+  const tok = n => call(JSON.stringify({ action: 'login', name: n, password: 'catalyst', pin: '2468' })).token, gt = tok('Gunnar'), at = tok('Anna');
   call(JSON.stringify({ action: 'addStudents', token: gt, studio: 'K3', day: ymd(3), teacher: 'Gunnar', names: ['10:15-10:30 Polina', '10:00-10:15 Faddei'] }));
   call(JSON.stringify({ action: 'addStudents', token: gt, studio: 'K3', day: ymd(3), teacher: 'Anna', names: ['10:30-10:45 Yutaro', '10:45-11:00 Tales'] }));
   call(JSON.stringify({ action: 'addStudents', token: gt, studio: 'K4', day: ymd(5), teacher: 'Anna', names: ['09:00-09:15 Ida', '09:15-09:30 Paul'] }));
