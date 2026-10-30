@@ -697,7 +697,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793388403';
+const BUILD='1793389750';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -817,7 +817,6 @@ function renderLogin(){
       <p class="readout err" id="lErr" hidden></p>
       ${S.demo?'<p class="readout">Preview: any name opens the example students.</p>':''}
     </form>
-    <p class="door-foot">After signing in, this phone stays signed in.</p>
   </div>`;
   const f=$('#loginForm');let picked=last;
   /* The phone keyboard covers the lower half of the screen (and a home-screen app does not shrink the page for it):
