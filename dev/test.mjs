@@ -398,7 +398,14 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const kim = si.students[0].id, noor = sa.students[0].id;
   call(g, { action: 'saveEntry', token: it, sid: kim, patch: { marks: { p1: 'p' } } });
   call(g, { action: 'tidy', token: gt });
-  assert.ok(tab(book, 'Marks').data[0].includes('Coils the cables over-under'));
+  const mh = tab(book, 'Marks').data[0];
+  assert.ok(mh.includes('Coils the cables over-under · Isuru'));
+  const kimRow = tab(book, 'Marks').data.find(r => r[1] === 'Kim');
+  assert.equal(kimRow[mh.indexOf('Coils the cables over-under · Isuru')], '');   // in Kim's test, not marked yet
+  const noorRow = g.marksRow_({ id: noor, day: '2026-11-04', name: 'Noor', studio: 'K3', teacher: 'Ainsley' }, 'Ainsley', { marks: { p1: 'y' } });
+  assert.equal(noorRow[mh.indexOf('Coils the cables over-under · Isuru')], '–');   // not in Ainsley's test: a dash
+  assert.equal(noorRow[mh.indexOf('Power-up order')], 'Pass');
+  ok('a teacher\'s own question is labelled with their name in Marks, and shows a dash for other teachers\' students');
   const gr = call(g, { action: 'grades', token: gt }).students;
   assert.equal(gr.find(x => x.name === 'Kim').total, 19); assert.equal(gr.find(x => x.name === 'Noor').total, 18);
   ok('Marks gets a column for a teacher\'s own question, and each student is graded on their teacher\'s set');

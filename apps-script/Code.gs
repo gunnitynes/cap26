@@ -63,6 +63,7 @@ const DEFAULT_QUESTIONS = [
 const Q_ = { STAGE: 0, HEADING: 1, TEXT: 2, ASK: 3, CORE: 4, STUDIO: 5, LABEL: 6, ID: 7 };
 const MARKS_HEAD = ['Test date', 'Student', 'Teacher', 'Skills marked', 'Teacher score %', 'Critical errors'];
 const MARKS_TAIL = ['Feedback', 'Updated', 'Student ID', 'Page data (do not edit)'];
+const NOT_ASKED = '–';   // in Marks: this question is not part of that student's test (another teacher's own question)
 // Grade A from 85 (needs Perfects), Pass from 40. Any critical error, or a core skill under 50, is a Resit whatever the score.
 const BANDS = [['Grade A', 85, '#0f7a57', '#d8f1e6'], ['Pass', 40, '#5a6276', '#eef0f4'], ['Resit', 0, '#bf2b2b', '#fbe0e0']];
 
@@ -218,6 +219,26 @@ function style_() {
 }
 
 /** One questions tab (the shared one or a teacher's): bold questions, Core ticks, Studio dropdown, notes, hidden IDs. */
+/** Questions tab: every stage gets its own soft colour and a line above its first question, so it is clear which
+ *  questions belong together (a blank Stage cell still means "the stage above"). Runs on setup and after every edit. */
+const STAGE_TINTS = ['#eaf0ff', '#fff3df', '#e6f5ec', '#fdeaee', '#efe9fb', '#e4f4f6', '#f6f1e3'];
+function colourStages_(q) {
+  const last = q.getLastRow(), W = SHEETS.QUESTIONS.header.length;
+  if (last < 2) return;
+  const vals = q.getRange(2, 1, last - 1, Q_.TEXT + 1).getValues();
+  const bg = [], starts = [];
+  let stage = '', n = -1;
+  vals.forEach((r, i) => {
+    const st = String(r[Q_.STAGE] || '').trim();
+    if (st && st !== stage) { stage = st; n++; starts.push(i + 2); }
+    const tint = n < 0 || !String(r[Q_.TEXT] || '').trim() && !st ? '#ffffff' : STAGE_TINTS[n % STAGE_TINTS.length];
+    bg.push(Array(W).fill(tint));
+  });
+  try { q.getBandings().forEach(b => b.remove()); } catch (e) {}
+  q.getRange(2, 1, vals.length, W).setBackgrounds(bg).setBorder(false, false, false, false, false, false);
+  starts.forEach(r => q.getRange(r, 1, 1, W).setBorder(true, null, null, null, null, null, INK, SpreadsheetApp.BorderStyle.SOLID_MEDIUM));
+}
+
 function styleQuestions_(q) {
   const qr = q.getMaxRows() - 1, own = q.getName() !== SHEETS.QUESTIONS.name;
   q.getRange(1, 1, 1, SHEETS.QUESTIONS.header.length).setValues([SHEETS.QUESTIONS.header]).setFontWeight('bold').setFontColor('#ffffff')
@@ -246,6 +267,7 @@ function styleQuestions_(q) {
     .forEach((n, i) => q.getRange(1, i + 1).setNote(n[0]));
   q.hideColumns(Q_.ID + 1);
   q.setTabColor(own ? '#7c8db5' : BLUE);
+  colourStages_(q);
 }
 
 /** Marks: dates, the skill columns in colour, the page's own copy hidden. Run again whenever the columns change. */
@@ -271,6 +293,7 @@ function styleMarks_(n) {
     rule(markRange, 'Perfect', '#d8f1e6', '#0f7a57'),
     rule(markRange, 'Pass', '#dbe6ff', '#0b43e0'), rule(markRange, 'Hint', '#fbeccf', '#a35f00'),
     rule(markRange, 'Got there', '#fde2d3', '#c2410c'), rule(markRange, 'Failed', '#fbe0e0', '#bf2b2b'),
+    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(NOT_ASKED).setBackground('#f1f2f5').setFontColor('#b4bac6').setRanges([markRange]).build(),
   ]);
   m.setTabColor(INK);
 }
@@ -283,7 +306,7 @@ function onEdit(e) {
     const sh = e && e.range && e.range.getSheet(), name = sh && sh.getName(), r = e.range.getRow();
     if (name === SHEETS.STUDENTS.name && r >= 2) { studentsTyped_(sh, r, e.range.getNumRows()); gradesDirty_(); return; }
     if (name === SHEETS.START.name) { storeTeamPassword_(); storeAdminPin_(); return; }
-    if (isQuestionSheet_(name) && r >= 2) { ensureQuestionIds_(); gradesDirty_(); return; }
+    if (isQuestionSheet_(name) && r >= 2) { ensureQuestionIds_(); try { colourStages_(sh); } catch (e) {} gradesDirty_(); return; }
     if (name === SHEETS.TEACHERS.name && r >= 2) {
       const last = Math.min(sh.getLastRow(), r + e.range.getNumRows() - 1);
       for (let i = r; i <= last; i++) if (sh.getRange(i, T.NAME + 1).getValue() && !sh.getRange(i, T.ROLE + 1).getValue()) sh.getRange(i, T.ROLE + 1).setValue('teacher');
@@ -742,7 +765,7 @@ function marksRow_(s, teacher, data, ctx, updated) {
   const score = marked.length ? Math.round(marked.reduce((a, id) => a + POINTS[m[id]], 0) / marked.length * 100) : '';
   const errors = Object.keys(data.safety || {}).map(k => data.safety[k]).filter(Boolean).map(x => x.text);
   return [s.day ? toDate_(s.day) : '', s.name, teacher, marked.length + '/' + ids.length, score, errors.join('; ')]
-    .concat(ctx.cols.map(c => MARK_LABEL[m[c.id]] || ''))
+    .concat(ctx.cols.map(c => ids.indexOf(c.id) < 0 ? NOT_ASKED : MARK_LABEL[m[c.id]] || ''))   // a dash: not part of this student's test
     .concat([data.summary || '', updated || new Date(), s.id, JSON.stringify(data)]);
 }
 
@@ -765,10 +788,14 @@ function marksHeader_(cols) { return MARKS_HEAD.concat(cols.map(c => c.label)).c
 /** The skill columns in Marks: the shared questions, then each teacher's own, then any only a marked date still uses. */
 function markColumns_(sets) {
   sets = sets || liveSets_();
-  const cols = [], have = {};
-  const add = (q, old) => { if (!have[q.id]) { have[q.id] = 1; cols.push({ id: q.id, label: (q.label || q.id) + (old ? ' (old)' : '') }); } };
-  Object.keys(sets).forEach(k => sets[k].forEach(q => add(q)));
-  frozenKeys_().forEach(k => (frozenRaw_(k) || []).forEach(q => add(q, true)));
+  const cols = [], have = {}, shared = {}, who = {};
+  (sets[''] || []).forEach(q => shared[q.id] = 1);
+  teachers_().forEach(t => who[norm_(t.name)] = t.name);
+  const add = (q, tag) => { if (!have[q.id]) { have[q.id] = 1; cols.push({ id: q.id, label: (q.label || q.id) + (tag ? ' · ' + tag : '') }); } };
+  (sets[''] || []).forEach(q => add(q));
+  // a question only in a teacher's own tab: its heading says whose it is
+  Object.keys(sets).filter(k => k).forEach(k => sets[k].forEach(q => add(q, shared[q.id] ? '' : who[k] || k)));
+  frozenKeys_().forEach(k => (frozenRaw_(k) || []).forEach(q => add(q, 'old')));
   return cols;
 }
 
