@@ -29,8 +29,9 @@ const MAX_TRIES = 8;            // wrong passwords per name before a 10-minute p
 const MIN_PASSWORD = 6;
 const SET = '●●●●●● set';       // what Start here shows once the team password is stored
 const TEAM_LABEL = 'Team password';
-const POINTS = { y: 1, h: 0.75, g: 0.5, n: 0 };
-const MARK_LABEL = { y: 'Pass', h: 'Hint', g: 'Got there', n: 'Failed' };
+// Marks, best first. Tolerant on purpose: "Got there" on everything still passes.
+const POINTS = { p: 1, y: 0.8, h: 0.65, g: 0.5, n: 0 };
+const MARK_LABEL = { p: 'Perfect', y: 'Pass', h: 'Hint', g: 'Got there', n: 'Failed' };
 
 // The questions live in the Questions tab, where anyone with the Sheet can change them. This is only the first version,
 // written there by setup when the tab does not exist yet. The ids keep marks attached to their question.
@@ -58,8 +59,8 @@ const DEFAULT_QUESTIONS = [
 const Q_ = { STAGE: 0, HEADING: 1, TEXT: 2, ASK: 3, CORE: 4, STUDIO: 5, LABEL: 6, ID: 7 };
 const MARKS_HEAD = ['Test date', 'Student', 'Teacher', 'Skills marked', 'Teacher score %', 'Critical errors'];
 const MARKS_TAIL = ['Feedback', 'Updated', 'Student ID', 'Page data (do not edit)'];
-const BANDS = [['Grade A', 75, '#0f7a57', '#d8f1e6'], ['Pass', 60, '#5a6276', '#eef0f4'], ['Resit', 0, '#bf2b2b', '#fbe0e0']];
-const ERR_POINTS = 10;
+// Grade A from 85 (needs Perfects), Pass from 50. Any critical error, or a core skill under 50, is a Resit whatever the score.
+const BANDS = [['Grade A', 85, '#0f7a57', '#d8f1e6'], ['Pass', 50, '#5a6276', '#eef0f4'], ['Resit', 0, '#bf2b2b', '#fbe0e0']];
 
 const STUDIO_LIST = ['K3', 'K4'];   // the studios a test can be in
 const CAP_LIST = ['CAP 26A', 'CAP 26B', 'CAP 26C', 'TRANSFER'];   // the CAP groups, a dropdown in the Students tab; TRANSFER = a student from outside the class
@@ -139,7 +140,7 @@ function buildStart_() {
     ['Marks', 'One row per student per teacher, every skill readable. The last column is the page\'s own copy; leave it alone.'],
     ['Grades', 'The overview: every student\'s grade, progress, a colour per test stage and their critical errors. Kept up to date by itself.'],
     ['', ''],
-    ['How the grade works', 'Pass 100 · Hint 75 · Got there 50 · Failed 0. Each skill is averaged over every teacher who marked it, every skill counts the same, each different critical error takes off 10, a Core skill under 50 means Resit. Grade A 75 and up, Pass 60–74, Resit under 60.'],
+    ['How the grade works', 'Perfect 100 · Pass 80 · Hint 65 · Got there 50 · Failed 0. Each skill is averaged over every teacher who marked it and every skill counts the same. Grade A from 85, Pass from 50. Resit: any critical error, or a Core skill under 50, or an average under 50.'],
   ];
   sh.getRange(1, 1, rows.length, 2).setValues(rows);
   sh.setColumnWidth(1, 190); sh.setColumnWidth(2, 640);
@@ -244,6 +245,7 @@ function styleMarks_(n) {
   markRange.setHorizontalAlignment('center');
   const rule = (range, text, bg, fg) => SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(text).setBackground(bg).setFontColor(fg).setBold(true).setRanges([range]).build();
   m.setConditionalFormatRules([
+    rule(markRange, 'Perfect', '#dbe6ff', '#0b43e0'),
     rule(markRange, 'Pass', '#d8f1e6', '#0f7a57'), rule(markRange, 'Hint', '#fbeccf', '#a35f00'),
     rule(markRange, 'Got there', '#fde2d3', '#c2410c'), rule(markRange, 'Failed', '#fbe0e0', '#bf2b2b'),
   ]);
@@ -812,10 +814,10 @@ function gradeOf_(byTeacher, qs) {
   const score = marked.length ? marked.reduce((a, x) => a + x.avg, 0) / marked.length * 100 : null;
   const errors = [];
   Object.keys(byTeacher).forEach(u => Object.keys(byTeacher[u].safety || {}).forEach(k => { const e = byTeacher[u].safety[k]; if (e && errors.indexOf(e.text) < 0) errors.push(e.text); }));
-  const final = score === null ? null : Math.max(0, score - errors.length * ERR_POINTS);
+  const final = score;   // no points off: a critical error decides the grade on its own (below)
   const coreFails = marked.filter(x => x.q.core && x.avg < 0.5).map(x => x.q.label);
   const complete = qs.length > 0 && marked.length === qs.length;
-  const band = final === null ? null : coreFails.length ? BANDS[BANDS.length - 1] : BANDS.find(b => final >= b[1] - 1e-9);
+  const band = final === null ? null : errors.length || coreFails.length ? BANDS[BANDS.length - 1] : BANDS.find(b => final >= b[1] - 1e-9);
   const by = {}; marked.forEach(x => (by[x.q.stage] = by[x.q.stage] || []).push(x.avg));
   const stages = {}; Object.keys(by).forEach(k => stages[k] = Math.round(by[k].reduce((a, b) => a + b, 0) / by[k].length * 100));
   return { teachers, marked: marked.length, score, errors, final, coreFails, complete, band, stages };
@@ -871,7 +873,7 @@ function buildGrades_() {
     if (s.day !== prevDay) { groupStarts.push(top + i); prevDay = s.day; }
     values.push([toDate_(s.day), s.name, s.studio, g.teachers.join(', '), g.marked + '/' + N, '']
       .concat(stageNames.map(n => n in g.stages ? g.stages[n] : ''))
-      .concat([g.score === null ? '' : Math.round(g.score), g.errors.length ? -g.errors.length * ERR_POINTS : '', g.final === null ? '' : Math.round(g.final), '',
+      .concat([g.score === null ? '' : Math.round(g.score), g.errors.length || '', g.final === null ? '' : Math.round(g.final), '',
                label, g.coreFails.join(', '), g.errors.join('; ')]));
     const col = g.complete ? g.band[2] : '#9aa3b5';
     bars.push(['=SPARKLINE(' + g.marked + ',{"charttype","bar";"max",' + Math.max(1, N) + ';"color1","' + BLUE + '"})',
@@ -926,7 +928,7 @@ function buildGrades_() {
       heat(sh.getRange(top, C.SCORE, values.length, 1)), heat(sh.getRange(top, C.FINAL, values.length, 1)),
       text('Grade A', BANDS[0][3], BANDS[0][2]), text('Pass', BANDS[1][3], INK), text('Resit', BANDS[2][3], BANDS[2][2]),
       text('Unfinished', PAPER, MUTE), text('Not started', '#ffffff', '#9aa3b5'),
-      SpreadsheetApp.newConditionalFormatRule().whenNumberLessThan(0).setFontColor(BANDS[2][2]).setBold(true).setRanges([sh.getRange(top, C.ERR, values.length, 1)]).build(),
+      SpreadsheetApp.newConditionalFormatRule().whenNumberGreaterThan(0).setFontColor(BANDS[2][2]).setBold(true).setRanges([sh.getRange(top, C.ERR, values.length, 1)]).build(),
     ]));
   } else {
     sh.getRange(top, 1).setValue('No students yet. Add them in the Students tab or on the page.').setFontColor(MUTE);

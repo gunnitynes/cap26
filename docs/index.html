@@ -185,9 +185,11 @@ details.guide[open] summary::after{content:"–"}
 .detail{font-size:13.5px;color:var(--mute);display:flex;flex-direction:column;gap:8px}
 .detail .ask{color:var(--ink);background:var(--sunk);border-left:3px solid var(--led);padding:8px 10px;border-radius:0 8px 8px 0}
 .detail .ask::before{content:"ASK  ";font-family:var(--mono);font-size:10px;font-weight:700;color:var(--led);letter-spacing:.1em}
-.marks{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.marks{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
 .marks button{border:1px solid var(--line);background:var(--sunk);border-radius:9px;padding:10px 2px 9px;font-size:12.5px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:5px;transition:background .12s,border-color .12s}
 .marks button i{width:9px;height:9px;border-radius:50%;background:var(--line);transition:background .12s,box-shadow .12s}
+.marks button[data-v="p"][aria-pressed="true"]{background:var(--led-soft);border-color:var(--led);color:var(--led)}
+.marks button[data-v="p"][aria-pressed="true"] i{background:var(--led);box-shadow:0 0 8px var(--led)}
 .marks button[data-v="y"][aria-pressed="true"]{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
 .marks button[data-v="y"][aria-pressed="true"] i{background:var(--ok);box-shadow:0 0 8px var(--ok)}
 .marks button[data-v="h"][aria-pressed="true"]{background:var(--hint-soft);border-color:var(--hint);color:var(--hint)}
@@ -442,7 +444,7 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .export{margin-top:10px;font-family:var(--mono);font-size:11px;min-height:120px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 @media (max-width:520px){.sync:not([data-s="err"]) span{display:none}}
-@media (max-width:380px){.summary{grid-template-columns:repeat(2,1fr)}.marks button{font-size:11.5px}}
+@media (max-width:380px){.summary{grid-template-columns:repeat(2,1fr)}.marks button{font-size:11px;letter-spacing:-.01em}}
 *,::before,::after{box-sizing:border-box}
 body{margin:0;font-size:15px}
 :root{padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -495,10 +497,12 @@ const DEFAULT_Q=CRIT.map(c=>{const st=STAGES.find(x=>x.id===c.s);return {id:c.id
 function qset(list){const keys=[];return (list||[]).map(q=>{let i=keys.indexOf(q.stage);if(i<0){keys.push(q.stage);i=keys.length-1}return {...q,s:'g'+i}})}
 let QNOW=qset(DEFAULT_Q),QDAYS={};   // replaced by the last questions this phone saw, then by every refresh
 const STUDIOS=['K3','K4'];
-const MARK={y:'Pass',h:'Hint',g:'Got there',n:'Failed'};
-const POINTS={y:1,h:.75,g:.5,n:0};
+// marks, best first; tolerant on purpose: "Got there" on everything still passes
+const MARK={p:'Perfect',y:'Pass',h:'Hint',g:'Got there',n:'Failed'};
+const POINTS={p:1,y:.8,h:.65,g:.5,n:0};
 const QUICK=['Speakers switched with level up','Phantom switched with fader up','Control-room level dangerously loud while patching'];
-const GRADES=[{k:'merit',l:'Grade A',min:.75,col:'ok'},{k:'passg',l:'Pass',min:.6,col:'ink'},{k:'resitg',l:'Resit',min:0,col:'no'}];
+// Grade A from 85, Pass from 50; any critical error or a core skill under 50 is a Resit whatever the score
+const GRADES=[{k:'merit',l:'Grade A',min:.85,col:'ok'},{k:'passg',l:'Pass',min:.5,col:'ink'},{k:'resitg',l:'Resit',min:0,col:'no'}];
 
 /* ------------------------------------------------------------------ helpers */
 const $=s=>document.querySelector(s);
@@ -537,7 +541,6 @@ const teacherName=n=>n;
 const skillsFor=t=>(QDAYS[t.day]||QNOW).filter(c=>!c.studios||c.studios.includes(t.studio));
 // the stages of one student's questions, in order
 const stagesFor=t=>{const out=[];for(const c of skillsFor(t))if(!out.some(x=>x.id===c.s))out.push({id:c.s,short:c.stage,name:c.heading||c.stage});return out};
-const ERR_POINTS=10;
 const bandOf=p=>GRADES.find(g=>p>=g.min*100-1e-9);
 // one teacher's own progress and score; shown next to the combined result, never used for it
 function scoreOf(e,t){
@@ -549,7 +552,7 @@ function scoreOf(e,t){
 /* The combined grade is the same sum for every student and every teacher:
    1. each skill's mark is the average of every teacher's mark on it
    2. the score is the average over all skills, so every skill weighs the same
-   3. minus 10 points for each different critical error that any teacher logged
+   3. any critical error that any teacher logged means Resit
    4. a core skill whose combined mark is under 50% means Resit */
 function gradeOf(t){
   const skills=skillsFor(t),es=entries(t),uids=Object.keys(es);
@@ -557,9 +560,9 @@ function gradeOf(t){
   const marked=per.filter(x=>x.avg!==null);
   const score=marked.length?marked.reduce((a,x)=>a+x.avg,0)/marked.length*100:0;
   const errors=[...new Set(uids.flatMap(u=>Object.values(es[u].safety||{}).filter(Boolean).map(i=>i.text)))];
-  const deduction=errors.length*ERR_POINTS,final=Math.max(0,score-deduction);
+  const deduction=0,final=score;
   const coreFails=marked.filter(x=>x.c.core&&x.avg<.5).map(x=>x.c);
-  const grade=coreFails.length?GRADES[GRADES.length-1]:bandOf(final);
+  const grade=errors.length||coreFails.length?GRADES[GRADES.length-1]:bandOf(final);
   return {skills,per,marked:marked.length,total:skills.length,complete:marked.length===skills.length,score,errors,deduction,final,coreFails,grade,teachers:uids.filter(u=>Object.values(es[u].marks||{}).some(v=>v in POINTS))};
 }
 // The app is for marking only. Grades are worked out later, by the teachers, in the Sheet's Grades tab.
@@ -686,13 +689,13 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793382665';
+const BUILD='1793383195';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
   try{
     const r=await fetch(location.pathname+'?b='+Date.now(),{cache:'no-store'});const txt=await r.text();
-    const m=txt.match(/const BUILD='1793382665']+)'/);if(!m||m[1]===BUILD)return;
+    const m=txt.match(new RegExp('^const BUI'+'LD=\'([^\']+)\';$','m'));if(!m||m[1]===BUILD)return;   // (the pattern is split so the publish stamp never rewrites this line)
     if(myPending().length){flushSoon(10);return}
     const u=new URL(location.href);u.searchParams.set('v',m[1]);location.replace(u.toString());
   }catch(e){}
@@ -1003,15 +1006,15 @@ function renderGrades(){
       <div class="gc-top"><b>${x.time?`<span class="at">${x.time}${x.end?'–'+x.end:''}</span>`:''}${esc(x.name)}</b><span class="pill ${c.pill}">${esc(c.l||k)}</span></div>
       <div class="gc-sub">${[day==='all'?fmtDay(x.day):'',capTag(x),esc(x.studio),x.teacher?'Teacher '+esc(x.teacher):'',x.teachers.length?'marked by '+esc(x.teachers.join(', ')):''].filter(Boolean).join(' · ')}</div>
       ${!x.marked?'<div class="gc-prog">No marks yet.</div>':`
-      <div class="gc-final"><span class="gc-num" style="color:var(--${col})">${x.final}</span><span class="track" aria-hidden="true"><i style="width:${x.final}%;background:var(--${col})"></i><u style="left:60%"></u><u style="left:75%"></u></span></div>
-      <div class="gc-prog">${x.complete?'':'So far · '}score ${x.score}${x.errors.length?` − ${x.errors.length*10} for ${x.errors.length} critical error${x.errors.length>1?'s':''}`:''} · ${x.marked}/${x.total} skills marked</div>
+      <div class="gc-final"><span class="gc-num" style="color:var(--${col})">${x.final}</span><span class="track" aria-hidden="true"><i style="width:${x.final}%;background:var(--${col})"></i><u style="left:50%"></u><u style="left:85%"></u></span></div>
+      <div class="gc-prog">${x.complete?'':'So far · '}score ${x.score} · ${x.marked}/${x.total} skills marked${x.errors.length?` · <b style="color:var(--no)">critical error: Resit</b>`:''}</div>
       <div class="gc-stages" style="grid-template-columns:repeat(${Math.max(1,x.stages.length)},1fr)">${x.stages.map(s=>`<span class="st" title="${esc(s.name)}: ${s.pct==null?'not marked':s.pct+'%'}"><span class="st-n">${s.pct==null?'–':s.pct}</span><span class="st-col">${s.pct==null?'':`<i style="height:${Math.max(6,s.pct)}%;background:var(--${s.pct>=75?'ok':s.pct>=60?'hint':'no'})"></i>`}</span><small>${esc(s.name)}</small></span>`).join('')}</div>
       ${x.coreFails.length?`<div class="gc-flag">Core skill under 50%: ${esc(x.coreFails.join(', '))}</div>`:''}
       ${x.errors.length?`<div class="gc-flag">Critical: ${esc(x.errors.join('; '))}</div>`:''}`}
     </article>`};
   app.innerHTML=`
    <div class="gv-head"><span class="eyebrow">Grades</span><h2>${day==='all'?'All test days':fmtDay(day)}</h2>
-     <p class="readout">Every teacher's marks combined: each skill averaged, minus 10 per critical error, a core skill under 50% is a Resit. Grade A 75+, Pass 60+. A grade is final once every skill is marked.</p></div>
+     <p class="readout">Every teacher's marks combined, each skill averaged: Perfect 100, Pass 80, Hint 65, Got there 50, Failed 0. Grade A 85+, Pass 50+. Any critical error, or a core skill under 50, is a Resit. A grade is final once every skill is marked.</p></div>
    ${days.length>1?`<div class="chips" id="gDays" role="group" aria-label="Test day">${days.map(d=>`<button type="button" data-gday="${d}" aria-pressed="${d===day}">${fmtDay(d)}</button>`).join('')}<button type="button" data-gday="all" aria-pressed="${day==='all'}">All</button></div>`:''}
    ${list.length?`<div class="gdist" aria-hidden="true">${order.filter(k=>n[k]).map(k=>`<i style="width:${n[k]/list.length*100}%;background:var(--${GK[k].col==='mute'?'line':GK[k].col})"></i>`).join('')}</div>`:''}
    <div class="modal-sum gv-sum">${order.filter(k=>n[k]||k==='Grade A'||k==='Pass'||k==='Resit').map(k=>`<span style="--c:var(--${GK[k].col})"><b>${n[k]}</b>${esc(GK[k].l||k)}</span>`).join('')}</div>
@@ -1042,7 +1045,7 @@ function renderSheet(){
            <div class="tags">${c.ask?'<span class="tag">Ask</span>':''}</div></div>
            <button class="more" type="button" data-addnote="${c.id}">+ Note</button></div>
          ${c.ask?`<div class="detail"><div class="ask">${esc(c.ask)}</div></div>`:''}
-         ${markBtns('crit',c.id,['y','h','g','n'])}
+         ${markBtns('crit',c.id,['p','y','h','g','n'])}
          <textarea class="note" rows="1" data-note="${c.id}" placeholder="Note" hidden></textarea>
        </article>`).join('')}
      </section>`).join('')}

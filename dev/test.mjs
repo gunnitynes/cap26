@@ -199,33 +199,42 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   te.getRange(2, 1, 2, 2).setValues([['Gunni', 'admin'], ['Anna', 'admin']]); g.setTeamPassword_('test-pass-1');
   const gt = call(g, { action: 'login', name: 'gunni', password: 'test-pass-1' }).token;
   const at = call(g, { action: 'login', name: 'anna', password: 'test-pass-1' }).token;
-  call(g, { action: 'addStudents', token: gt, names: ['Polina', 'Paul'], studio: 'K3', day: '2026-11-04' });
-  const [pol, paul] = call(g, { action: 'state', token: gt }).students.map(s => s.id);
+  call(g, { action: 'addStudents', token: gt, names: ['Polina', 'Paul', 'Kim', 'Lior', 'Ida'], studio: 'K3', day: '2026-11-04' });
+  const [pol, paul, kim, lior, ida] = call(g, { action: 'state', token: gt }).students.map(s => s.id);
   const IDS = ['p1','p2','p3','m1','m2','m3','m4','r1','t1','t2','t3','t4','c1','c2','c3','c4','s1','s2'];
   const all = v => Object.fromEntries(IDS.map(id => [id, v(id)]));
-  call(g, { action: 'saveEntry', token: gt, sid: pol, patch: { marks: all(id => id === 'm4' ? 'h' : 'y') } });
-  call(g, { action: 'saveEntry', token: at, sid: pol, patch: { marks: all(() => 'y'), safety: { a: { t: 1, text: 'Speakers switched with level up' } } } });
-  call(g, { action: 'saveEntry', token: gt, sid: paul, patch: { marks: { p1: 'y', r1: 'n' } } });
+  const save = (t, sid, patch) => call(g, { action: 'saveEntry', token: t, sid, patch });
+  save(gt, pol, { marks: all(id => id === 'm4' ? 'h' : 'y') }); save(at, pol, { marks: all(() => 'y') });   // Pass everywhere, one Hint
+  save(gt, paul, { marks: { p1: 'y', r1: 'n' } });                                                           // unfinished, a core skill failed
+  save(gt, kim, { marks: all(() => 'p'), safety: { a: { t: 1, text: 'Speakers switched with level up' } } });   // perfect, but a critical error
+  save(at, lior, { marks: all(id => id === 't2' || id === 'c4' ? 'y' : 'p') });                              // nearly all Perfect
+  save(gt, ida, { marks: all(() => 'g') });                                                                   // "got there" on everything
   call(g, { action: 'publishResults', token: gt, day: '2026-11-04' });
   const tabs = book.sheets.map(s => s.name);
   assert.ok(tabs.includes('Grades') && !tabs.includes('Results') && !tabs.includes('Days'));
   assert.equal(tabs[1], 'Grades');
   const d = tab(book, 'Grades').data, head = d[6];
-  const row = name => d.find(r => r[1] === name);
-  const P = row('Polina'), Q = row('Paul');
-  // Polina: m4 averages (75+100)/2 → score 99, one critical error → final 89 → Grade A
-  assert.equal(P[head.indexOf('Score')], 99); assert.equal(P[head.indexOf('Errors')], -10); assert.equal(P[head.indexOf('Final')], 89);
-  assert.equal(P[head.indexOf('Grade')], 'Grade A'); assert.equal(P[head.indexOf('Teachers')], 'Gunni, Anna');
-  assert.equal(P[head.indexOf('Mic')], 97);   // (100+100+100+87.5)/4
-  assert.equal(Q[head.indexOf('Grade')], 'Unfinished'); assert.equal(Q[head.indexOf('Core skill under 50%')], 'Console → speakers');
+  const row = name => d.find(r => r[1] === name), col = (name, c) => row(name)[head.indexOf(c)];
+  // Polina: Pass 80 on 17 skills, m4 (Hint 65 + Pass 80)/2 → 79.6 → Pass
+  assert.equal(col('Polina', 'Score'), 80); assert.equal(col('Polina', 'Grade'), 'Pass'); assert.equal(col('Polina', 'Teachers'), 'Gunni, Anna');
+  assert.equal(col('Polina', 'Mic'), 78);   // (80+80+80+72.5)/4
+  assert.equal(col('Kim', 'Score'), 100); assert.equal(col('Kim', 'Errors'), 1); assert.equal(col('Kim', 'Grade'), 'Resit');
+  assert.equal(col('Lior', 'Score'), 98); assert.equal(col('Lior', 'Grade'), 'Grade A');
+  assert.equal(col('Ida', 'Score'), 50); assert.equal(col('Ida', 'Grade'), 'Pass');
+  assert.equal(col('Paul', 'Grade'), 'Unfinished'); assert.equal(col('Paul', 'Core skill under 50%'), 'Console → speakers');
   assert.equal(head.indexOf('In the app'), -1);
-  ok('the Grades tab works out the same grade as the page, per stage, with errors and core fails');
-  assert.equal(d[3][1], 1); assert.equal(d[3][4], 1);   // one Grade A, one Unfinished in the summary
+  ok('Perfect 100 · Pass 80 · Hint 65 · Got there 50: Grade A from 85, "got there" on everything still passes');
+  ok('any critical error is a Resit, even with every skill Perfect');
+  assert.deepEqual([d[3][1], d[3][2], d[3][3], d[3][4]], [1, 2, 1, 1]);   // Grade A, Pass, Resit, Unfinished
   assert.equal((d[1] || []).join(''), '');   // row 2 stays empty: no subtitle line
   ok('the summary counts each grade');
-  const gr = call(g, { action: 'grades', token: at }).students, gp = gr.find(x => x.name === 'Polina'), gq = gr.find(x => x.name === 'Paul');
-  assert.equal(gp.grade, 'Grade A'); assert.equal(gp.final, 89); assert.equal(gp.score, 99); assert.equal(gp.errors.length, 1); assert.equal(gp.complete, true);
-  assert.equal(gp.stages.find(x => x.name === 'Mic').pct, 97); assert.deepEqual(gp.teachers, ['Gunni', 'Anna']);
+  const mk = tab(book, 'Marks').data, mh = mk[0];
+  assert.equal(mk.find(r => r[1] === 'Kim')[mh.indexOf('Power-up order')], 'Perfect');
+  ok('Marks shows Perfect in words');
+  const gr = call(g, { action: 'grades', token: at }).students, gp = gr.find(x => x.name === 'Polina'), gq = gr.find(x => x.name === 'Paul'), gk = gr.find(x => x.name === 'Kim');
+  assert.equal(gp.grade, 'Pass'); assert.equal(gp.final, 80); assert.equal(gp.score, 80); assert.equal(gp.errors.length, 0); assert.equal(gp.complete, true);
+  assert.equal(gk.grade, 'Resit'); assert.equal(gk.errors.length, 1);
+  assert.equal(gp.stages.find(x => x.name === 'Mic').pct, 78); assert.deepEqual(gp.teachers, ['Gunni', 'Anna']);
   assert.equal(gq.complete, false); assert.equal(gq.marked, 2); assert.deepEqual(gq.coreFails, ['Console → speakers']);
   assert.ok(!JSON.stringify(gr).includes('"marks"'));
   ok('the page\'s Grades screen gets each student\'s combined result, and no teacher\'s single marks');
@@ -292,10 +301,10 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
 
   // the Grades tab: each date's own set. Tales's date was first marked while there were 19 questions, Polina's with 18
   const IDS18 = ['p1','p2','p3','m1','m2','m3','m4','r1','t1','t2','t3','t4','c1','c2','c3','c4','s1','s2'];
-  call(g, { action: 'saveEntry', token: tok, sid: pol, patch: { marks: Object.fromEntries(IDS18.map(id => [id, 'y'])) } });
+  call(g, { action: 'saveEntry', token: tok, sid: pol, patch: { marks: Object.fromEntries(IDS18.map(id => [id, 'p'])) } });
   assert.equal(st.qdays['2026-11-11'].length, 19);
   const tq = st.qdays['2026-11-11'].map(x => x.id);
-  call(g, { action: 'saveEntry', token: tok, sid: tal, patch: { marks: Object.fromEntries(tq.map(id => [id, 'y'])) } });
+  call(g, { action: 'saveEntry', token: tok, sid: tal, patch: { marks: Object.fromEntries(tq.map(id => [id, 'p'])) } });
   g.buildGrades_();
   const gd = tab(book, 'Grades').data, gh = gd[6], gr = n => gd.find(r => r[1] === n);
   assert.equal(gr('Polina')[gh.indexOf('Grade')], 'Grade A'); assert.equal(gr('Polina')[gh.indexOf('Marked')], '18/18');
