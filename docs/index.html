@@ -151,7 +151,7 @@ details.guide[open] summary::after{content:"–"}
 
 /* student sheet */
 .strip{margin-top:14px;display:flex;align-items:center;gap:12px}
-.scribble{background:var(--tape);color:var(--tape-ink);font-family:var(--mono);font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:8px 14px 7px;border-radius:2px;transform:rotate(-1deg);box-shadow:0 1px 0 #0000001f;font-size:18px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%;
+.scribble{background:var(--tape);color:var(--tape-ink);font-family:var(--mono);font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:8px 14px 7px;border-radius:2px;transform:rotate(-1deg);box-shadow:0 1px 0 #0000001f;font-size:18px;min-width:0;overflow-wrap:anywhere;line-height:1.3;max-width:100%;
   -webkit-mask:linear-gradient(90deg,transparent 0,#000 3px,#000 calc(100% - 3px),transparent 100%)}
 .strip .meta{font-size:12px;color:var(--mute);min-width:0}
 .stagenav{position:sticky;top:calc(env(safe-area-inset-top,0px) + var(--barh,57px));z-index:4;background:var(--bg);display:flex;gap:6px;overflow-x:auto;padding:8px 0 10px;scrollbar-width:none;margin-inline:-4px;padding-inline:4px}
@@ -399,9 +399,14 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .slot span{font-size:10.5px;color:var(--mute)}
 .slot.none b{color:var(--line)}
 .crit-n{white-space:nowrap}
-/* the name shortens with … but its CAP tag and timer always stay visible */
-.row .who b{display:flex;align-items:center;min-width:0}
-.row .who b .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;font-size:inherit;color:inherit}
+/* the full name, wrapping onto a second line if it must; its CAP tag follows the last word */
+.row .who b{display:block;white-space:normal;overflow:visible;line-height:1.25;overflow-wrap:anywhere}
+.row .who b .nm{font-size:inherit;color:inherit}
+/* a student's state as a small dot: grey not started, yellow in progress, green marked */
+.sdot{flex:none;width:10px;height:10px;border-radius:50%;background:var(--mute);opacity:.55;margin-left:2px}
+.sdot.live,.sdot.done{opacity:1}
+.sdot.live{background:var(--hint);box-shadow:0 0 0 3px var(--hint-soft)}
+.sdot.done{background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft)}
 .row .who b .cap,.row .who b .tm-mini{flex:none}
 .row .who b .cap{margin-left:6px;font-size:10px}
 .cap.xfer{color:var(--hint);border-color:var(--hint);background:var(--hint-soft)}
@@ -895,7 +900,7 @@ function renderRoster(){
   const isNow=t=>{const a=toM(t.time),b=t.end?toM(t.end):a+15;return nowM>=a&&nowM<b};
   const slot=t=>!timed?'':t.time?`<span class="slot" aria-label="${t.time}${t.end?' to '+t.end:''}"><b>${t.time}</b>${t.end?`<span>${t.end}</span>`:''}</span>`:'<span class="slot none" aria-hidden="true"><b>––:––</b></span>';
   const row=t=>{const st=statusOf(t),ce=scoreOf(mine(t),t).inc.length,nt=Object.keys(entries(t)).length;
-    return `<button class="row${isNow(t)?' now':''}" data-open="${t.id}">${slot(t)}${ring(t,timed?38:44)}<span class="who"><b><span class="nm">${esc(t.name)}</span>${capTag(t)}${timerOf(t.id)?` <span class="tm-mini" data-timer="${t.id}"><span class="tm-num">${timerOf(t.id).txt}</span></span>`:''}</b><span>${[esc(t.studio||''),mineView||!admin?'':t.teacher?esc(t.teacher):'<span class="unas">No teacher</span>',nt?nt+' marking':''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}</span></span><span class="pill ${st.k}">${st.l}</span></button>`};
+    return `<button class="row${isNow(t)?' now':''}" data-open="${t.id}">${slot(t)}${ring(t,timed?38:44)}<span class="who"><b><span class="nm">${esc(t.name)}</span>${capTag(t)}${timerOf(t.id)?` <span class="tm-mini" data-timer="${t.id}"><span class="tm-num">${timerOf(t.id).txt}</span></span>`:''}</b><span>${[esc(t.studio||''),mineView||!admin?'':t.teacher?esc(t.teacher):'<span class="unas">No teacher</span>',nt?nt+' marking':''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}</span></span><span class="sdot ${st.k}" role="img" aria-label="${st.l}" title="${st.l}"></span></button>`};
   const stats=`<div class="stat"><div class="n">${list.length}</div><div class="l">Students</div></div>
       <div class="stat"><div class="n">${marked}</div><div class="l">Marked by you</div></div>
       <div class="stat"><div class="n" style="color:var(--mute)">${cnt.todo}</div><div class="l">Not started</div></div>
@@ -1002,7 +1007,7 @@ function markBtns(kind,id,opts){return `<div class="marks${opts.length===3?' thr
 function renderSheet(){
   const t={id:S.open,...view(S.open)};
   $('#app').innerHTML=`
-   <div class="strip"><span class="scribble" id="sName">${esc(t.name)}</span><span class="meta" id="sMeta"></span></div>
+   <div class="strip"><span class="scribble" id="sName">${esc(t.name)}</span></div>
    <section class="timer" data-timer="${t.id}" aria-label="Timer">
      <div class="tm-read"><span class="tm-label eyebrow">Timer</span><span class="tm-num">10:00</span></div>
      <div class="tm-btns"><button class="primary" id="tmStart" type="button">Start</button><button class="ghost" id="tmReset" type="button">Reset</button></div>
@@ -1076,7 +1081,6 @@ function syncSheet(first){
   if(S.view!=='test')return;const raw=view(S.open);if(!raw||raw.deleted){go('roster');return}
   const t={id:S.open,...raw},e=mine(t),sc=scoreOf(e,t),app=$('#app');
   $('#sName').textContent=t.name;
-  $('#sMeta').textContent=[capOf(t),t.studio,t.time?(t.end?t.time+'–'+t.end:t.time):'',t.teacher].filter(Boolean).join(' · ');
   const mtc=$('#moveTeacher');if(document.activeElement!==mtc)mtc.value=t.teacher||'';
   const md=$('#moveDay');if(document.activeElement!==md)md.value=t.day||'';
   const mt=$('#moveTime');if(document.activeElement!==mt)mt.value=t.time||'';
