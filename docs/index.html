@@ -697,7 +697,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793385831';
+const BUILD='1793386697';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -810,7 +810,7 @@ function renderLogin(){
     </div>
     <form class="door-form" id="loginForm" autocomplete="off">
       <p class="readout info" id="lInfo" hidden></p>
-      <div class="door-field"><span>Who are you?</span><div class="names" id="lNames" role="radiogroup" aria-label="Your name"><span class="nbar" role="progressbar" aria-label="Loading the teachers"><i></i></span></div></div>
+      <div class="door-field"><span>Teacher</span><div class="names" id="lNames" role="radiogroup" aria-label="Your name"><span class="nbar" role="progressbar" aria-label="Loading the teachers"><i></i></span></div></div>
       <label class="door-field"><span>Team password</span><input type="text" id="lPass" class="masked" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="PASSWORD"></label>
       <button class="primary door-btn" type="submit" id="lBtn">Sign in</button>
       <p class="readout err" id="lErr" hidden></p>
@@ -820,11 +820,14 @@ function renderLogin(){
   </div>`;
   const f=$('#loginForm');let picked=last;
   /* The phone keyboard covers the lower half of the screen (and a home-screen app does not shrink the page for it):
-     give the page room to scroll and lift the password field to the top of what stays visible. */
+     scroll only as far as needed for the password field and the Sign in button to sit just above the keyboard. */
   const pass=$('#lPass'),door=document.querySelector('.door');
   const lift=()=>{if(document.activeElement!==pass)return;door.classList.add('typing');
-    const vv=window.visualViewport,top=vv?vv.offsetTop:0,field=pass.closest('.door-field');
-    const y=scrollY+field.getBoundingClientRect().top-top-16;if(Math.abs(y-scrollY)>4)scrollTo({top:Math.max(0,y),behavior:'smooth'})};
+    const vv=window.visualViewport,top=vv?vv.offsetTop:0,bottom=top+(vv?vv.height:innerHeight);
+    const btn=$('#lBtn').getBoundingClientRect(),field=pass.getBoundingClientRect();
+    let by=btn.bottom+12-bottom;                       // how far the button is hidden behind the keyboard
+    by=Math.min(by,field.top-top-12);                  // never push the field itself out of sight at the top
+    if(by>4)scrollBy({top:by,behavior:'smooth'})};
   if(touchDevice)pass.addEventListener('focus',()=>{door.classList.add('typing');setTimeout(lift,60);setTimeout(lift,400)});
   if(touchDevice)window.visualViewport?.addEventListener('resize',lift);
   const drawNames=names=>{
