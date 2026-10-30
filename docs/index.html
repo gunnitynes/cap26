@@ -261,6 +261,8 @@ details.guide[open] summary::after{content:"–"}
 .per-top span{font-family:var(--mono);font-size:12px;font-weight:700}
 .per-row .reasons{margin-top:6px}
 .confirm{margin-top:12px;display:flex;flex-direction:column;gap:8px;border-color:var(--led)}
+#resetAsk{border-color:var(--no)}
+.primary.danger-fill{background:var(--no)}
 .confirm b{font-size:16px}.confirm p{margin:0;font-size:14px;color:var(--mute)}
 .tally{margin-top:12px;display:flex;flex-direction:column;gap:12px;padding:12px}
 .tally-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
@@ -702,7 +704,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793391796';
+const BUILD='1793392362';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1085,7 +1087,12 @@ function renderSheet(){
        <div class="field"><label for="summary">Your feedback for the student</label><textarea id="summary" rows="3" placeholder="What went well, what to practise"></textarea></div>
        <div class="pair"><div class="field"><label for="moveDay">Test date</label><input type="date" id="moveDay"></div><div class="field"><label for="moveTime">Test time</label><input type="time" id="moveTime"></div></div>
        <div class="field"${S.role==='admin'||S.demo?'':' hidden'}><label for="moveTeacher">Teacher</label><select id="moveTeacher">${[...new Set(['',...Object.keys(S.teachers),t.teacher||''])].map(n=>`<option value="${esc(n)}">${n?esc(n):'No teacher yet'}</option>`).join('')}</select></div>
-       <div class="foot"><button class="primary" id="doneBtn" type="button">Save and back to students</button><button class="ghost danger" id="delBtn" type="button">Delete</button></div>
+       <div class="foot"><button class="primary" id="doneBtn" type="button">Save and back to students</button><button class="ghost danger" id="resetBtn" type="button">Reset</button></div>
+       <div class="card confirm" id="resetAsk" hidden role="alertdialog" aria-labelledby="resetQ">
+         <b id="resetQ">Reset this test?</b>
+         <p>All your marks, notes, critical errors and feedback for this student are cleared. The student stays on the list.</p>
+         <div class="foot"><button class="primary danger-fill" id="resetYes" type="button">Yes, reset</button><button class="ghost" id="resetNo" type="button">Cancel</button></div>
+       </div>
      </section>
    </div>`;
   const app=$('#app');
@@ -1117,11 +1124,16 @@ function renderSheet(){
       const b=$('#doneBtn');b.textContent='Save anyway';setTimeout(()=>{if($('#doneBtn')===b)b.textContent='Save and back to students'},8000);
       return}
     flushSoon(0);go('roster')};
-  let delArm=0;$('#delBtn').onclick=async()=>{if(Date.now()-delArm>3000){delArm=Date.now();$('#delBtn').textContent='Tap again to delete';setTimeout(()=>$('#delBtn')&&($('#delBtn').textContent='Delete'),3000);return}
-    if(S.demo){delete S.tests[S.open];toast('Student removed');go('roster');return}
-    const j=await api('updateStudent',{id:S.open,deleted:true});
-    if(!j.ok){toast(j.error);return}
-    delete S.tests[S.open];delete S.pending[S.open];ls.set('ops.pending',S.pending);toast('Student removed');go('roster');load()};
+  /* Reset clears this teacher's own marks, notes, critical errors and feedback for the student, after a confirmation.
+     (Students are removed in the Sheet, not here.) */
+  $('#resetBtn').onclick=()=>{if(!canMark())return;$('#resetAsk').hidden=false;$('#resetAsk').scrollIntoView({behavior:'smooth',block:'center'})};
+  $('#resetNo').onclick=()=>{$('#resetAsk').hidden=true};
+  $('#resetYes').onclick=()=>{
+    const e=mine({id:S.open,...view(S.open)}),nul=o=>Object.fromEntries(Object.keys(o||{}).map(k=>[k,null]));
+    patchMine(S.open,{marks:nul(e.marks),notes:nul(e.notes),safety:nul(e.safety),summary:''});
+    $('#resetAsk').hidden=true;app.querySelectorAll('article.crit.missing').forEach(a=>a.classList.remove('missing'));
+    app.querySelectorAll('[data-note]').forEach(n=>{n.value='';n.hidden=true;const ab=app.querySelector(`[data-addnote="${n.dataset.note}"]`);if(ab)ab.hidden=false});
+    toast('Test reset');scrollTo({top:0,behavior:'smooth'})};
   app.querySelectorAll('.stagenav a').forEach(a=>a.onclick=e=>{e.preventDefault();document.getElementById(a.getAttribute('href').slice(1))?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'})});
   const syncTimer=()=>{const on=!!timerOf(S.open);$('#tmStart').hidden=on;$('#tmReset').hidden=!on;$('#tmReset').textContent='Reset';tick()};
   $('#tmStart').onclick=()=>{audioOn();setTimer(S.open,true);buzzed.delete(S.open);syncTimer();renderBar();navigator.vibrate?.(15)};
