@@ -24,7 +24,8 @@
  */
 
 const PAGE_URL = 'https://gunnitynes.github.io/cap26/';
-const SESSION_DAYS = 400;       // a phone stays signed in for the school year
+const SESSION_DAYS = 30;        // a phone stays signed in this long, then signs in again with the team password
+const OLD_SESSION_DAYS = 400;   // what sign-ins lasted before; used to work out when an older sign-in started
 const HASH_ROUNDS = 400;
 const MAX_TRIES = 8;            // wrong passwords per name before a 10-minute pause
 const MIN_PASSWORD = 6;
@@ -542,7 +543,7 @@ function login_(name, password, pin) {
 
 function startSession_(t, pin) {
   const token = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
-  PropertiesService.getScriptProperties().setProperty('s_' + token, JSON.stringify({ name: t.name, pin: !!pin, exp: Date.now() + SESSION_DAYS * 864e5 }));
+  PropertiesService.getScriptProperties().setProperty('s_' + token, JSON.stringify({ name: t.name, pin: !!pin, start: Date.now(), exp: Date.now() + SESSION_DAYS * 864e5 }));
   try { sheet_(SHEETS.TEACHERS).getRange(t.row, T.LAST + 1).setValue(new Date()); } catch (e) {}
   return { ok: true, token, name: t.name, role: t.role, days: SESSION_DAYS };
 }
@@ -553,7 +554,9 @@ function auth_(token) {
   const raw = props.getProperty('s_' + token);
   if (!raw) return null;
   const s = JSON.parse(raw);
-  if (s.exp < Date.now()) { props.deleteProperty('s_' + token); return null; }
+  // a sign-in lasts SESSION_DAYS from when it started (older sign-ins were made for 400 days: they end 30 days after they began)
+  const start = s.start || (s.exp - OLD_SESSION_DAYS * 864e5);
+  if (s.exp < Date.now() || start + SESSION_DAYS * 864e5 < Date.now()) { props.deleteProperty('s_' + token); return null; }
   const t = teachers_().find(x => norm_(x.name) === norm_(s.name));
   if (!t) { props.deleteProperty('s_' + token); return null; }
   // admin rights only for a session that gave the admin PIN (when one is set); otherwise the account works as a teacher

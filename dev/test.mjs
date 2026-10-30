@@ -42,7 +42,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.ok(!JSON.stringify(tab(book, 'Start here').data).includes('test-pass-1'));
   ok('the team password is hidden the moment it is typed');
   let r = call(g, { action: 'login', name: 'anna', password: 'test-pass-1' });
-  assert.equal(r.ok, true); assert.ok(r.days > 300);
+  assert.equal(r.ok, true); assert.equal(r.days, 30);
   const annaTok = r.token;
   assert.equal(call(g, { action: 'login', name: 'Gunni', password: 'test-pass-1' }).ok, true);
   ok('every teacher signs in with their name and the same password, and stays signed in');
@@ -446,5 +446,22 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   te.getRange(3, 2).setValue('admin');
   assert.equal(call(g, { action: 'state', token: it }).me.role, 'teacher');
   ok('admin rights need a session that gave the PIN, even if a role is changed in the sheet');
+}
+// 13. Sign-ins last 30 days, older 400-day ones included.
+{
+  const { g } = loadScript();
+  g.setup();
+  g.SpreadsheetApp.getActive().getSheetByName('Teachers').getRange(2, 1).setValue('Isuru'); g.setTeamPassword_('team-pass-1');
+  const r = call(g, { action: 'login', name: 'Isuru', password: 'team-pass-1' });
+  assert.equal(r.days, 30); assert.equal(call(g, { action: 'state', token: r.token }).ok, true);
+  const props = g.PropertiesService.getScriptProperties(), key = 's_' + r.token, sess = JSON.parse(props.getProperty(key));
+  props.setProperty(key, JSON.stringify({ ...sess, start: Date.now() - 31 * 864e5 }));
+  assert.equal(call(g, { action: 'state', token: r.token }).code, 'auth');
+  ok('a sign-in ends after 30 days');
+  const old = (Date.now() + 400 * 864e5) - 10 * 864e5, recent = 'a'.repeat(64), stale = 'b'.repeat(64);
+  props.setProperty('s_' + recent, JSON.stringify({ name: 'Isuru', exp: old }));                       // made 10 days ago for 400 days
+  props.setProperty('s_' + stale, JSON.stringify({ name: 'Isuru', exp: old - 40 * 864e5 }));           // made 50 days ago
+  assert.equal(call(g, { action: 'state', token: recent }).ok, true); assert.equal(call(g, { action: 'state', token: stale }).code, 'auth');
+  ok('older 400-day sign-ins now also end 30 days after they began');
 }
 console.log(`\n${n} checks passed`);
