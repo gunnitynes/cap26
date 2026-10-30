@@ -6,84 +6,63 @@ const call = (g, body) => JSON.parse(g.doPost({ postData: { contents: JSON.strin
 const tab = (book, name) => book.sheets.find(s => s.name === name);
 let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
 
-// 1. The old layout, exactly as typed by hand: a name, no role, the password in "Password hash", no salt.
+// 1. Older layouts: personal passwords or codes per teacher become a plain list of names.
 {
   const { g, book } = loadScript();
-  const ss = g.SpreadsheetApp.getActive();
-  const sh = ss.insertSheet('Teachers');
-  sh.getRange(1, 1, 1, 5).setValues([['Name', 'Role', 'Password hash', 'Salt', 'Added']]);
-  sh.getRange(2, 1, 1, 5).setValues([['Gunni', '', 'test-pass-1', '', '']]);
+  const sh = g.SpreadsheetApp.getActive().insertSheet('Teachers');
+  sh.getRange(1, 1, 1, 7).setValues([['Name', 'Sign-in code', 'Role', 'Status', 'Last sign-in', 'hash', 'salt']]);
+  sh.getRange(2, 1, 2, 7).setValues([['Gunni', '●●●●●● set', 'admin', 'Admin', '', 'xx', 'yy'], ['Isuru', '', '', 'No code yet', '', '', '']]);
   g.setup();
   const t = tab(book, 'Teachers').data;
-  assert.deepEqual(t[0].slice(0, 5), ['Name', 'Sign-in code', 'Role', 'Status', 'Last sign-in']);
-  assert.equal(t[1][0], 'Gunni'); assert.equal(t[1][1], '●●●●●● set'); assert.equal(t[1][2], 'admin');
-  assert.match(String(t[1][3]), /^Admin: signs in/);
-  assert.ok(!JSON.stringify(t).includes('test-pass-1'), 'the typed password must not stay in the sheet');
-  ok('old layout moved over; the hand-typed password is hidden and Gunni is admin');
-  const r = call(g, { action: 'login', name: ' gunni ', password: 'test-pass-1' });
-  assert.equal(r.ok, true); assert.equal(r.role, 'admin');
-  ok('Gunni signs in with the password typed in the sheet');
-  assert.equal(call(g, { action: 'login', name: 'Gunni', password: 'wrong123' }).ok, false);
-  ok('a wrong password is refused');
+  assert.deepEqual(t[0], ['Name', 'Role', 'Last sign-in']);
+  assert.deepEqual(t.slice(1).map(r => r.slice(0, 2)), [['Gunni', 'admin'], ['Isuru', 'teacher']]);
+  ok('older Teachers layouts become Name | Role | Last sign-in, keeping roles');
   assert.equal(book.sheets[0].name, 'Start here');
   ok('"Start here" is the first tab');
+  assert.deepEqual(call(g, { action: 'teachers' }).teachers, ['Gunni', 'Isuru']);
+  ok('the sign-in page gets the list of names without signing in');
+  assert.match(call(g, { action: 'login', name: 'Isuru', password: 'anything' }).error, /No team password/);
+  ok('before a team password is set, sign-in says so plainly');
 }
 
-// 2. Typing in the Teachers tab: an admin password, and single-use codes for teachers (what onEdit sees).
+// 2. The team password, typed on Start here (what onEdit sees).
 {
   const { g, book } = loadScript();
   g.setup();
-  const sh = g.SpreadsheetApp.getActive().getSheetByName('Teachers');
-  sh.getRange(2, 1, 1, 2).setValues([['Gunni', 'test-pass-1']]);
-  g.onEdit({ range: sh.getRange(2, 2) });
-  sh.getRange(3, 1, 1, 2).setValues([['Mira', 'abc']]);
-  g.onEdit({ range: sh.getRange(3, 2) });
-  sh.getRange(4, 1, 1, 2).setValues([['Anna', '4821']]);
-  g.onEdit({ range: sh.getRange(4, 2) });
-  sh.getRange(5, 1).setValue('Jon');
-  g.onEdit({ range: sh.getRange(5, 1) });
-  const t = tab(book, 'Teachers').data;
-  assert.equal(t[1][1], '●●●●●● set'); assert.equal(t[1][2], 'admin'); assert.match(String(t[1][3]), /^Admin/);
-  assert.equal(t[2][2], 'teacher'); assert.match(String(t[2][3]), /too short/);
-  assert.equal(t[3][1], '●●●● code ready'); assert.match(String(t[3][3]), /^Code ready/);
-  assert.match(String(t[4][3]), /^No code yet/);
-  assert.ok(!JSON.stringify(t).includes('4821'));
-  ok('the first row is admin with a password; teachers get codes, hidden at once; Status explains each row');
-  assert.equal(call(g, { action: 'login', name: 'gunni', password: 'test-pass-1' }).ok, true);
-  ok('the admin signs in with the password');
-
-  // 3. A teacher's code works once and the phone stays signed in.
-  let r = call(g, { action: 'login', name: 'anna', password: '4822' });
-  assert.equal(r.ok, false);
-  r = call(g, { action: 'login', name: ' Anna ', password: ' 4821 ' });
-  assert.equal(r.ok, true); assert.equal(r.role, 'teacher'); assert.ok(r.days > 300);
+  const ss = g.SpreadsheetApp.getActive(), start = ss.getSheetByName('Start here'), te = ss.getSheetByName('Teachers');
+  te.getRange(2, 1, 2, 1).setValues([['Gunni'], ['Anna']]); g.onEdit({ range: te.getRange(2, 1, 2, 1) });
+  assert.deepEqual(tab(book, 'Teachers').data.slice(1).map(r => r[1]), ['teacher', 'teacher']);
+  ok('a name typed in Teachers gets a role by itself');
+  const cell = g.teamCell_();
+  cell.setValue('abc'); g.onEdit({ range: cell });
+  assert.equal(g.teamHash_(), null);
+  ok('a too-short team password is not taken');
+  cell.setValue('test-pass-1'); g.onEdit({ range: cell });
+  assert.equal(cell.getValue(), '●●●●●● set');
+  assert.ok(!JSON.stringify(tab(book, 'Start here').data).includes('test-pass-1'));
+  ok('the team password is hidden the moment it is typed');
+  let r = call(g, { action: 'login', name: 'anna', password: 'test-pass-1' });
+  assert.equal(r.ok, true); assert.ok(r.days > 300);
   const annaTok = r.token;
-  assert.match(String(tab(book, 'Teachers').data[3][1]), /^used /); assert.match(String(tab(book, 'Teachers').data[3][3]), /^Signed in on a phone/);
-  ok('a teacher signs in with name + code; the code is marked used and the phone stays signed in for the year');
-  assert.equal(call(g, { action: 'login', name: 'anna', password: '4821' }).ok, false);
-  ok('the same code cannot be used a second time');
+  assert.equal(call(g, { action: 'login', name: 'Gunni', password: 'test-pass-1' }).ok, true);
+  ok('every teacher signs in with their name and the same password, and stays signed in');
+  assert.equal(call(g, { action: 'login', name: 'Anna', password: 'wrong-one' }).ok, false);
+  assert.match(call(g, { action: 'login', name: 'Zed', password: 'test-pass-1' }).error, /not in the Teachers tab/);
+  ok('a wrong password or a name not in Teachers is refused');
+  cell.setValue('new-pass-2'); g.onEdit({ range: cell });
   assert.equal(call(g, { action: 'state', token: annaTok }).ok, true);
-  ok('the first phone keeps working after its code is used up');
-  assert.equal(call(g, { action: 'login', name: 'jon', password: '1234' }).ok, false);
-  assert.match(call(g, { action: 'login', name: 'jon', password: '' }).error, /no sign-in code/);
-  ok('a teacher without a code is told to ask for one (no password ever)');
-  sh.getRange(4, 2).setValue('7777'); g.onEdit({ range: sh.getRange(4, 2) });
-  const r2 = call(g, { action: 'login', name: 'anna', password: '7777' });
-  assert.equal(r2.ok, true); assert.equal(call(g, { action: 'state', token: annaTok }).ok, true);
-  ok('a new code adds a second phone without signing out the first');
-  assert.equal(call(g, { action: 'changePassword', token: r2.token, current: '7777', next: 'whatever1' }).ok, false);
-  ok('teachers cannot set a password');
-
-  // 4. Clearing the admin password signs the admin out and lets them choose a new one.
-  const tok = call(g, { action: 'login', name: 'gunni', password: 'test-pass-1' }).token;
-  sh.getRange(2, 2).setValue(''); g.onEdit({ range: sh.getRange(2, 2) });
-  assert.equal(call(g, { action: 'state', token: tok }).code, 'auth');
-  assert.equal(call(g, { action: 'login', name: 'gunni', password: '' }).code, 'activate');
-  assert.equal(call(g, { action: 'login', name: 'gunni', password: 'test-pass-1', confirm: 'test-pass-1' }).ok, true);
-  ok('clearing the admin password signs them out; they choose a new one at next sign-in');
-
+  assert.equal(call(g, { action: 'login', name: 'Anna', password: 'test-pass-1' }).ok, false);
+  assert.equal(call(g, { action: 'login', name: 'Anna', password: 'new-pass-2' }).ok, true);
+  ok('changing the team password keeps signed-in phones signed in, and only the new one works');
+  // a password typed while the trigger did not run is picked up at sign-in
+  cell.setValue('third-pass-3');
+  assert.equal(call(g, { action: 'login', name: 'Anna', password: 'third-pass-3' }).ok, true);
+  ok('a password typed without the edit trigger still works at the next sign-in');
+  te.deleteRow(3);
+  assert.equal(call(g, { action: 'state', token: annaTok }).code, 'auth');
+  ok('removing a teacher from the tab signs them out');
   // 5. A teacher marks, the readable Marks row and the hidden copy agree.
-  const gt = call(g, { action: 'login', name: 'gunni', password: 'test-pass-1' }).token;
+  const gt = call(g, { action: 'login', name: 'gunni', password: 'third-pass-3' }).token;
   call(g, { action: 'addStudents', token: gt, names: ['Polina'], studio: 'K3', day: '2026-11-04' });
   const sid = call(g, { action: 'state', token: gt }).students[0].id;
   call(g, { action: 'saveEntry', token: gt, sid, patch: { marks: { p1: 'y', m4: 'h', c2: 'n', zz: 'bogus' }, safety: { a: { t: 1, text: 'Speakers switched with level up' } } } });
@@ -104,7 +83,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const { g, book } = loadScript();
   g.setup();
   const ss = g.SpreadsheetApp.getActive(), te = ss.getSheetByName('Teachers'), st = ss.getSheetByName('Students');
-  te.getRange(2, 1, 1, 2).setValues([['Gunni', 'test-pass-1']]); g.onEdit({ range: te.getRange(2, 2) });
+  te.getRange(2, 1).setValue('Gunni'); g.setTeamPassword_('test-pass-1');
   const tok = call(g, { action: 'login', name: 'gunni', password: 'test-pass-1' }).token;
   // one typed row with a real date (what the date picker gives), then a pasted list with no dates or studios
   // dates must come from inside the sandbox, like the ones Google hands the script
@@ -140,10 +119,9 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const { g, book } = loadScript();
   g.setup();
   const te = g.SpreadsheetApp.getActive().getSheetByName('Teachers');
-  te.getRange(2, 1, 1, 2).setValues([['Gunni', 'test-pass-1']]); g.onEdit({ range: te.getRange(2, 2) });
-  te.getRange(3, 1, 1, 2).setValues([['Anna', '4821']]); g.onEdit({ range: te.getRange(3, 2) });
+  te.getRange(2, 1, 2, 1).setValues([['Gunni'], ['Anna']]); g.setTeamPassword_('test-pass-1');
   const gt = call(g, { action: 'login', name: 'gunni', password: 'test-pass-1' }).token;
-  const at = call(g, { action: 'login', name: 'anna', password: '4821' }).token;
+  const at = call(g, { action: 'login', name: 'anna', password: 'test-pass-1' }).token;
   call(g, { action: 'addStudents', token: gt, names: ['Polina', 'Paul'], studio: 'K3', day: '2026-11-04' });
   const [pol, paul] = call(g, { action: 'state', token: gt }).students.map(s => s.id);
   const IDS = ['p1','p2','p3','m1','m2','m3','m4','r1','t1','t2','t3','t4','c1','c2','c3','c4','s1','s2'];

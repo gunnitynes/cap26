@@ -56,7 +56,7 @@ export function loadScript() {
   const g = {
     SpreadsheetApp,
     PropertiesService: { getScriptProperties: () => ({
-      getProperty: k => props.has(k) ? props.get(k) : null, setProperty: (k, v) => props.set(k, v),
+      getProperty: k => props.has(k) ? props.get(k) : null, setProperty: (k, v) => props.set(k, v), setProperties: o => Object.entries(o).forEach(([k, v]) => props.set(k, v)),
       deleteProperty: k => props.delete(k), getProperties: () => Object.fromEntries(props) }) },
     CacheService: { getScriptCache: () => ({ get: k => cache.get(k) ?? null, put: (k, v) => cache.set(k, v), remove: k => cache.delete(k) }) },
     LockService: { getScriptLock: () => ({ tryLock: () => true, waitLock: () => {}, releaseLock: () => {} }) },

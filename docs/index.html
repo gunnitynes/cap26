@@ -295,6 +295,9 @@ details.guide[open] summary::after{content:"–"}
 .door-field input{font-size:18px;padding:14px 16px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
 .door-field input:focus{border-color:var(--led);outline:none;box-shadow:0 0 0 3px var(--led-soft)}
 .masked{-webkit-text-security:disc;font-family:var(--mono)}
+.names{display:flex;flex-wrap:wrap;gap:8px}
+.names button{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:10px 16px;font-size:16px;font-weight:600;transition:background .12s,border-color .12s}
+.names button[aria-checked="true"]{background:var(--led);border-color:var(--led);color:#fff;box-shadow:0 6px 16px -8px var(--led)}
 .door-btn{padding:16px;font-size:17px;border-radius:14px;margin-top:4px}
 .door-foot{margin:0;font-size:13px;color:var(--mute);line-height:1.5}
 @media (prefers-reduced-motion:reduce){.door-mark .cap{animation:none}}
@@ -674,38 +677,41 @@ function renderLogin(){
     </div>
     <form class="door-form" id="loginForm" autocomplete="off">
       <p class="readout info" id="lInfo" hidden></p>
-      <label class="door-field"><span>Name</span><input type="text" id="lName" autocomplete="off" autocapitalize="words" spellcheck="false" value="${esc(last)}" placeholder="Your name"></label>
-      <label class="door-field"><span id="lPassLbl">Sign-in code</span><input type="text" id="lPass" class="masked" autocomplete="one-time-code" autocapitalize="off" spellcheck="false" placeholder="From the test organiser"></label>
-      <label class="door-field" id="lConfWrap" hidden><span>Same password again</span><input type="text" id="lConf" class="masked" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <div class="door-field"><span>Who are you?</span><div class="names" id="lNames" role="radiogroup" aria-label="Your name"><span class="readout" style="margin:0">Loading the teachers…</span></div></div>
+      <label class="door-field"><span>Team password</span><input type="text" id="lPass" class="masked" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="The password for everyone"></label>
       <button class="primary door-btn" type="submit" id="lBtn">Sign in</button>
       <p class="readout err" id="lErr" hidden></p>
       ${S.demo?'<p class="readout">Preview: any name opens the example students.</p>':''}
     </form>
-    <p class="door-foot">The code works once. After that this phone stays signed in.<br>New phone? Ask the test organiser for a new code.</p>
+    <p class="door-foot">Your name is missing? Ask the test organiser to add it to the Teachers tab.<br>After signing in, this phone stays signed in.</p>
   </div>`;
-  const f=$('#loginForm');
-  if(!last&&!touchDevice)$('#lName').focus();
-  let activating=false;
-  const setMode=on=>{activating=on;$('#lConfWrap').hidden=!on;$('#lPassLbl').textContent=on?'Choose a password (6 characters or more)':'Sign-in code';
-    $('#lBtn').textContent=on?'Set password and sign in':'Sign in'};
-  $('#lName').oninput=()=>{if(activating){setMode(false);$('#lInfo').hidden=true}};
+  const f=$('#loginForm');let picked=last;
+  const drawNames=names=>{
+    $('#lNames').innerHTML=names.length?names.map(n=>`<button type="button" role="radio" aria-checked="${norm(n)===norm(picked)}" data-name="${esc(n)}">${esc(n)}</button>`).join('')
+      :'<span class="readout" style="margin:0">No teachers yet. Add names in the Teachers tab of the spreadsheet.</span>';
+  };
+  const norm=x=>String(x||'').trim().toLowerCase();
+  $('#lNames').onclick=e=>{const b=e.target.closest('[data-name]');if(!b)return;picked=b.dataset.name;
+    $('#lNames').querySelectorAll('[data-name]').forEach(x=>x.setAttribute('aria-checked',x===b));$('#lErr').hidden=true};
+  (async()=>{
+    if(S.demo){drawNames(['Gunnar','Anna']);return}
+    const j=await api('teachers');
+    if(!$('#lNames'))return;
+    if(j.ok)drawNames(j.teachers);else $('#lNames').innerHTML=`<span class="readout err" style="margin:0">${esc(j.error||'Could not load the names.')} </span><button class="ghost" type="button" id="lRetry">Try again</button>`;
+    $('#lRetry')?.addEventListener('click',()=>renderLogin());
+  })();
   f.onsubmit=async e=>{e.preventDefault();
-    const name=$('#lName').value.trim(),password=$('#lPass').value,err=$('#lErr'),info=$('#lInfo'),btn=$('#lBtn');
-    err.hidden=true;if(!name){err.textContent='Type your name.';err.hidden=false;return}
+    const password=$('#lPass').value,err=$('#lErr'),btn=$('#lBtn');
+    err.hidden=true;if(!picked){err.textContent='Tap your name first.';err.hidden=false;return}
     if(S.demo){go('roster');return}
-    const label=btn.textContent;btn.disabled=true;btn.textContent=activating?'Setting your password…':'Signing in…';
-    const j=await api('login',activating?{name,password,confirm:$('#lConf').value}:{name,password});
-    btn.disabled=false;btn.textContent=label;
-    if(!j.ok&&j.code==='activate'){
-      // the name exists but has no password yet: this is the teacher's first sign-in
-      if(!activating){setMode(true);info.innerHTML=`Welcome, <b>${esc(j.name)}</b>. As admin you sign in with a password. Choose it now.`;info.hidden=false;
-        if(!touchDevice){(password?$('#lConf'):$('#lPass')).focus()}return}
-      err.textContent=j.error;err.hidden=false;return}
+    btn.disabled=true;btn.textContent='Signing in…';
+    const j=await api('login',{name:picked,password});
+    btn.disabled=false;btn.textContent='Sign in';
     if(!j.ok){err.textContent=j.error;err.hidden=false;return}
     S.token=j.token;S.me=j.name;S.role=j.role;ls.set('ops.token',S.token);ls.set('ops.me',S.me);ls.set('ops.role',S.role);ls.set('ops.lastName',j.name);
-    ls.set('ops.until',Date.now()+(j.days||60)*864e5);
+    ls.set('ops.until',Date.now()+(j.days||400)*864e5);
     S.view='roster';renderBar();render();await load();
-    toast(j.activated?'Password set. Welcome, '+j.name:j.role==='admin'?'Signed in as '+j.name:'Welcome, '+j.name+'. This phone stays signed in.');
+    toast('Welcome, '+j.name+'. This phone stays signed in.');
   };
 }
 
@@ -716,37 +722,20 @@ function renderAccount(quiet){
     <section class="card acct">
       <span class="eyebrow">Signed in as</span>
       <b class="login-h">${esc(S.me)}</b>
-      <span class="readout" style="margin:0">${admin?'Admin: you can add teachers and give them sign-in codes.':`This phone stays signed in until ${new Date(ls.get('ops.until',Date.now()+400*864e5)).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}.`}</span>
-      ${admin?'':'<span class="hint">If you sign out, you need a new code from the test organiser to sign in again.</span>'}
+      <span class="readout" style="margin:0">${admin?'Admin: you can add and remove teachers.':`This phone stays signed in until ${new Date(ls.get('ops.until',Date.now()+400*864e5)).toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}.`}</span>
+      <span class="hint">Signing out is only needed if someone else will use this phone.</span>
       <button class="ghost" id="outBtn" type="button">Sign out</button>
     </section>
-    ${admin?`<form class="card login" id="pwForm" autocomplete="off">
-      <b class="login-h">Change your password</b>
-      <input type="text" name="username" value="${esc(S.me)}" autocomplete="username" hidden>
-      <div class="field"><label for="pwOld">Current password</label><input type="password" id="pwOld" autocomplete="current-password"></div>
-      <div class="field"><label for="pwNew">New password (6 characters or more)</label><input type="password" id="pwNew" autocomplete="new-password">
-        <span class="hint">Pick one you use nowhere else. Three random words work well, like <i>lamp-river-cello</i>. If your phone warns that a password was "found in a data breach", change it here.</span></div>
-      <button class="primary" type="submit">Change password</button>
-      <p class="readout err" id="pwErr" hidden></p>
-    </form>`:''}
     ${admin?`<form class="card login" id="tForm" autocomplete="off">
       <b class="login-h">Teachers</b>
       <ul class="tlist">${names.map(n=>`<li><span>${esc(n)}${n===S.me?' (you)':''}</span>${n===S.me?'':`<button class="more" type="button" data-rm="${esc(n)}">Remove</button>`}</li>`).join('')}</ul>
-      <div class="field"><label for="tName">Add a teacher, or give one a new code</label><input type="text" id="tName" placeholder="Name they sign in with" autocapitalize="words"></div>
-      <div class="field"><label for="tPass">Sign-in code (works once, on one phone)</label><input type="text" id="tPass" placeholder="4 characters or more, e.g. 4821" autocomplete="off"></div>
-      <label class="check"><input type="checkbox" id="tAdmin"> Admin (signs in with a permanent password instead)</label>
+      <div class="field"><label for="tName">Add a teacher</label><input type="text" id="tName" placeholder="Their name, as it should appear on the sign-in page" autocapitalize="words"></div>
+      <label class="check"><input type="checkbox" id="tAdmin"> Admin (can add and remove teachers here)</label>
       <button class="primary" type="submit">Save teacher</button>
       <p class="readout err" id="tErr" hidden></p>
     </form>`:''}
   </div>`;
-  let outArm=0;$('#outBtn').onclick=()=>{
-    if(!admin&&Date.now()-outArm>4000){outArm=Date.now();$('#outBtn').textContent='Sign out? You will need a new code';return}
-    signOut()};
-  if(admin)$('#pwForm').onsubmit=async e=>{e.preventDefault();const err=$('#pwErr');err.hidden=true;
-    if(S.demo){toast('Preview only');return}
-    const j=await api('changePassword',{current:$('#pwOld').value,next:$('#pwNew').value});
-    if(!j.ok){err.textContent=j.error;err.hidden=false;return}
-    S.token=j.token;ls.set('ops.token',S.token);$('#pwOld').value=$('#pwNew').value='';toast('Password changed')};
+  $('#outBtn').onclick=()=>signOut();
   if(!admin)return;
   let rmArm='';
   $('#tForm').onclick=async e=>{const b=e.target.closest('[data-rm]');if(!b)return;const n=b.dataset.rm;
@@ -754,12 +743,11 @@ function renderAccount(quiet){
     if(S.demo){toast('Preview only');return}
     const j=await api('removeTeacher',{name:n});toast(j.ok?n+' removed':j.error);if(j.ok){delete S.teachers[n];renderAccount()}};
   $('#tForm').onsubmit=async e=>{e.preventDefault();const err=$('#tErr');err.hidden=true;
-    const name=$('#tName').value.trim(),password=$('#tPass').value;
+    const name=$('#tName').value.trim();
     if(S.demo){toast('Preview only');return}
-    const j=await api('addTeacher',{name,password,role:$('#tAdmin').checked?'admin':'teacher'});
+    const j=await api('addTeacher',{name,role:$('#tAdmin').checked?'admin':'teacher'});
     if(!j.ok){err.textContent=j.error;err.hidden=false;return}
-    const isAdmin=$('#tAdmin').checked;
-    toast(password?(isAdmin?'Password set for '+j.name:j.name+' can sign in once with that code'):j.name+' added. Give them a code to sign in');S.teachers[j.name]={name:j.name};renderAccount()};
+    toast(j.name+' can now sign in with the team password');S.teachers[j.name]={name:j.name};renderAccount()};
 }
 
 function ring(t,size=44){
