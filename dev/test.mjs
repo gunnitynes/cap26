@@ -78,12 +78,12 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(st.entries[0].data.marks.m4, 'h');
   ok('the page reads its marks back from the sheet');
 }
-// 6. Students typed or pasted straight into the Students tab: date | time | name | studio | removed | id.
+// 6. Students typed or pasted straight into the Students tab: date | time | name | studio | teacher | removed | id.
 {
   const { g, book } = loadScript();
   g.setup();
   const ss = g.SpreadsheetApp.getActive(), te = ss.getSheetByName('Teachers'), st = ss.getSheetByName('Students');
-  assert.deepEqual(tab(book, 'Students').data[0], ['Test date', 'Test time', 'Student', 'Studio', 'Removed', 'ID']);
+  assert.deepEqual(tab(book, 'Students').data[0], ['Test date', 'Test time', 'Student', 'Studio', 'Teacher', 'Removed', 'ID']);
   te.getRange(2, 1).setValue('Gunni'); g.setTeamPassword_('test-pass-1');
   const tok = call(g, { action: 'login', name: 'gunni', password: 'test-pass-1' }).token;
   // dates must come from inside the sandbox, like the ones Google hands the script
@@ -96,7 +96,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   st.getRange(6, 1, 1, 4).setValues([['5.11.2026', '8:05', 'Tales', 'K4']]);
   g.onEdit({ range: st.getRange(6, 1, 1, 4) });
   const rows = tab(book, 'Students').data.slice(1);
-  assert.ok(rows.every(r => r[5]), 'every named row gets an ID');
+  assert.ok(rows.every(r => r[6]), 'every named row gets an ID');
   assert.deepEqual(rows.map(r => r[3]), ['K3', 'K3', 'K3', 'K3', 'K4']);
   ok('a pasted list takes the date and studio from the row above and gets IDs');
   assert.deepEqual(rows.map(r => r[1]), ['09:30', '10:30', '11:00', '', '08:05']);
@@ -105,9 +105,10 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.deepEqual(s1.map(x => x.name + ' ' + x.day + ' ' + x.time), ['Polina 2026-11-04 09:30', 'Paul 2026-11-04 10:30', 'Faddei 2026-11-04 11:00', 'Yutaro 2026-11-04 ', 'Tales 2026-11-05 08:05']);
   ok('the page sees them on the right dates and times, including a date typed as text');
   st.getRange(7, 1, 1, 4).setValues([[pick('2026-11-05'), '', 'Ida', 'K4']]);
+  call(g, { action: 'tidy', token: tok });
   assert.ok(call(g, { action: 'state', token: tok }).students.some(x => x.name === 'Ida'));
   ok('rows added without the edit trigger get an ID on the next refresh');
-  st.getRange(3, 5).setValue('absent');
+  st.getRange(3, 6).setValue('absent');
   assert.ok(!call(g, { action: 'state', token: tok }).students.some(x => x.name === 'Paul'));
   ok('typing in Removed takes a student off the page');
   call(g, { action: 'addStudents', token: tok, names: ['10:45 Mira', 'Noor'], studio: 'K3', day: '2026-11-04' });
@@ -119,6 +120,15 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   call(g, { action: 'updateStudent', token: tok, id: mira.id, time: '13:15' });
   assert.equal(call(g, { action: 'state', token: tok }).students.find(x => x.name === 'Mira').time, '13:15');
   ok('a test time changed on the page is saved in the sheet');
+  te.getRange(3, 1).setValue('Isuru');
+  call(g, { action: 'addStudents', token: tok, names: ['Lior'], studio: 'K4', day: '2026-11-04', teacher: 'isuru' });
+  call(g, { action: 'addStudents', token: tok, names: ['Sam'], studio: 'K4', day: '2026-11-04', teacher: 'Nobody' });
+  let ss2 = call(g, { action: 'state', token: tok }).students;
+  assert.equal(ss2.find(x => x.name === 'Lior').teacher, 'Isuru'); assert.equal(ss2.find(x => x.name === 'Sam').teacher, '');
+  call(g, { action: 'updateStudent', token: tok, id: ss2.find(x => x.name === 'Sam').id, teacher: 'Gunni' });
+  assert.equal(call(g, { action: 'state', token: tok }).students.find(x => x.name === 'Sam').teacher, 'Gunni');
+  assert.equal(tab(book, 'Students').data.find(r => r[2] === 'Sam')[4], 'Gunni');
+  ok('each student can be given a teacher from the Teachers tab, on the page or in the sheet; other names are refused');
 }
 // 6b. The older Students layout (with Added by / Added at) moves over without losing anyone.
 {
@@ -128,10 +138,22 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   sh.getRange(2, 1, 2, 7).setValues([[g.toDate_('2026-11-02'), 'Faddei', 'K3', 'Gunni', new Date(), '', 'abc-1'], [g.toDate_('2026-11-02'), 'Paul', 'K4', 'Sheet', new Date(), 'absent', 'abc-2']]);
   g.setup();
   const d = tab(book, 'Students').data;
-  assert.deepEqual(d[0], ['Test date', 'Test time', 'Student', 'Studio', 'Removed', 'ID']);
-  assert.deepEqual(d.slice(1).map(r => r.slice(1)), [['', 'Faddei', 'K3', '', 'abc-1'], ['', 'Paul', 'K4', 'absent', 'abc-2']]);
+  assert.deepEqual(d[0], ['Test date', 'Test time', 'Student', 'Studio', 'Teacher', 'Removed', 'ID']);
+  assert.deepEqual(d.slice(1).map(r => r.slice(1)), [['', 'Faddei', 'K3', '', '', 'abc-1'], ['', 'Paul', 'K4', '', 'absent', 'abc-2']]);
   assert.equal(g.day_(d[1][0]), '2026-11-02');
-  ok('the older Students layout becomes date | time | name | studio | removed | id, keeping IDs');
+  ok('the oldest Students layout becomes date | time | name | studio | teacher | removed | id, keeping IDs');
+}
+// 6c. The layout with a time but no teacher gets a Teacher column after Studio; everything else stays where it was.
+{
+  const { g, book } = loadScript();
+  const sh = g.SpreadsheetApp.getActive().insertSheet('Students');
+  sh.getRange(1, 1, 1, 6).setValues([['Test date', 'Test time', 'Student', 'Studio', 'Removed', 'ID']]);
+  sh.getRange(2, 1, 1, 6).setValues([[g.toDate_('2026-11-02'), '09:30', 'Faddei', 'K3', '', 'abc-1']]);
+  g.setup();
+  const d = tab(book, 'Students').data;
+  assert.deepEqual(d[0], ['Test date', 'Test time', 'Student', 'Studio', 'Teacher', 'Removed', 'ID']);
+  assert.deepEqual(d[1].slice(1), ['09:30', 'Faddei', 'K3', '', '', 'abc-1']);
+  ok('the layout without a Teacher column gets one after Studio, nothing else moves');
 }
 // 7. The Grades tab: same sum as the page, a row per student, a summary per grade.
 {
@@ -212,6 +234,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(st.qdays['2026-11-04'][0].t, 'Powers up in the right order, speakers last');
   assert.equal(st.qdays['2026-11-11'], undefined);
   ok('a marked date keeps its 18 questions (with the new wording); an unmarked date gets the new set');
+  call(g, { action: 'tidy', token: tok });   // the page sends this after every refresh
   const head = tab(book, 'Marks').data[0];
   assert.ok(head.includes('Patches the headphone line…') || head.some(h => /^Patches the headphone/.test(h)));
   assert.equal(head.at(-1), 'Page data (do not edit)');
@@ -224,6 +247,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   // remove a question from the tab: gone from today's set, still counted on the date that was marked with it
   const rows = tab(book, 'Questions').data; const at = rows.findIndex(r => r[7] === 's2') + 1;
   q.deleteRow(at);
+  call(g, { action: 'tidy', token: tok });
   st = call(g, { action: 'state', token: tok });
   assert.ok(!st.questions.some(x => x.id === 's2'));
   assert.ok(st.qdays['2026-11-04'].some(x => x.id === 's2'));

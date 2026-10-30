@@ -131,7 +131,7 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .add{margin-top:20px;display:flex;flex-direction:column;gap:10px}
 .field{display:flex;flex-direction:column;gap:4px}
 .field label{font-size:12px;color:var(--mute);font-weight:600}
-input[type=text],input[type=date],input[type=number],textarea,select{background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;font-size:16px}
+input[type=text],input[type=date],input[type=time],input[type=number],textarea,select{background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;font-size:16px}
 textarea{resize:vertical;min-height:44px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--sunk)}
@@ -394,6 +394,11 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 @media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
 .at{font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--led);margin-right:7px;vertical-align:1px}
 .pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.upd{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12.5px;color:var(--mute);font-family:var(--mono)}
+.upd .spin{width:14px;height:14px;border-width:2px;margin:0}
+.upd.off{color:var(--hint)}
+.whoseg{margin-top:16px}
+.unas{color:var(--hint)}
 .stat-res{display:block;font:inherit}
 .stat-res .n svg{width:24px;height:24px;display:block}
 /* grades screen */
@@ -498,7 +503,7 @@ function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor
 /* ------------------------------------------------------------------ state */
 // the back end address comes from config.js (or ?api=… while testing); without one the page runs as a preview
 const API=new URLSearchParams(location.search).get('api')||window.OPS_API||'';
-const S={token:ls.get('ops.token',''),me:ls.get('ops.me',''),role:ls.get('ops.role',''),demo:!API,tests:{},teachers:{},pending:ls.get('ops.pending',{}),view:'roster',open:null,day:ls.get('ops.day',null)||today(),all:false,days:{},dayWant:{},confirm:null,cal:null,sync:'ok',ready:false,loading:false,published:{},dayPicked:false,loadErr:''};
+const S={token:ls.get('ops.token',''),me:ls.get('ops.me',''),role:ls.get('ops.role',''),demo:!API,tests:{},teachers:{},pending:ls.get('ops.pending',{}),view:'roster',open:null,day:ls.get('ops.day',null)||today(),all:false,days:{},dayWant:{},confirm:null,cal:null,sync:'ok',ready:false,loading:false,published:{},dayPicked:false,loadErr:'',stale:false,offline:false,mine:ls.get('ops.mine',true)};
 if(ls.get('ops.q',null)){QNOW=qset(ls.get('ops.q'));for(const [d,l] of Object.entries(ls.get('ops.qdays',{})||{}))QDAYS[d]=qset(l)}
 
 /* ---- each teacher marks on their own: a student keeps one entry per teacher under by.<teacher name>.
@@ -557,13 +562,24 @@ async function api(action,body={}){
 async function load(){
   if(S.demo||!S.token||S.loading)return;
   S.loading=true;const j=await api('state');S.loading=false;
-  if(!j.ok){if(j.net)setSync('err');
+  if(!j.ok){if(j.net&&myPending().length)setSync('err');   // "not saved" only when something is waiting to be saved
     // nothing is shown before the first answer: say what is happening and keep trying
     if(!S.ready&&S.token){S.loadErr=j.error||'The Sheet did not answer.';render();clearTimeout(load.retry);load.retry=setTimeout(load,4000)}
+    else if(S.stale&&j.net&&!S.offline){S.offline=true;refresh()}
     return}
+  S.stale=false;S.offline=false;
+  ls.set('ops.cache',{me:j.me.name,j});
+  applyState(j);
+  tidy();
+}
+/* The script's slower housekeeping (IDs for pasted rows, Marks columns, the Grades tab) runs in its own call after
+   the page has its data, so opening the app never waits for it. */
+let tidyAt=0;
+function tidy(){if(S.demo||!S.token||Date.now()-tidyAt<20000)return;tidyAt=Date.now();api('tidy')}
+function applyState(j){
   S.me=j.me.name;S.role=j.me.role;ls.set('ops.me',S.me);ls.set('ops.role',S.role);
   const tests={};
-  for(const st of j.students)tests[st.id]={name:st.name,studio:st.studio,day:st.day,time:st.time||'',by:{}};
+  for(const st of j.students)tests[st.id]={name:st.name,studio:st.studio,day:st.day,time:st.time||'',teacher:st.teacher||'',by:{}};
   for(const e of j.entries)if(tests[e.sid])tests[e.sid].by[e.teacher]=e.data||{_progress:e.progress||0};
   S.tests=tests;
   S.teachers=Object.fromEntries(j.teachers.map(n=>[n,{name:n}]));
@@ -582,10 +598,13 @@ async function load(){
 /* Where the app opens: today if students are booked today, otherwise the next test day (so before the test and between
    test days it opens on the coming one), otherwise today. Only once per opening: after that the teacher's pick stays. */
 function startDay(){
-  const td=today(),days=new Set(Object.values(S.tests).map(t=>t.day));
+  // the teacher's own test days when they have students assigned, otherwise every test day
+  const all=Object.values(S.tests),own=all.filter(isMine);
+  const td=today(),days=new Set((own.length?own:all).map(t=>t.day));
   if(days.has(td))return td;
   return [...days].filter(d=>d>td).sort()[0]||td;
 }
+const isMine=t=>!!S.me&&(t.teacher||'').trim().toLowerCase()===S.me.trim().toLowerCase();
 // test date, then test time (students without one last), then name
 const byTime=(a,b)=>a.day<b.day?-1:a.day>b.day?1:(a.time||'99')<(b.time||'99')?-1:(a.time||'99')>(b.time||'99')?1:a.name.localeCompare(b.name);
 // keep every phone up to date: a quiet refresh every 10 seconds while the page is on screen
@@ -595,7 +614,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 /* ------------------------------------------------------------------ write queue: taps save in the background */
 function view(id){return S.pending[id]?merge(S.tests[id],S.pending[id]):S.tests[id]}
 // changes this teacher still has to send (unsaved marks left on the phone by someone else are not theirs to send)
-const myPending=()=>Object.keys(S.pending).filter(id=>{const p=S.pending[id];return p&&(p.day||p.time!==undefined||(p.by&&p.by[S.me]))});
+const myPending=()=>Object.keys(S.pending).filter(id=>{const p=S.pending[id];return p&&(p.day||p.time!==undefined||p.teacher!==undefined||(p.by&&p.by[S.me]))});
 function allTests(){return Object.keys(S.tests).map(id=>({id,...view(id)})).filter(t=>t.name&&!t.deleted)}
 function patch(id,obj){
   S.pending[id]=merge(S.pending[id],obj);ls.set('ops.pending',S.pending);
@@ -613,7 +632,7 @@ async function flush(){
     // send only this teacher's part; anything else in the queue stays for its owner
     const other=p.by?Object.fromEntries(Object.entries(p.by).filter(([k])=>k!==S.me)):{};
     const steps=[];
-    if(p.day||p.time!==undefined)steps.push(['updateStudent',{id,day:p.day,time:p.time}]);
+    if(p.day||p.time!==undefined||p.teacher!==undefined)steps.push(['updateStudent',{id,day:p.day,time:p.time,teacher:p.teacher}]);
     const m=p.by&&p.by[S.me];if(m)steps.push(['saveEntry',{sid:id,patch:m}]);
     let failed=false;
     for(const [a,b] of steps){
@@ -642,6 +661,9 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
 async function boot(){
   if(S.demo){startDemo();return}
   if(!S.token){S.view='login';renderBar();render();return}
+  // open at once with what this phone saw last time, marked "Updating…" until the Sheet answers
+  const c=ls.get('ops.cache',null);
+  if(c&&c.j&&c.me&&S.me&&c.me.toLowerCase()===S.me.toLowerCase()){S.stale=true;try{applyState(c.j)}catch(e){S.stale=false;S.ready=false}}
   renderBar();render();
   await load();
   flushSoon(10);
@@ -651,7 +673,7 @@ function signOut(msg){
   if(!msg&&myPending().length){toast('Some marks are not saved yet. Connect to the internet, wait for the green dot, then sign out.');flushSoon(10);return}
   if(S.token&&!msg)api('logout');
   S.token='';S.me='';S.role='';S.tests={};S.days={};S.teachers={};S.ready=false;S.dayPicked=false;G.list=null;
-  ls.set('ops.token','');ls.set('ops.me','');ls.set('ops.role','');
+  ls.set('ops.token','');ls.set('ops.me','');ls.set('ops.role','');ls.set('ops.cache',null);
   if(msg)toast(msg);go('login');
 }
 function startDemo(){
@@ -660,7 +682,7 @@ function startDemo(){
   const d=today();
   const nx=new Date();nx.setDate(nx.getDate()+6);const later=nx.getFullYear()+'-'+String(nx.getMonth()+1).padStart(2,'0')+'-'+String(nx.getDate()).padStart(2,'0');
   const all=v=>Object.fromEntries(QNOW.map(c=>[c.id,v(c)]));
-  let slot=9*60;const mk=(name,day,by)=>{const id=rid();S.tests[id]={name,studio:'K3',day,time:String(Math.floor(slot/60)).padStart(2,'0')+':'+String(slot%60).padStart(2,'0'),by};slot+=30};
+  let slot=9*60,turn=0;const mk=(name,day,by)=>{const id=rid();S.tests[id]={name,studio:'K3',day,teacher:['Gunnar','Gunnar','Anna'][turn++%3],time:String(Math.floor(slot/60)).padStart(2,'0')+':'+String(slot%60).padStart(2,'0'),by};slot+=30};
   mk('Example · Lena',d,{'Gunnar':{marks:{p1:'y',p2:'y',p3:'y',m1:'y',m2:'h',m3:'y',m4:'y',r1:'y',t1:'y',t2:'g',t3:'y'}}});
   mk('Example · Jonas',d,{'Gunnar':{marks:all(c=>c.id==='t2'?'h':'y')},'Anna':{marks:all(c=>c.id==='m2'||c.id==='c4'?'g':'y'),safety:{a:{t:Date.now(),text:'Phantom switched with fader up'}}}});
   mk('Example · Mira',d,{'Gunnar':{marks:{p1:'y',p2:'n',m1:'y'},safety:{a:{t:Date.now()-6e5,text:'Speakers switched with level up'}}}});
@@ -833,12 +855,14 @@ function renderRoster(){
   const all=allTests();
   const byDay={};all.forEach(t=>(byDay[t.day]=byDay[t.day]||[]).push(t));
   const days=Object.keys(byDay).sort();
-  const list=all.filter(t=>t.day===S.day).sort(byTime);
+  const dayList=all.filter(t=>t.day===S.day).sort(byTime),myList=dayList.filter(isMine);
+  // until a teacher has students assigned to them anywhere, they simply see everyone
+  const mineView=S.mine&&all.some(isMine),list=mineView?myList:dayList;
   const cnt={todo:0,live:0,done:0};list.forEach(t=>cnt[statusOf(t).k]++);
   const marked=cnt.done;
   const lastStudio=STUDIOS.includes(ls.get('ops.studio',''))?ls.get('ops.studio',''):STUDIOS[0];
   const row=t=>{const st=statusOf(t),ce=scoreOf(mine(t),t).inc.length,nt=Object.keys(entries(t)).length;
-    return `<button class="row" data-open="${t.id}">${ring(t)}<span class="who"><b>${t.time?`<span class="at">${t.time}</span>`:''}${esc(t.name)}${timerOf(t.id)?` <span class="tm-mini" data-timer="${t.id}"><span class="tm-num">${timerOf(t.id).txt}</span></span>`:''}</b><span>${[esc(t.studio||''),nt?nt+' teacher'+(nt>1?'s':''):''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}</span></span><span class="pill ${st.k}">${st.l}</span></button>`};
+    return `<button class="row" data-open="${t.id}">${ring(t)}<span class="who"><b>${t.time?`<span class="at">${t.time}</span>`:''}${esc(t.name)}${timerOf(t.id)?` <span class="tm-mini" data-timer="${t.id}"><span class="tm-num">${timerOf(t.id).txt}</span></span>`:''}</b><span>${[esc(t.studio||''),mineView?'':t.teacher?esc(t.teacher):'<span class="unas">No teacher</span>',nt?nt+' marking':''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}</span></span><span class="pill ${st.k}">${st.l}</span></button>`};
   const stats=`<div class="stat"><div class="n">${list.length}</div><div class="l">Students</div></div>
       <div class="stat"><div class="n">${marked}</div><div class="l">Marked by you</div></div>
       <div class="stat"><div class="n" style="color:var(--mute)">${cnt.todo}</div><div class="l">Not started</div></div>
@@ -846,16 +870,19 @@ function renderRoster(){
   $('#app').innerHTML=`
    ${S.all?calendar(byDay):''}
    ${S.demo?`<div class="banner"><b>Preview.</b> These students and the second teacher are examples and nothing here is saved.</div>`:''}
+   ${S.stale?`<div class="upd${S.offline?' off':''}" role="status">${S.offline?'Offline · showing what this phone saw last':'<span class="spin" aria-hidden="true"></span>Updating from the Sheet…'}</div>`:''}
    <div class="summary">${stats}</div>
+   ${dayList.length?`<div class="seg whoseg" id="whoSeg" role="group" aria-label="Whose students"><button type="button" data-mine="1" aria-pressed="${mineView}">My students · ${myList.length}</button><button type="button" data-mine="0" aria-pressed="${!mineView}">Everyone · ${dayList.length}</button></div>`:''}
    <div class="list">
      <div class="dayhead"><b>${fmtDay(S.day)}${S.day===today()?' · today':''}</b><span>${list.length} student${list.length===1?'':'s'}</span></div>
-     ${list.length?list.map(row).join(''):`<div class="empty"><b>No tests on ${fmtDay(S.day)}</b>Add students below, or pick another date.</div>`}
+     ${list.length?list.map(row).join(''):dayList.length?`<div class="empty"><b>None of your students on ${fmtDay(S.day)}</b>${dayList.length} ${dayList.length===1?'student is':'students are'} booked with other teachers or have no teacher yet. Tap Everyone to see them.</div>`:`<div class="empty"><b>No tests on ${fmtDay(S.day)}</b>Add students below, or pick another date.</div>`}
    </div>
 
    <form class="card add" id="addForm" autocomplete="off">
      <h3 style="font-size:16px">Add students to ${fmtDay(S.day)}</h3>
      <p class="readout" style="margin:-4px 0 0">Plan ahead: change the date at the top first, then add the students for that day.</p>
      <div class="field"><label for="addNames">Names, one per line. Start a line with the test time, like 10:30 Kim</label><textarea id="addNames" rows="3" placeholder="10:30 Student name"></textarea></div>
+     <div class="field"><label>Teacher</label><div class="seg" id="addTeacher" role="group" aria-label="Teacher">${Object.keys(S.teachers).map(n=>`<button type="button" data-teacher="${esc(n)}" aria-pressed="${n===S.me}">${esc(n)}</button>`).join('')}</div></div>
      <div class="field"><label>Studio</label><div class="seg" id="addStudio" role="group" aria-label="Studio">${STUDIOS.map(x=>`<button type="button" data-studio="${x}" aria-pressed="${x===lastStudio}">${x}</button>`).join('')}</div></div>
      <button class="primary" type="submit" ${!canMark()?'disabled':''}>Add to ${fmtDay(S.day)}</button>
    </form>
@@ -867,15 +894,18 @@ function renderRoster(){
   $('#app').querySelectorAll('[data-mo]').forEach(b=>b.onclick=()=>{const [y,m]=(S.cal||S.day.slice(0,7)).split('-').map(Number);const d=new Date(y,m-1+(+b.dataset.mo),1);S.cal=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');render()});
   $('#app').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>go('test',b.dataset.open));
   $('#gradesBtn').onclick=openGrades;
+  $('#whoSeg')?.addEventListener('click',e=>{const b=e.target.closest('[data-mine]');if(!b)return;S.mine=b.dataset.mine==='1';ls.set('ops.mine',S.mine);render()});
+  $('#addTeacher').onclick=e=>{const b=e.target.closest('[data-teacher]');if(!b)return;$('#addTeacher').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b))};
   $('#addStudio').onclick=e=>{const b=e.target.closest('[data-studio]');if(!b)return;$('#addStudio').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b))};
   $('#addForm').onsubmit=async e=>{e.preventDefault();if(!canMark())return;
     const names=$('#addNames').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!names.length){toast('Type at least one name');return}
     const lines=names.map(parseLine);
     const studio=$('#addStudio [aria-pressed="true"]')?.dataset.studio||STUDIOS[0],day=S.day;ls.set('ops.studio',studio);
+    const teacher=$('#addTeacher [aria-pressed="true"]')?.dataset.teacher||'';
     const msg=(names.length>1?`Added ${names.length} students`:`Added ${lines[0].name}`)+' to '+fmtDay(day);
-    if(S.demo){lines.forEach(l=>{S.tests[rid()]={name:l.name,time:l.time,studio,day,by:{}}});render();toast(msg);return}
+    if(S.demo){lines.forEach(l=>{S.tests[rid()]={name:l.name,time:l.time,studio,teacher,day,by:{}}});render();toast(msg);return}
     const btn=e.target.querySelector('button[type=submit]');btn.disabled=true;btn.textContent='Adding…';
-    const j=await api('addStudents',{names,studio,day});
+    const j=await api('addStudents',{names,studio,day,teacher});
     btn.disabled=false;
     if(!j.ok){btn.textContent='Add to '+fmtDay(day);toast(j.error);return}
     $('#addNames').value='';await load();toast(msg);
@@ -894,7 +924,7 @@ async function loadGrades(force){
   if(j.ok){G.list=j.students;G.at=Date.now();G.err=''}else G.err=j.error||'The grades could not be loaded.';
 }
 function demoGrades(){return allTests().map(t=>{const g=gradeOf(t);
-  return {id:t.id,day:t.day,time:t.time||'',name:t.name,studio:t.studio,marked:g.marked,total:g.total,score:g.marked?Math.round(g.score):null,final:g.marked?Math.round(g.final):null,
+  return {id:t.id,day:t.day,time:t.time||'',name:t.name,studio:t.studio,teacher:t.teacher||'',marked:g.marked,total:g.total,score:g.marked?Math.round(g.score):null,final:g.marked?Math.round(g.final):null,
     errors:g.errors,coreFails:g.coreFails.map(c=>c.t),complete:g.complete,grade:g.marked?g.grade.l:null,teachers:g.teachers,
     stages:stagesFor(t).map(s=>{const xs=g.per.filter(x=>x.c.s===s.id&&x.avg!==null);return {name:s.short,pct:xs.length?Math.round(xs.reduce((a,x)=>a+x.avg,0)/xs.length*100):null}})}})}
 async function openGrades(){G.day=null;go('grades');await loadGrades(true);if(S.view==='grades')renderGrades()}
@@ -915,7 +945,7 @@ function renderGrades(){
   const card=x=>{const k=gkey(x),c=GK[k],col=c.col;
     return `<article class="gcard g-${c.cls}">
       <div class="gc-top"><b>${x.time?`<span class="at">${x.time}</span>`:''}${esc(x.name)}</b><span class="pill ${c.pill}">${esc(c.l||k)}</span></div>
-      <div class="gc-sub">${[day==='all'?fmtDay(x.day):'',esc(x.studio),x.teachers.length?'Marked by '+esc(x.teachers.join(', ')):''].filter(Boolean).join(' · ')}</div>
+      <div class="gc-sub">${[day==='all'?fmtDay(x.day):'',esc(x.studio),x.teacher?'Teacher '+esc(x.teacher):'',x.teachers.length?'marked by '+esc(x.teachers.join(', ')):''].filter(Boolean).join(' · ')}</div>
       ${!x.marked?'<div class="gc-prog">No marks yet.</div>':`
       <div class="gc-final"><span class="gc-num" style="color:var(--${col})">${x.final}</span><span class="track" aria-hidden="true"><i style="width:${x.final}%;background:var(--${col})"></i><u style="left:60%"></u><u style="left:75%"></u></span></div>
       <div class="gc-prog">${x.complete?'':'So far · '}score ${x.score}${x.errors.length?` − ${x.errors.length*10} for ${x.errors.length} critical error${x.errors.length>1?'s':''}`:''} · ${x.marked}/${x.total} skills marked</div>
@@ -972,6 +1002,7 @@ function renderSheet(){
        <p class="readout" id="progTxt" style="margin:0;font-size:14px"></p>
        <div class="field"><label for="summary">Your feedback for the student</label><textarea id="summary" rows="3" placeholder="What went well, what to practise"></textarea></div>
        <div class="pair"><div class="field"><label for="moveDay">Test date</label><input type="date" id="moveDay"></div><div class="field"><label for="moveTime">Test time</label><input type="time" id="moveTime"></div></div>
+       <div class="field"><label for="moveTeacher">Teacher</label><select id="moveTeacher">${[...new Set(['',...Object.keys(S.teachers),t.teacher||''])].map(n=>`<option value="${esc(n)}">${n?esc(n):'No teacher yet'}</option>`).join('')}</select></div>
        <div class="foot"><button class="primary" id="doneBtn" type="button">Save and back to students</button><button class="ghost danger" id="delBtn" type="button">Delete</button></div>
      </section>
    </div>`;
@@ -989,6 +1020,7 @@ function renderSheet(){
   $('#critChips').onclick=e=>{const b=e.target.closest('button');if(!b||!canMark())return;const text=b.dataset.q,keys=activeKeys(text);
     if(keys.length)patchMine(S.open,{safety:Object.fromEntries(keys.map(k=>[k,null]))});else logInc(text);navigator.vibrate?.(8)};
   $('#moveDay').onchange=e=>{const d=e.target.value;if(!d)return;patch(S.open,{day:d});S.day=d;ls.set('ops.day',d);renderBar();toast('Moved to '+fmtDay(d))};
+  $('#moveTeacher').onchange=e=>{const v=e.target.value;patch(S.open,{teacher:v});toast(v?'Teacher: '+v:'No teacher')};
   $('#moveTime').onchange=e=>{const v=e.target.value||'';patch(S.open,{time:v});toast(v?'Test time '+v:'Test time cleared')};
   $('#incText').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();logInc($('#incText').value.trim())}};
   $('#doneBtn').onclick=()=>{flushSoon(0);go('roster')};
@@ -1011,7 +1043,8 @@ function syncSheet(first){
   if(S.view!=='test')return;const raw=view(S.open);if(!raw||raw.deleted){go('roster');return}
   const t={id:S.open,...raw},e=mine(t),sc=scoreOf(e,t),app=$('#app');
   $('#sName').textContent=t.name;
-  $('#sMeta').textContent=[t.studio,t.time].filter(Boolean).join(' · ');
+  $('#sMeta').textContent=[t.studio,t.time,t.teacher].filter(Boolean).join(' · ');
+  const mtc=$('#moveTeacher');if(document.activeElement!==mtc)mtc.value=t.teacher||'';
   const md=$('#moveDay');if(document.activeElement!==md)md.value=t.day||'';
   const mt=$('#moveTime');if(document.activeElement!==mt)mt.value=t.time||'';
   app.querySelectorAll('.marks').forEach(g=>{const v=e.marks?.[g.dataset.crit];g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===v));(g.closest('.crit')).dataset.m=v||''});

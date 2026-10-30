@@ -39,6 +39,7 @@ export function loadScript() {
     }
     appendRow(row) { this.data.splice(this.getLastRow(), 0, row.slice()); }
     deleteRow(r) { this.data.splice(r - 1, 1); }
+    insertColumnAfter(c) { this.data.forEach(row => { if (row.length > c) row.splice(c, 0, ''); }); }
     clear() { this.data = []; return this; }
     clearContents() { this.data = []; return this; }
     getMaxColumns() { return Math.max(26, this.getLastColumn()); }

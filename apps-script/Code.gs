@@ -16,7 +16,7 @@
  * Tabs (Ops Test ▸ Set up / tidy the sheet):
  *   Start here  what this is and how to add a teacher
  *   Teachers    Name | Role | Last sign-in
- *   Students    one row per student: test date, test time, name, studio; type or paste here (a date picker on the date column)
+ *   Students    one row per student: test date, test time, name, studio, teacher; type or paste here (a date picker on the date column)
  *   Questions   the test itself: one row per question, in order; the page reads it, so editing it changes the test
  *   Marks       one row per student per teacher, every skill readable; the last column is the page's own copy
  *   Grades      the overview: every student's combined grade, stages, progress and errors, rebuilt by the script
@@ -67,8 +67,8 @@ const BLUE = '#0b43e0', INK = '#10131c', PAPER = '#f4f6fa', MUTE = '#5a6276';
 const SHEETS = {
   START:    { name: 'Start here', header: [] },
   TEACHERS: { name: 'Teachers', header: ['Name', 'Role', 'Last sign-in'], widths: [220, 120, 170] },
-  STUDENTS: { name: 'Students', header: ['Test date', 'Test time', 'Student', 'Studio', 'Removed', 'ID'],
-              widths: [110, 90, 220, 90, 220, 110] },
+  STUDENTS: { name: 'Students', header: ['Test date', 'Test time', 'Student', 'Studio', 'Teacher', 'Removed', 'ID'],
+              widths: [110, 90, 220, 90, 140, 220, 110] },
   QUESTIONS:{ name: 'Questions', header: ['Stage', 'Stage heading', 'Question', 'Ask out loud (optional)', 'Core', 'Studio', 'Column name', 'ID'],
               widths: [110, 220, 380, 320, 60, 80, 220, 90] },
   MARKS:    { name: 'Marks', header: [] },   // its skill columns follow the questions: see syncMarks_
@@ -124,6 +124,7 @@ function buildStart_() {
     ['Add students', 'Open the Students tab. Type the test date, the test time (like 10:30), the student\'s name and the studio, one student per row.'],
     ['', 'Pasting a whole list? Paste the names into the Student column and type the date once at the top: rows below take the date and studio from the row above. Each student keeps their own time.'],
     ['', 'They appear on the page within a few seconds. Teachers can also add students on the page itself.'],
+    ['Assign a teacher', 'Pick the teacher in the student\'s Teacher column. On the page each teacher sees their own students first (with a switch to see everyone).'],
     ['Remove a student', 'Type anything (for example "absent") in their Removed column. Their row stays, so nothing is lost.'],
     ['Remove a teacher', 'Delete their row in Teachers. Their marks stay in Marks.'],
     ['Change the questions', 'Edit the Questions tab: one row per question, in test order. Add a row, delete a row, reword, tick Core, or set a studio. The page picks it up within a few seconds.'],
@@ -187,6 +188,9 @@ function style_() {
   st.getRange(2, S_.NAME + 1, sr, 1).setFontWeight('bold');
   st.getRange(2, S_.STUDIO + 1, sr, 1).setHorizontalAlignment('center').setDataValidation(
     SpreadsheetApp.newDataValidation().requireValueInList(STUDIO_LIST, true).setAllowInvalid(false).setHelpText('K3 or K4').build());
+  st.getRange(2, S_.TEACHER + 1, sr, 1).setHorizontalAlignment('center').setDataValidation(
+    SpreadsheetApp.newDataValidation().requireValueInRange(sheet_(SHEETS.TEACHERS).getRange('A2:A'), true).setAllowInvalid(false)
+      .setHelpText('The teacher who runs this student\'s test: a name from the Teachers tab.').build());
   st.getRange(2, S_.REMOVED + 1, sr, 1).setFontColor(MUTE);
   st.hideColumns(S_.ID + 1);
   const q = sheet_(SHEETS.QUESTIONS), qr = q.getMaxRows() - 1;
@@ -394,7 +398,8 @@ function route_(req) {
   const me = auth_(req.token);
   if (!me) return { ok: false, error: 'Please sign in again.', code: 'auth' };
   switch (a) {
-    case 'state':          withLock_(() => { ensureStudentIds_(); ensureQuestionIds_(); syncMarks_(); maybeBuildGrades_(); return {}; }); return state_(me);
+    case 'state':          return state_(me);   // only reads, so the page opens quickly
+    case 'tidy':           return withLock_(() => { ensureStudentIds_(); ensureQuestionIds_(); syncMarks_(); maybeBuildGrades_(); return { ok: true }; });
     case 'addStudents':    return withLock_(() => addStudents_(me, req));
     case 'updateStudent':  return withLock_(() => updateStudent_(me, req));
     case 'saveEntry':      return withLock_(() => saveEntry_(me, req));
@@ -484,6 +489,9 @@ function hash_(password, salt) {
   return h;
 }
 
+/** A name from the Teachers tab, spelled as it is there; '' for anything else. */
+function teacherName_(name) { const t = teachers_().find(x => norm_(x.name) === norm_(name)); return t ? t.name : ''; }
+
 function teachers_() {
   return rows_(SHEETS.TEACHERS).map((r, i) => ({ r, i })).filter(x => String(x.r[T.NAME] || '').trim()).map(({ r, i }) => ({
     row: i + 2, name: String(r[T.NAME]).trim(), role: String(r[T.ROLE] || 'teacher'), last: r[T.LAST] || '' }))
@@ -492,14 +500,14 @@ function teachers_() {
 
 // ─────────────────────────────────────────────────────────────── data
 
-const S_ = { DAY: 0, TIME: 1, NAME: 2, STUDIO: 3, REMOVED: 4, ID: 5 };
+const S_ = { DAY: 0, TIME: 1, NAME: 2, STUDIO: 3, TEACHER: 4, REMOVED: 5, ID: 6 };
 
 function students_() {
   const sh = sheet_(SHEETS.STUDENTS), n = sh.getLastRow() - 1;
   if (n < 1) return [];
   const range = sh.getRange(2, 1, n, SHEETS.STUDENTS.header.length), rows = range.getValues(), shown = range.getDisplayValues();
   return rows.map((r, i) => ({ row: i + 2, id: String(r[S_.ID] || ''), day: day_(r[S_.DAY]), time: time_(r[S_.TIME], shown[i][S_.TIME]),
-    name: String(r[S_.NAME] || '').trim(), studio: String(r[S_.STUDIO] || ''), removed: !!r[S_.REMOVED] }))
+    name: String(r[S_.NAME] || '').trim(), studio: String(r[S_.STUDIO] || ''), teacher: String(r[S_.TEACHER] || '').trim(), removed: !!r[S_.REMOVED] }))
     .filter(s => s.id && s.name && s.day);
 }
 /** Test date, then test time (students without one last), then name. */
@@ -531,7 +539,7 @@ function state_(me) {
   students.forEach(s => { if (!(s.day in qdays)) qdays[s.day] = frozen_(s.day) ? questionsFor_(s.day, questions) : null; });
   Object.keys(qdays).forEach(d => { if (!qdays[d]) delete qdays[d]; });
   return { ok: true, me: { name: me.name, role: me.role },
-    students: students.map(s => ({ id: s.id, day: s.day, time: s.time, name: s.name, studio: s.studio })),
+    students: students.map(s => ({ id: s.id, day: s.day, time: s.time, name: s.name, studio: s.studio, teacher: s.teacher })),
     entries, teachers: teachers_().map(t => t.name), questions, qdays };
 }
 
@@ -543,7 +551,8 @@ function addStudents_(me, req) {
     .map(l => { const m = l.match(/^(\d{1,2}[:.]\d{2})\s+(.+)$/); return m && time_(m[1]) ? { time: time_(m[1]), name: clean_(m[2], 80) } : { time: '', name: clean_(l, 80) }; });
   if (!lines.length) return { ok: false, error: 'Type at least one name.' };
   const studio = STUDIO_LIST.indexOf(clean_(req.studio, 10)) >= 0 ? clean_(req.studio, 10) : STUDIO_LIST[0], sh = sheet_(SHEETS.STUDENTS);
-  const rows = lines.map(l => [toDate_(day), l.time, l.name, studio, '', newId_()]);
+  const t = teacherName_(req.teacher);
+  const rows = lines.map(l => [toDate_(day), l.time, l.name, studio, t, '', newId_()]);
   sh.getRange(sh.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
   return { ok: true, ids: rows.map(r => r[S_.ID]) };
 }
@@ -567,6 +576,7 @@ function updateStudent_(me, req) {
   }
   if (req.studio !== undefined) sh.getRange(s.row, S_.STUDIO + 1).setValue(clean_(req.studio, 40));
   if (req.time !== undefined) sh.getRange(s.row, S_.TIME + 1).setValue(time_(req.time));
+  if (req.teacher !== undefined) sh.getRange(s.row, S_.TEACHER + 1).setValue(teacherName_(req.teacher));
   return { ok: true };
 }
 
@@ -771,7 +781,7 @@ function grades_() {
   return { ok: true, students: gradeList_().list.map(({ s, qs, g }) => {
     const stages = [];
     qs.forEach(q => { if (!stages.some(x => x.name === q.stage)) stages.push({ name: q.stage, pct: q.stage in g.stages ? g.stages[q.stage] : null }); });
-    return { id: s.id, day: s.day, time: s.time, name: s.name, studio: s.studio, marked: g.marked, total: qs.length,
+    return { id: s.id, day: s.day, time: s.time, name: s.name, studio: s.studio, teacher: s.teacher, marked: g.marked, total: qs.length,
       score: g.score === null ? null : Math.round(g.score), final: g.final === null ? null : Math.round(g.final),
       errors: g.errors, coreFails: g.coreFails, complete: g.complete, grade: g.band ? g.band[0] : null, teachers: g.teachers, stages };
   }) };
@@ -889,14 +899,20 @@ function migrateTeachers_() {
 
 function migrateStudents_() {
   const o = headerOf_(SHEETS.STUDENTS.name);
-  if (!o || o.head[1] === 'Test time') return;
+  if (!o || o.head[4] === 'Teacher') return;
+  if (o.head[1] === 'Test time') {
+    // v3 layout: Test date | Test time | Student | Studio | Removed | ID — the Teacher column goes in after Studio
+    o.sh.insertColumnAfter(S_.STUDIO + 1);
+    o.sh.getRange(1, S_.TEACHER + 1).setValue('Teacher');
+    return;
+  }
   let rows;
   if (o.head[0] === 'Test date') {
     // v2 layout: Test date | Student | Studio | Added by | Added at | Removed | ID
-    rows = o.rows.filter(r => r[1] || r[6]).map(r => [r[0], '', r[1], r[2], r[5] || '', r[6]]);
+    rows = o.rows.filter(r => r[1] || r[6]).map(r => [r[0], '', r[1], r[2], '', r[5] || '', r[6]]);
   } else {
     // v1 layout: ID | Test date | Student | Studio | Added by | Added at | Deleted
-    rows = o.rows.filter(r => r[0]).map(r => [toDate_(day_(r[1])), '', r[2], r[3], r[6] || '', r[0]]);
+    rows = o.rows.filter(r => r[0]).map(r => [toDate_(day_(r[1])), '', r[2], r[3], '', r[6] || '', r[0]]);
   }
   try { o.sh.showColumns(1, o.sh.getMaxColumns()); o.sh.getRange(1, 1, o.sh.getMaxRows(), o.sh.getMaxColumns()).clearDataValidations(); } catch (e) {}
   o.sh.clear(); const W = SHEETS.STUDENTS.header.length;
