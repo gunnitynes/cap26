@@ -19,6 +19,21 @@ g.setTeacher_('Gunnar', 'admin');
 g.setTeacher_('Anna', 'teacher');
 g.setTeamPassword_('catalyst');                    // everyone signs in with this
 const call = body => JSON.parse(g.doPost({ postData: { contents: body } }).s);
+// OPS_SEED=1: example students on the next two test days (three and five days from now), some already marked by both teachers.
+if (process.env.OPS_SEED) {
+  const ymd = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+  const tok = n => call(JSON.stringify({ action: 'login', name: n, password: 'catalyst' })).token, gt = tok('Gunnar'), at = tok('Anna');
+  call(JSON.stringify({ action: 'addStudents', token: gt, studio: 'K3', day: ymd(3), names: ['11:00 Polina', '09:30 Faddei', '10:15 Yutaro', 'Tales'] }));
+  call(JSON.stringify({ action: 'addStudents', token: gt, studio: 'K4', day: ymd(5), names: ['09:00 Ida', '09:40 Paul'] }));
+  const st = call(JSON.stringify({ action: 'state', token: gt })), ids = st.questions.map(q => q.id), id = n => st.students.find(x => x.name === n).id;
+  const all = f => Object.fromEntries(ids.map((q, i) => [q, f(q, i)]));
+  const save = (t, n, patch) => call(JSON.stringify({ action: 'saveEntry', token: t, sid: id(n), patch }));
+  save(gt, 'Faddei', { marks: all(() => 'y') }); save(at, 'Faddei', { marks: all((q, i) => i % 5 ? 'y' : 'h') });
+  save(gt, 'Yutaro', { marks: all((q, i) => i % 3 ? 'h' : 'g'), safety: { a: { t: 1, text: 'Speakers switched with level up' } } });
+  save(gt, 'Polina', { marks: all((q, i) => i === 7 ? 'n' : i % 2 ? 'g' : 'h') });
+  save(at, 'Ida', { marks: { p1: 'y', p2: 'y', p3: 'h', m1: 'y' } });
+  console.log('Seeded example students on', ymd(3), 'and', ymd(5));
+}
 // OPS_TRY_QUESTIONS=1: 45 s after start, someone "edits the Questions tab" (rewords the first question, adds a K3 one
 // to Mic), so you can watch an open page pick it up.
 if (process.env.OPS_TRY_QUESTIONS) setTimeout(() => {

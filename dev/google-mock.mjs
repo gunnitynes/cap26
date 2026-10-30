@@ -14,6 +14,7 @@ export function loadScript() {
     constructor(sh, r, c, nr, nc) { Object.assign(this, { sh, r, c, nr, nc }); }
     getValues() { const out = []; for (let i = 0; i < this.nr; i++) { const row = []; for (let j = 0; j < this.nc; j++) row.push(this.sh.get(this.r + i, this.c + j)); out.push(row); } return out; }
     getValue() { return this.sh.get(this.r, this.c); }
+    getDisplayValues() { return this.getValues().map(r => r.map(v => v instanceof Date ? v.toISOString() : String(v ?? ''))); }
     setValues(v) { v.forEach((row, i) => row.forEach((x, j) => this.sh.set(this.r + i, this.c + j, x))); return lenient(this); }
     setValue(x) { this.sh.set(this.r, this.c, x); return lenient(this); }
     setFormula(f) { this.sh.set(this.r, this.c, f); return lenient(this); }

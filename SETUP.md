@@ -63,6 +63,8 @@ Edit the **Questions** tab in the Sheet. Each row is one question, in test order
 
 Phones pick up the change within about 10 seconds. A test date keeps the questions it was first marked with, so grades already given never move (rewording still shows there). **Ops Test ▸ Use the current questions for a test date** moves a marked date onto the current questions.
 
+`OPS_SEED=1 node dev/server.mjs` adds example students (with times and marks) three and five days ahead, for trying the start day and the Grades screen.
+
 Try it locally: `OPS_TRY_QUESTIONS=1 node dev/server.mjs` edits the tab 45 seconds after start, so an open page shows the change.
 
 ## What is where in the Sheet

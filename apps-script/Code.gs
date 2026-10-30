@@ -16,7 +16,7 @@
  * Tabs (Ops Test ▸ Set up / tidy the sheet):
  *   Start here  what this is and how to add a teacher
  *   Teachers    Name | Role | Last sign-in
- *   Students    one row per student and test date; type or paste names here (a date picker on the date column)
+ *   Students    one row per student: test date, test time, name, studio; type or paste here (a date picker on the date column)
  *   Questions   the test itself: one row per question, in order; the page reads it, so editing it changes the test
  *   Marks       one row per student per teacher, every skill readable; the last column is the page's own copy
  *   Grades      the overview: every student's combined grade, stages, progress and errors, rebuilt by the script
@@ -67,8 +67,8 @@ const BLUE = '#0b43e0', INK = '#10131c', PAPER = '#f4f6fa', MUTE = '#5a6276';
 const SHEETS = {
   START:    { name: 'Start here', header: [] },
   TEACHERS: { name: 'Teachers', header: ['Name', 'Role', 'Last sign-in'], widths: [220, 120, 170] },
-  STUDENTS: { name: 'Students', header: ['Test date', 'Student', 'Studio', 'Added by', 'Added at', 'Removed', 'ID'],
-              widths: [100, 200, 110, 120, 140, 220, 110] },
+  STUDENTS: { name: 'Students', header: ['Test date', 'Test time', 'Student', 'Studio', 'Removed', 'ID'],
+              widths: [110, 90, 220, 90, 220, 110] },
   QUESTIONS:{ name: 'Questions', header: ['Stage', 'Stage heading', 'Question', 'Ask out loud (optional)', 'Core', 'Studio', 'Column name', 'ID'],
               widths: [110, 220, 380, 320, 60, 80, 220, 90] },
   MARKS:    { name: 'Marks', header: [] },   // its skill columns follow the questions: see syncMarks_
@@ -121,8 +121,8 @@ function buildStart_() {
     [TEAM_LABEL, ''],
     ['', 'Everyone signs in with this one password. Type it in the cell above (6 characters or more); it is hidden as soon as you press Enter. Type a new one over the dots to change it.'],
     ['Add a teacher', 'Type their name in the Teachers tab. It then appears on the sign-in page: they pick it and type the team password.'],
-    ['Add students', 'Open the Students tab. Type the test date, the student\'s name and the studio, one student per row.'],
-    ['', 'Pasting a whole list? Paste the names into the Student column and type the date once at the top: rows below take the date and studio from the row above.'],
+    ['Add students', 'Open the Students tab. Type the test date, the test time (like 10:30), the student\'s name and the studio, one student per row.'],
+    ['', 'Pasting a whole list? Paste the names into the Student column and type the date once at the top: rows below take the date and studio from the row above. Each student keeps their own time.'],
     ['', 'They appear on the page within a few seconds. Teachers can also add students on the page itself.'],
     ['Remove a student', 'Type anything (for example "absent") in their Removed column. Their row stays, so nothing is lost.'],
     ['Remove a teacher', 'Delete their row in Teachers. Their marks stay in Marks.'],
@@ -131,7 +131,7 @@ function buildStart_() {
     ['', ''],
     ['What the tabs hold', ''],
     ['Teachers', 'Who can sign in. Their names are the list on the sign-in page.'],
-    ['Students', 'Everyone booked for a test: date, name, studio. Type or paste here, or add them on the page.'],
+    ['Students', 'Everyone booked for a test: date, time, name, studio. Type or paste here, or add them on the page.'],
     ['Questions', 'The test itself: every question, its stage, whether it is Core, and which studio it is for.'],
     ['Marks', 'One row per student per teacher, every skill readable. The last column is the page\'s own copy; leave it alone.'],
     ['Grades', 'The overview: every student\'s grade, progress, a colour per test stage and their critical errors. Kept up to date by itself.'],
@@ -177,16 +177,18 @@ function style_() {
     SpreadsheetApp.newDataValidation().requireValueInList(['teacher', 'admin'], true).setAllowInvalid(false).build());
   t.getRange(2, T.LAST + 1, t.getMaxRows() - 1, 1).setNumberFormat('dd.MM.yyyy HH:mm').setFontColor(MUTE);
   t.getRange(2, T.NAME + 1, t.getMaxRows() - 1, 1).setFontWeight('bold');
-  const st = sheet_(SHEETS.STUDENTS);
-  st.getRange(2, 1, st.getMaxRows() - 1, 1).setNumberFormat(DATE_FMT).setHorizontalAlignment('left').setDataValidation(
+  const st = sheet_(SHEETS.STUDENTS), sr = st.getMaxRows() - 1;
+  try { st.showColumns(1, st.getMaxColumns()); st.getRange(1, 1, st.getMaxRows(), st.getMaxColumns()).clearDataValidations(); } catch (e) {}
+  st.getRange(2, S_.DAY + 1, sr, 1).setNumberFormat(DATE_FMT).setHorizontalAlignment('left').setDataValidation(
     SpreadsheetApp.newDataValidation().requireDate().setAllowInvalid(false)
       .setHelpText('A test date, like 04.11.2026. Double-click for a calendar.').build());
-  st.getRange(2, 5, st.getMaxRows() - 1, 1).setNumberFormat('dd.MM.yyyy HH:mm');
-  st.getRange(2, 2, st.getMaxRows() - 1, 1).setFontWeight('bold');
-  st.getRange(2, 3, st.getMaxRows() - 1, 1).setHorizontalAlignment('center').setDataValidation(
+  st.getRange(2, S_.TIME + 1, sr, 1).setNumberFormat('HH:mm').setHorizontalAlignment('center').setFontFamily('Courier New').setFontWeight('bold');
+  st.getRange(1, S_.TIME + 1).setNote('The student\'s test time, like 10:30 (9.30 or 930 also work).');
+  st.getRange(2, S_.NAME + 1, sr, 1).setFontWeight('bold');
+  st.getRange(2, S_.STUDIO + 1, sr, 1).setHorizontalAlignment('center').setDataValidation(
     SpreadsheetApp.newDataValidation().requireValueInList(STUDIO_LIST, true).setAllowInvalid(false).setHelpText('K3 or K4').build());
-  st.getRange(2, 4, st.getMaxRows() - 1, 3).setFontColor(MUTE);
-  st.hideColumns(7);
+  st.getRange(2, S_.REMOVED + 1, sr, 1).setFontColor(MUTE);
+  st.hideColumns(S_.ID + 1);
   const q = sheet_(SHEETS.QUESTIONS), qr = q.getMaxRows() - 1;
   q.getRange(2, Q_.STAGE + 1, qr, 1).setFontWeight('bold').setFontColor(BLUE);
   q.getRange(2, Q_.HEADING + 1, qr, 1).setFontColor(MUTE);
@@ -280,22 +282,44 @@ function setTeamPassword_(pw) {
 function studentsTyped_(sh, top, count) {
   const first = Math.max(2, top), last = Math.min(sh.getLastRow(), top + count - 1);
   if (last < first) return;
-  const above = first > 2 ? sh.getRange(first - 1, 1, 1, 3).getValues()[0] : ['', '', ''];
-  const rows = sh.getRange(first, 1, last - first + 1, 7).getValues();
-  const who = 'Sheet';   // typed in the sheet (reading the editor's email would need an extra Google permission)
-  let prevDate = above[0], prevStudio = above[2], changed = false;
-  rows.forEach(r => {
+  const W = SHEETS.STUDENTS.header.length;
+  const above = first > 2 ? sh.getRange(first - 1, 1, 1, W).getValues()[0] : [];
+  const range = sh.getRange(first, 1, last - first + 1, W), rows = range.getValues(), shown = range.getDisplayValues();
+  let prevDate = above[S_.DAY] || '', prevStudio = above[S_.STUDIO] || '', changed = false;
+  rows.forEach((r, i) => {
     const name = String(r[S_.NAME] || '').trim();
     if (name) {
       if (!r[S_.DAY] && prevDate) { r[S_.DAY] = prevDate; changed = true; }
       if (!r[S_.STUDIO] && prevStudio) { r[S_.STUDIO] = prevStudio; changed = true; }
-      if (!r[S_.ID]) { r[S_.ID] = newId_(); r[S_.BY] = r[S_.BY] || who; r[S_.AT] = r[S_.AT] || new Date(); changed = true; }
+      if (!r[S_.ID]) { r[S_.ID] = newId_(); changed = true; }
     }
+    // a time typed as 9.30 or 930 would show as a wrong time: store it as 09:30
+    const tm = time_(r[S_.TIME], shown[i][S_.TIME]);
+    if (r[S_.TIME] !== '' && !(r[S_.TIME] instanceof Date) && tm) { r[S_.TIME] = tm; changed = true; }
     if (r[S_.DAY]) prevDate = r[S_.DAY];
     if (r[S_.STUDIO]) prevStudio = r[S_.STUDIO];
   });
-  if (changed) sh.getRange(first, 1, rows.length, 7).setValues(rows);
+  if (changed) range.setValues(rows);
 }
+
+/** A test time from the sheet → '09:30', or '' if there is none. Takes a real time, 9:30, 9.30, 930 or 0930. */
+function time_(v, shown) {
+  if (v instanceof Date) v = shown || '';
+  if (typeof v === 'number') {
+    if (v > 0 && v < 1) { const m = Math.round(v * 1440); return pad2_(Math.floor(m / 60) % 24) + ':' + pad2_(m % 60); }   // a fraction of a day
+    if (v >= 0 && v < 24) { const h = Math.floor(v), m = Math.round((v - h) * 100); return m < 60 ? pad2_(h) + ':' + pad2_(m) : ''; }   // 9.3 = 9.30
+    if (v >= 100 && v < 2400 && v % 100 < 60) return pad2_(Math.floor(v / 100)) + ':' + pad2_(v % 100);
+    return '';
+  }
+  const t = String(v || '').trim().toLowerCase();
+  let m = t.match(/^(\d{1,2})[:.h](\d{2})(?::\d{2})?\s*(am|pm)?$/) || t.match(/^(\d{1,2})(\d{2})$/) || t.match(/^(\d{1,2})\s*(am|pm)$/);
+  if (!m) return '';
+  let h = +m[1], mi = m[2] && /^\d+$/.test(m[2]) ? +m[2] : 0;
+  const ap = m[3] || (m[2] && !/^\d+$/.test(m[2]) ? m[2] : '');
+  if (ap === 'pm' && h < 12) h += 12; if (ap === 'am' && h === 12) h = 0;
+  return h < 24 && mi < 60 ? pad2_(h) + ':' + pad2_(mi) : '';
+}
+function pad2_(n) { return ('0' + n).slice(-2); }
 
 /** Catches rows that arrived without the edit trigger (an import, a copy from another sheet). */
 function ensureStudentIds_() {
@@ -375,6 +399,7 @@ function route_(req) {
     case 'updateStudent':  return withLock_(() => updateStudent_(me, req));
     case 'saveEntry':      return withLock_(() => saveEntry_(me, req));
     case 'publishResults': return withLock_(() => publishResults_(me, req));
+    case 'grades':         return grades_();
     case 'logout':         PropertiesService.getScriptProperties().deleteProperty('s_' + req.token); return { ok: true };
     case 'listTeachers':   return admin_(me) || { ok: true, teachers: teachers_().map(t => ({ name: t.name, role: t.role })) };
     case 'addTeacher':     return admin_(me) || withLock_(() => setTeacher_(req.name, req.role === 'admin' ? 'admin' : 'teacher'));
@@ -467,13 +492,18 @@ function teachers_() {
 
 // ─────────────────────────────────────────────────────────────── data
 
-const S_ = { DAY: 0, NAME: 1, STUDIO: 2, BY: 3, AT: 4, REMOVED: 5, ID: 6 };
+const S_ = { DAY: 0, TIME: 1, NAME: 2, STUDIO: 3, REMOVED: 4, ID: 5 };
 
 function students_() {
-  return rows_(SHEETS.STUDENTS).map((r, i) => ({ row: i + 2, id: String(r[S_.ID] || ''), day: day_(r[S_.DAY]), name: String(r[S_.NAME] || '').trim(),
-    studio: String(r[S_.STUDIO] || ''), addedBy: String(r[S_.BY] || ''), createdAt: +new Date(r[S_.AT]) || 0, removed: !!r[S_.REMOVED] }))
+  const sh = sheet_(SHEETS.STUDENTS), n = sh.getLastRow() - 1;
+  if (n < 1) return [];
+  const range = sh.getRange(2, 1, n, SHEETS.STUDENTS.header.length), rows = range.getValues(), shown = range.getDisplayValues();
+  return rows.map((r, i) => ({ row: i + 2, id: String(r[S_.ID] || ''), day: day_(r[S_.DAY]), time: time_(r[S_.TIME], shown[i][S_.TIME]),
+    name: String(r[S_.NAME] || '').trim(), studio: String(r[S_.STUDIO] || ''), removed: !!r[S_.REMOVED] }))
     .filter(s => s.id && s.name && s.day);
 }
+/** Test date, then test time (students without one last), then name. */
+function byTestTime_(a, b) { return a.day < b.day ? -1 : a.day > b.day ? 1 : (a.time || '99') < (b.time || '99') ? -1 : (a.time || '99') > (b.time || '99') ? 1 : a.name.localeCompare(b.name); }
 function marksRows_() {
   const sh = sheet_(SHEETS.MARKS), last = sh.getLastRow(), w = sh.getLastColumn();
   if (last < 2 || !w) return [];
@@ -501,20 +531,21 @@ function state_(me) {
   students.forEach(s => { if (!(s.day in qdays)) qdays[s.day] = frozen_(s.day) ? questionsFor_(s.day, questions) : null; });
   Object.keys(qdays).forEach(d => { if (!qdays[d]) delete qdays[d]; });
   return { ok: true, me: { name: me.name, role: me.role },
-    students: students.map(s => ({ id: s.id, day: s.day, name: s.name, studio: s.studio, addedBy: s.addedBy, createdAt: s.createdAt })),
+    students: students.map(s => ({ id: s.id, day: s.day, time: s.time, name: s.name, studio: s.studio })),
     entries, teachers: teachers_().map(t => t.name), questions, qdays };
 }
 
 function addStudents_(me, req) {
   gradesDirty_();
   const day = checkDay_(req.day); if (!day) return { ok: false, error: 'Pick a test date first.' };
-  const names = (Array.isArray(req.names) ? req.names : []).map(n => clean_(n, 80)).filter(Boolean).slice(0, 60);
-  if (!names.length) return { ok: false, error: 'Type at least one name.' };
-  const studio = STUDIO_LIST.indexOf(clean_(req.studio, 10)) >= 0 ? clean_(req.studio, 10) : STUDIO_LIST[0], sh = sheet_(SHEETS.STUDENTS), now = new Date();
-  const rows = names.map(n => [toDate_(day), n, studio, me.name, now, '', newId_()]);
-  const start = sh.getLastRow() + 1;
-  sh.getRange(start, 1, rows.length, 7).setValues(rows);
-  return { ok: true, ids: rows.map(r => r[6]) };
+  // a line may start with its test time: "10:30 Kim"
+  const lines = (Array.isArray(req.names) ? req.names : []).map(n => clean_(n, 90)).filter(Boolean).slice(0, 60)
+    .map(l => { const m = l.match(/^(\d{1,2}[:.]\d{2})\s+(.+)$/); return m && time_(m[1]) ? { time: time_(m[1]), name: clean_(m[2], 80) } : { time: '', name: clean_(l, 80) }; });
+  if (!lines.length) return { ok: false, error: 'Type at least one name.' };
+  const studio = STUDIO_LIST.indexOf(clean_(req.studio, 10)) >= 0 ? clean_(req.studio, 10) : STUDIO_LIST[0], sh = sheet_(SHEETS.STUDENTS);
+  const rows = lines.map(l => [toDate_(day), l.time, l.name, studio, '', newId_()]);
+  sh.getRange(sh.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+  return { ok: true, ids: rows.map(r => r[S_.ID]) };
 }
 
 function updateStudent_(me, req) {
@@ -535,6 +566,7 @@ function updateStudent_(me, req) {
     marksRows_().filter(m => m.sid === s.id).forEach(m => sheet_(SHEETS.MARKS).getRange(m.row, 1).setValue(toDate_(day)));
   }
   if (req.studio !== undefined) sh.getRange(s.row, S_.STUDIO + 1).setValue(clean_(req.studio, 40));
+  if (req.time !== undefined) sh.getRange(s.row, S_.TIME + 1).setValue(time_(req.time));
   return { ok: true };
 }
 
@@ -722,6 +754,29 @@ function gradeOf_(byTeacher, qs) {
   return { teachers, marked: marked.length, score, errors, final, coreFails, complete, band, stages };
 }
 
+/** Every student with their combined grade, each on their own date's questions. Used by the Grades tab and the page. */
+function gradeList_() {
+  const students = students_().filter(s => !s.removed).sort(byTestTime_);
+  const marks = {}; marksRows_().forEach(m => { (marks[m.sid] = marks[m.sid] || {})[m.teacher] = m.data; });
+  const live = questions_(), byDay = {};
+  const list = students.map(s => {
+    const qs = forStudio_(byDay[s.day] = byDay[s.day] || questionsFor_(s.day, live), s.studio);
+    return { s, qs, g: gradeOf_(marks[s.id] || {}, qs) };
+  });
+  return { live, list };
+}
+
+/** The page's Grades screen: the combined result per student, never one teacher's marks. */
+function grades_() {
+  return { ok: true, students: gradeList_().list.map(({ s, qs, g }) => {
+    const stages = [];
+    qs.forEach(q => { if (!stages.some(x => x.name === q.stage)) stages.push({ name: q.stage, pct: q.stage in g.stages ? g.stages[q.stage] : null }); });
+    return { id: s.id, day: s.day, time: s.time, name: s.name, studio: s.studio, marked: g.marked, total: qs.length,
+      score: g.score === null ? null : Math.round(g.score), final: g.final === null ? null : Math.round(g.final),
+      errors: g.errors, coreFails: g.coreFails, complete: g.complete, grade: g.band ? g.band[0] : null, teachers: g.teachers, stages };
+  }) };
+}
+
 /** Rewrites the Grades tab: a summary per grade at the top, then one row per student with bars and colours. */
 function buildGrades_() {
   const ss = SpreadsheetApp.getActive();
@@ -730,12 +785,10 @@ function buildGrades_() {
   const cache = CacheService.getScriptCache();
   cache.remove('grades_dirty'); cache.put('grades_recent', '1', 20);
 
-  const students = students_().filter(s => !s.removed).sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : a.name.localeCompare(b.name));
-  const marks = {}; marksRows_().forEach(m => { (marks[m.sid] = marks[m.sid] || {})[m.teacher] = m.data; });
   // each student is graded on their own date's questions; the stage columns follow today's stages, then any older ones
-  const live = questions_(), byDay = {}, qsOf = s => forStudio_(byDay[s.day] = byDay[s.day] || questionsFor_(s.day, live), s.studio);
+  const { live, list } = gradeList_(), students = list.map(x => x.s);
   const stageNames = [];
-  live.concat(...students.map(s => qsOf(s))).forEach(q => { if (stageNames.indexOf(q.stage) < 0) stageNames.push(q.stage); });
+  live.concat(...list.map(x => x.qs)).forEach(q => { if (stageNames.indexOf(q.stage) < 0) stageNames.push(q.stage); });
   const nS = stageNames.length, top = 8;
   const head = ['Test date', 'Student', 'Studio', 'Teachers', 'Marked', 'Progress'].concat(stageNames)
     .concat(['Score', 'Errors', 'Final', '', 'Grade', 'Core skill under 50%', 'Critical errors']);
@@ -744,8 +797,8 @@ function buildGrades_() {
   const counts = { 'Grade A': 0, Pass: 0, Resit: 0, Unfinished: 0 };
   const values = [], bars = [], groupStarts = [];
   let prevDay = '';
-  students.forEach((s, i) => {
-    const qs = qsOf(s), N = qs.length, g = gradeOf_(marks[s.id] || {}, qs);
+  list.forEach(({ s, qs, g }, i) => {
+    const N = qs.length;
     const label = !g.marked ? 'Not started' : g.complete ? g.band[0] : 'Unfinished';
     if (g.complete) counts[g.band[0]]++; else counts.Unfinished++;
     if (s.day !== prevDay) { groupStarts.push(top + i); prevDay = s.day; }
@@ -836,11 +889,19 @@ function migrateTeachers_() {
 
 function migrateStudents_() {
   const o = headerOf_(SHEETS.STUDENTS.name);
-  if (!o || o.head[0] === 'Test date') return;
-  // v1 layout: ID | Test date | Student | Studio | Added by | Added at | Deleted
-  const rows = o.rows.filter(r => r[0]).map(r => [toDate_(day_(r[1])), r[2], r[3], r[4], r[5], r[6] || '', r[0]]);
-  o.sh.clear(); o.sh.getRange(1, 1, 1, 7).setValues([SHEETS.STUDENTS.header]);
-  if (rows.length) o.sh.getRange(2, 1, rows.length, 7).setValues(rows);
+  if (!o || o.head[1] === 'Test time') return;
+  let rows;
+  if (o.head[0] === 'Test date') {
+    // v2 layout: Test date | Student | Studio | Added by | Added at | Removed | ID
+    rows = o.rows.filter(r => r[1] || r[6]).map(r => [r[0], '', r[1], r[2], r[5] || '', r[6]]);
+  } else {
+    // v1 layout: ID | Test date | Student | Studio | Added by | Added at | Deleted
+    rows = o.rows.filter(r => r[0]).map(r => [toDate_(day_(r[1])), '', r[2], r[3], r[6] || '', r[0]]);
+  }
+  try { o.sh.showColumns(1, o.sh.getMaxColumns()); o.sh.getRange(1, 1, o.sh.getMaxRows(), o.sh.getMaxColumns()).clearDataValidations(); } catch (e) {}
+  o.sh.clear(); const W = SHEETS.STUDENTS.header.length;
+  o.sh.getRange(1, 1, 1, W).setValues([SHEETS.STUDENTS.header]);
+  if (rows.length) o.sh.getRange(2, 1, rows.length, W).setValues(rows);
 }
 /** Dates stored as text by the first version ('2026-11-04') become real dates, so the date picker and sorting work. */
 function migrateDates_() {

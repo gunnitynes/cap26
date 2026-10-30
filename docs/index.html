@@ -385,6 +385,33 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .monthbtn svg{width:16px;height:16px}
 .monthbtn[aria-pressed="true"]{background:var(--led);border-color:var(--led);color:#fff}
 @media (prefers-reduced-motion:reduce){.stripwrap{animation:none}}
+/* first load: nothing is shown until the Sheet has answered */
+.loader{min-height:62vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:24px;color:var(--mute);font-size:14px}
+.loader b{color:var(--ink);font-size:17px}
+.loader .ghost{margin-top:8px}
+.spin{width:36px;height:36px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--led);animation:spin .8s linear infinite;margin-bottom:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2.4s}}
+.at{font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--led);margin-right:7px;vertical-align:1px}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat-res{display:block;font:inherit}
+.stat-res .n svg{width:24px;height:24px;display:block}
+/* grades screen */
+.gv-head{margin-top:16px}
+.gv-head h2{margin:2px 0 0;font-size:26px;font-weight:800;letter-spacing:-.02em}
+.gv-head p{margin:4px 0 0}
+.chips{display:flex;gap:6px;overflow-x:auto;margin-top:14px;padding-bottom:2px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chips button{flex:none;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:7px 13px;font-size:13px;font-weight:700;white-space:nowrap}
+.chips button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.gdist{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--sunk);margin-top:14px}
+.gdist i{display:block;height:100%}
+.gv-sum{margin-top:10px}
+.gv-list{margin-top:14px}
+.gcard.g-a{border-left:4px solid var(--ok)}.gcard.g-pass{border-left:4px solid var(--ink)}.gcard.g-resit{border-left:4px solid var(--no)}.gcard.g-open{border-left:4px solid var(--led)}
+.gcard.g-todo{opacity:.75}
+.st-n{font-family:var(--mono);font-size:10.5px;font-weight:700}
+.st small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;font-weight:600;z-index:20;max-width:calc(100% - 32px)}
 .export{margin-top:10px;font-family:var(--mono);font-size:11px;min-height:120px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -453,7 +480,7 @@ const touchDevice=matchMedia('(pointer: coarse)').matches;
 /* iPhone home-screen apps: a tap on a field that is already focused (but has no keyboard) does nothing.
    Blur and refocus inside the tap so the keyboard always comes up. */
 document.addEventListener('touchend',e=>{
-  const f=e.target.closest&&e.target.closest('input[type=text],input[type=password],input[type=date],input[type=number],textarea');
+  const f=e.target.closest&&e.target.closest('input[type=text],input[type=password],input[type=date],input[type=time],input[type=number],textarea');
   if(f&&document.activeElement===f){f.blur();f.focus()}
 },{passive:true});
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -471,7 +498,7 @@ function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor
 /* ------------------------------------------------------------------ state */
 // the back end address comes from config.js (or ?api=… while testing); without one the page runs as a preview
 const API=new URLSearchParams(location.search).get('api')||window.OPS_API||'';
-const S={token:ls.get('ops.token',''),me:ls.get('ops.me',''),role:ls.get('ops.role',''),demo:!API,tests:{},teachers:{},pending:ls.get('ops.pending',{}),view:'roster',open:null,day:ls.get('ops.day',null)||today(),all:false,days:{},dayWant:{},confirm:null,cal:null,sync:'ok',ready:false,loading:false,published:{}};
+const S={token:ls.get('ops.token',''),me:ls.get('ops.me',''),role:ls.get('ops.role',''),demo:!API,tests:{},teachers:{},pending:ls.get('ops.pending',{}),view:'roster',open:null,day:ls.get('ops.day',null)||today(),all:false,days:{},dayWant:{},confirm:null,cal:null,sync:'ok',ready:false,loading:false,published:{},dayPicked:false,loadErr:''};
 if(ls.get('ops.q',null)){QNOW=qset(ls.get('ops.q'));for(const [d,l] of Object.entries(ls.get('ops.qdays',{})||{}))QDAYS[d]=qset(l)}
 
 /* ---- each teacher marks on their own: a student keeps one entry per teacher under by.<teacher name>.
@@ -530,10 +557,13 @@ async function api(action,body={}){
 async function load(){
   if(S.demo||!S.token||S.loading)return;
   S.loading=true;const j=await api('state');S.loading=false;
-  if(!j.ok){if(j.net)setSync('err');return}
+  if(!j.ok){if(j.net)setSync('err');
+    // nothing is shown before the first answer: say what is happening and keep trying
+    if(!S.ready&&S.token){S.loadErr=j.error||'The Sheet did not answer.';render();clearTimeout(load.retry);load.retry=setTimeout(load,4000)}
+    return}
   S.me=j.me.name;S.role=j.me.role;ls.set('ops.me',S.me);ls.set('ops.role',S.role);
   const tests={};
-  for(const st of j.students)tests[st.id]={name:st.name,studio:st.studio,day:st.day,createdAt:st.createdAt,addedBy:st.addedBy,by:{}};
+  for(const st of j.students)tests[st.id]={name:st.name,studio:st.studio,day:st.day,time:st.time||'',by:{}};
   for(const e of j.entries)if(tests[e.sid])tests[e.sid].by[e.teacher]=e.data||{_progress:e.progress||0};
   S.tests=tests;
   S.teachers=Object.fromEntries(j.teachers.map(n=>[n,{name:n}]));
@@ -545,8 +575,19 @@ async function load(){
   for(const id of Object.keys(S.pending))if(!tests[id]){delete S.pending[id]}
   ls.set('ops.pending',S.pending);
   if(S.sync==='err'&&!myPending().length)setSync('ok');
-  S.ready=true;refresh();
+  const first=!S.ready;S.ready=true;S.loadErr='';
+  if(!S.dayPicked){S.dayPicked=true;S.day=startDay();ls.set('ops.day',S.day)}
+  if(first){renderBar();render()}else refresh();
 }
+/* Where the app opens: today if students are booked today, otherwise the next test day (so before the test and between
+   test days it opens on the coming one), otherwise today. Only once per opening: after that the teacher's pick stays. */
+function startDay(){
+  const td=today(),days=new Set(Object.values(S.tests).map(t=>t.day));
+  if(days.has(td))return td;
+  return [...days].filter(d=>d>td).sort()[0]||td;
+}
+// test date, then test time (students without one last), then name
+const byTime=(a,b)=>a.day<b.day?-1:a.day>b.day?1:(a.time||'99')<(b.time||'99')?-1:(a.time||'99')>(b.time||'99')?1:a.name.localeCompare(b.name);
 // keep every phone up to date: a quiet refresh every 10 seconds while the page is on screen
 setInterval(()=>{if(document.visibilityState==='visible'&&!flushing&&!myPending().length)load()},10000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')load()});
@@ -554,7 +595,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 /* ------------------------------------------------------------------ write queue: taps save in the background */
 function view(id){return S.pending[id]?merge(S.tests[id],S.pending[id]):S.tests[id]}
 // changes this teacher still has to send (unsaved marks left on the phone by someone else are not theirs to send)
-const myPending=()=>Object.keys(S.pending).filter(id=>{const p=S.pending[id];return p&&(p.day||(p.by&&p.by[S.me]))});
+const myPending=()=>Object.keys(S.pending).filter(id=>{const p=S.pending[id];return p&&(p.day||p.time!==undefined||(p.by&&p.by[S.me]))});
 function allTests(){return Object.keys(S.tests).map(id=>({id,...view(id)})).filter(t=>t.name&&!t.deleted)}
 function patch(id,obj){
   S.pending[id]=merge(S.pending[id],obj);ls.set('ops.pending',S.pending);
@@ -572,7 +613,7 @@ async function flush(){
     // send only this teacher's part; anything else in the queue stays for its owner
     const other=p.by?Object.fromEntries(Object.entries(p.by).filter(([k])=>k!==S.me)):{};
     const steps=[];
-    if(p.day)steps.push(['updateStudent',{id,day:p.day}]);
+    if(p.day||p.time!==undefined)steps.push(['updateStudent',{id,day:p.day,time:p.time}]);
     const m=p.by&&p.by[S.me];if(m)steps.push(['saveEntry',{sid:id,patch:m}]);
     let failed=false;
     for(const [a,b] of steps){
@@ -609,7 +650,7 @@ function signOut(msg){
   // marks still waiting belong to this teacher: never drop them or let the next person send them
   if(!msg&&myPending().length){toast('Some marks are not saved yet. Connect to the internet, wait for the green dot, then sign out.');flushSoon(10);return}
   if(S.token&&!msg)api('logout');
-  S.token='';S.me='';S.role='';S.tests={};S.days={};S.teachers={};
+  S.token='';S.me='';S.role='';S.tests={};S.days={};S.teachers={};S.ready=false;S.dayPicked=false;G.list=null;
   ls.set('ops.token','');ls.set('ops.me','');ls.set('ops.role','');
   if(msg)toast(msg);go('login');
 }
@@ -619,7 +660,7 @@ function startDemo(){
   const d=today();
   const nx=new Date();nx.setDate(nx.getDate()+6);const later=nx.getFullYear()+'-'+String(nx.getMonth()+1).padStart(2,'0')+'-'+String(nx.getDate()).padStart(2,'0');
   const all=v=>Object.fromEntries(QNOW.map(c=>[c.id,v(c)]));
-  const mk=(name,day,by)=>{const id=rid();S.tests[id]={name,studio:'K3',day,createdAt:Date.now()-Math.random()*1e6,by}};
+  let slot=9*60;const mk=(name,day,by)=>{const id=rid();S.tests[id]={name,studio:'K3',day,time:String(Math.floor(slot/60)).padStart(2,'0')+':'+String(slot%60).padStart(2,'0'),by};slot+=30};
   mk('Example · Lena',d,{'Gunnar':{marks:{p1:'y',p2:'y',p3:'y',m1:'y',m2:'h',m3:'y',m4:'y',r1:'y',t1:'y',t2:'g',t3:'y'}}});
   mk('Example · Jonas',d,{'Gunnar':{marks:all(c=>c.id==='t2'?'h':'y')},'Anna':{marks:all(c=>c.id==='m2'||c.id==='c4'?'g':'y'),safety:{a:{t:Date.now(),text:'Phantom switched with fader up'}}}});
   mk('Example · Mira',d,{'Gunnar':{marks:{p1:'y',p2:'n',m1:'y'},safety:{a:{t:Date.now()-6e5,text:'Speakers switched with level up'}}}});
@@ -651,12 +692,12 @@ function renderBar(){
   const t=S.view==='test'&&view(S.open);
   const nm=S.view==='login'?'':S.me;
   const td=t&&new Date(t.day+'T12:00');
-  $('#barInner').innerHTML=`<div class="barrow">${S.view==='test'||S.view==='account'?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
+  $('#barInner').innerHTML=`<div class="barrow">${S.view==='test'||S.view==='account'||S.view==='grades'?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
    <div class="brand"><span class="eyebrow">${S.me&&nm?`<button class="whobtn" id="whoBtn" aria-label="Your teacher name">${esc(nm)}</button>`:'Catalyst Studios'} <span class="sync" id="sync" data-s="${S.sync}"><i class="dot"></i><span></span></span></span><b>Catalyst Operations Test - CAP 2026</b></div>
    ${S.view==='test'&&t&&timerOf(S.open)?`<button class="tm-pill" data-timer="${S.open}" id="tmPill" type="button" aria-label="Timer"><span class="tm-num">${timerOf(S.open).txt}</span></button>`:''}
    ${S.view==='test'&&t&&!timerOf(S.open)?`<span class="datecard" title="Test date"><small>${td.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase()}</small><b>${td.getDate()}</b><span>${td.toLocaleDateString('en-GB',{month:'short'})}</span></span>`:''}
-   ${S.view==='roster'?(()=>{const sd=new Date(S.day+'T12:00');return `<button class="datecard datebtn" id="dateBtn" type="button" aria-expanded="${!!S.stripOpen}" aria-label="Test date ${fmtDay(S.day)}. Change date"><small>${S.day===today()?'TODAY':sd.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase()}</small><b>${sd.getDate()}</b><span>${sd.toLocaleDateString('en-GB',{month:'short'})}</span></button>`})():''}</div>
-   ${S.view==='roster'&&S.stripOpen?`<div class="stripwrap">${dateStrip()}</div>`:''}`;
+   ${S.view==='roster'&&(S.ready||S.demo)?(()=>{const sd=new Date(S.day+'T12:00');return `<button class="datecard datebtn" id="dateBtn" type="button" aria-expanded="${!!S.stripOpen}" aria-label="Test date ${fmtDay(S.day)}. Change date"><small>${S.day===today()?'TODAY':sd.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase()}</small><b>${sd.getDate()}</b><span>${sd.toLocaleDateString('en-GB',{month:'short'})}</span></button>`})():''}</div>
+   ${S.view==='roster'&&(S.ready||S.demo)&&S.stripOpen?`<div class="stripwrap">${dateStrip()}</div>`:''}`;
   document.querySelector('.bar').hidden=S.view==='login';
   setSync(S.sync);
   $('#back')?.addEventListener('click',()=>go('roster'));
@@ -678,8 +719,10 @@ function renderBar(){
 function go(v,id){S.view=v;S.open=id||null;renderBar();render();scrollTo(0,0);wake(v==='test')}
 // the open sheet is rebuilt only when its questions changed (someone edited the Questions tab), otherwise synced in place
 const sheetSig=t=>JSON.stringify(skillsFor(t).map(c=>[c.id,c.t,c.ask,c.s,c.heading]));
-function refresh(){if(S.view==='test'){const raw=view(S.open);if(raw&&!raw.deleted&&sheetSig({id:S.open,...raw})!==S.sheetSig)renderSheet();else syncSheet()}else if(S.view==='roster')render();else if(S.view==='account')renderAccount(true)}
-function render(){S.view==='login'?renderLogin():S.view==='account'?renderAccount():S.view==='test'&&view(S.open)?renderSheet():renderRoster()}
+function refresh(){if(S.view==='test'){const raw=view(S.open);if(raw&&!raw.deleted&&sheetSig({id:S.open,...raw})!==S.sheetSig)renderSheet();else syncSheet()}else if(S.view==='roster')render();else if(S.view==='account')renderAccount(true);else if(S.view==='grades')loadGrades().then(()=>{if(S.view==='grades')renderGrades()})}
+function render(){
+  if(!S.demo&&S.view!=='login'&&!S.ready){renderLoading();return}
+  S.view==='login'?renderLogin():S.view==='grades'?renderGrades():S.view==='account'?renderAccount():S.view==='test'&&view(S.open)?renderSheet():renderRoster()}
 
 function renderLogin(){
   const last=ls.get('ops.lastName','');
@@ -724,7 +767,7 @@ function renderLogin(){
     if(!j.ok){err.textContent=j.error;err.hidden=false;return}
     S.token=j.token;S.me=j.name;S.role=j.role;ls.set('ops.token',S.token);ls.set('ops.me',S.me);ls.set('ops.role',S.role);ls.set('ops.lastName',j.name);
     ls.set('ops.until',Date.now()+(j.days||400)*864e5);
-    S.view='roster';renderBar();render();await load();
+    S.ready=false;S.dayPicked=false;S.loadErr='';S.view='roster';renderBar();render();await load();
     toast('Welcome, '+j.name+'. This phone stays signed in.');
   };
 }
@@ -764,6 +807,13 @@ function renderAccount(quiet){
     toast(j.name+' can now sign in with the team password');S.teachers[j.name]={name:j.name};renderAccount()};
 }
 
+function renderLoading(){
+  $('#app').innerHTML=`<div class="loader" role="status" aria-live="polite"><span class="spin" aria-hidden="true"></span>
+    <b>${S.loadErr?'Can’t reach the Sheet yet':'Loading the test days…'}</b>
+    <span>${S.loadErr?'Trying again by itself. Check that this phone has internet.':'Getting the students and questions from the Google Sheet.'}</span>
+    ${S.loadErr?'<button class="ghost" id="retry" type="button">Try again now</button>':''}</div>`;
+  $('#retry')?.addEventListener('click',()=>{S.loadErr='';renderLoading();load()});
+}
 function ring(t,size=44){
   const sc=scoreOf(mine(t),t),done=sc.n,f=sc.total?done/sc.total:0,r=18,c=2*Math.PI*r,st=statusOf(t);
   const col=st.grade?`var(--${st.grade.col})`:st.k==='done'?'var(--ink)':'var(--led)';
@@ -783,20 +833,19 @@ function renderRoster(){
   const all=allTests();
   const byDay={};all.forEach(t=>(byDay[t.day]=byDay[t.day]||[]).push(t));
   const days=Object.keys(byDay).sort();
-  const list=all.filter(t=>t.day===S.day).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  const list=all.filter(t=>t.day===S.day).sort(byTime);
   const cnt={todo:0,live:0,done:0};list.forEach(t=>cnt[statusOf(t).k]++);
   const marked=cnt.done;
   const lastStudio=STUDIOS.includes(ls.get('ops.studio',''))?ls.get('ops.studio',''):STUDIOS[0];
   const row=t=>{const st=statusOf(t),ce=scoreOf(mine(t),t).inc.length,nt=Object.keys(entries(t)).length;
-    return `<button class="row" data-open="${t.id}">${ring(t)}<span class="who"><b>${esc(t.name)}${timerOf(t.id)?` <span class="tm-mini" data-timer="${t.id}"><span class="tm-num">${timerOf(t.id).txt}</span></span>`:''}</b><span>${[esc(t.studio||''),nt?nt+' teacher'+(nt>1?'s':''):''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}</span></span><span class="pill ${st.k}">${st.l}</span></button>`};
+    return `<button class="row" data-open="${t.id}">${ring(t)}<span class="who"><b>${t.time?`<span class="at">${t.time}</span>`:''}${esc(t.name)}${timerOf(t.id)?` <span class="tm-mini" data-timer="${t.id}"><span class="tm-num">${timerOf(t.id).txt}</span></span>`:''}</b><span>${[esc(t.studio||''),nt?nt+' teacher'+(nt>1?'s':''):''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}</span></span><span class="pill ${st.k}">${st.l}</span></button>`};
   const stats=`<div class="stat"><div class="n">${list.length}</div><div class="l">Students</div></div>
       <div class="stat"><div class="n">${marked}</div><div class="l">Marked by you</div></div>
-      <div class="stat"><div class="n" style="color:var(--led)">${cnt.live}</div><div class="l">In progress</div></div>
-      <div class="stat"><div class="n" style="color:var(--mute)">${cnt.todo}</div><div class="l">Not started</div></div>`;
+      <div class="stat"><div class="n" style="color:var(--mute)">${cnt.todo}</div><div class="l">Not started</div></div>
+      <button class="stat stat-res" id="gradesBtn" type="button" aria-label="Grades: every student's combined result"><div class="n"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="12" width="4" height="9" rx="1.5"/><rect x="10" y="7" width="4" height="14" rx="1.5"/><rect x="17" y="3" width="4" height="18" rx="1.5"/></svg></div><div class="l">Grades <span>›</span></div></button>`;
   $('#app').innerHTML=`
    ${S.all?calendar(byDay):''}
    ${S.demo?`<div class="banner"><b>Preview.</b> These students and the second teacher are examples and nothing here is saved.</div>`:''}
-   ${!S.demo&&!S.ready?`<div class="banner">Loading the students…</div>`:''}
    <div class="summary">${stats}</div>
    <div class="list">
      <div class="dayhead"><b>${fmtDay(S.day)}${S.day===today()?' · today':''}</b><span>${list.length} student${list.length===1?'':'s'}</span></div>
@@ -806,7 +855,7 @@ function renderRoster(){
    <form class="card add" id="addForm" autocomplete="off">
      <h3 style="font-size:16px">Add students to ${fmtDay(S.day)}</h3>
      <p class="readout" style="margin:-4px 0 0">Plan ahead: change the date at the top first, then add the students for that day.</p>
-     <div class="field"><label for="addNames">Names, one per line</label><textarea id="addNames" rows="3" placeholder="Student name"></textarea></div>
+     <div class="field"><label for="addNames">Names, one per line. Start a line with the test time, like 10:30 Kim</label><textarea id="addNames" rows="3" placeholder="10:30 Student name"></textarea></div>
      <div class="field"><label>Studio</label><div class="seg" id="addStudio" role="group" aria-label="Studio">${STUDIOS.map(x=>`<button type="button" data-studio="${x}" aria-pressed="${x===lastStudio}">${x}</button>`).join('')}</div></div>
      <button class="primary" type="submit" ${!canMark()?'disabled':''}>Add to ${fmtDay(S.day)}</button>
    </form>
@@ -817,18 +866,72 @@ function renderRoster(){
   $('#app').querySelectorAll('[data-cal]').forEach(b=>b.onclick=()=>{S.day=b.dataset.cal;S.cal=S.day.slice(0,7);S.all=false;S.stripOpen=false;ls.set('ops.day',S.day);renderBar();render();scrollTo(0,0)});
   $('#app').querySelectorAll('[data-mo]').forEach(b=>b.onclick=()=>{const [y,m]=(S.cal||S.day.slice(0,7)).split('-').map(Number);const d=new Date(y,m-1+(+b.dataset.mo),1);S.cal=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');render()});
   $('#app').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>go('test',b.dataset.open));
+  $('#gradesBtn').onclick=openGrades;
   $('#addStudio').onclick=e=>{const b=e.target.closest('[data-studio]');if(!b)return;$('#addStudio').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b))};
   $('#addForm').onsubmit=async e=>{e.preventDefault();if(!canMark())return;
     const names=$('#addNames').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!names.length){toast('Type at least one name');return}
+    const lines=names.map(parseLine);
     const studio=$('#addStudio [aria-pressed="true"]')?.dataset.studio||STUDIOS[0],day=S.day;ls.set('ops.studio',studio);
-    const msg=(names.length>1?`Added ${names.length} students`:`Added ${names[0]}`)+' to '+fmtDay(day);
-    if(S.demo){names.forEach((name,i)=>{S.tests[rid()]={name,studio,day,createdAt:Date.now()+i,by:{}}});render();toast(msg);return}
+    const msg=(names.length>1?`Added ${names.length} students`:`Added ${lines[0].name}`)+' to '+fmtDay(day);
+    if(S.demo){lines.forEach(l=>{S.tests[rid()]={name:l.name,time:l.time,studio,day,by:{}}});render();toast(msg);return}
     const btn=e.target.querySelector('button[type=submit]');btn.disabled=true;btn.textContent='Adding…';
     const j=await api('addStudents',{names,studio,day});
     btn.disabled=false;
     if(!j.ok){btn.textContent='Add to '+fmtDay(day);toast(j.error);return}
     $('#addNames').value='';await load();toast(msg);
   };
+}
+
+const parseLine=l=>{const m=l.match(/^(\d{1,2})[:.](\d{2})\s+(.+)$/);return m&&+m[1]<24&&+m[2]<60?{time:m[1].padStart(2,'0')+':'+m[2],name:m[3].trim()}:{time:'',name:l}};
+
+/* ---- Grades: every teacher's marks combined, worked out by the back end exactly like the Sheet's Grades tab.
+   The page only ever gets the combined result per student, never one teacher's marks. */
+const G={list:null,at:0,busy:false,day:null,err:''};
+async function loadGrades(force){
+  if(S.demo){G.list=demoGrades();return}
+  if(G.busy||(!force&&Date.now()-G.at<8000))return;
+  G.busy=true;const j=await api('grades');G.busy=false;
+  if(j.ok){G.list=j.students;G.at=Date.now();G.err=''}else G.err=j.error||'The grades could not be loaded.';
+}
+function demoGrades(){return allTests().map(t=>{const g=gradeOf(t);
+  return {id:t.id,day:t.day,time:t.time||'',name:t.name,studio:t.studio,marked:g.marked,total:g.total,score:g.marked?Math.round(g.score):null,final:g.marked?Math.round(g.final):null,
+    errors:g.errors,coreFails:g.coreFails.map(c=>c.t),complete:g.complete,grade:g.marked?g.grade.l:null,teachers:g.teachers,
+    stages:stagesFor(t).map(s=>{const xs=g.per.filter(x=>x.c.s===s.id&&x.avg!==null);return {name:s.short,pct:xs.length?Math.round(xs.reduce((a,x)=>a+x.avg,0)/xs.length*100):null}})}})}
+async function openGrades(){G.day=null;go('grades');await loadGrades(true);if(S.view==='grades')renderGrades()}
+const GK={'Grade A':{cls:'a',pill:'merit',col:'ok'},Pass:{cls:'pass',pill:'passg',col:'ink'},Resit:{cls:'resit',pill:'resitg',col:'no'},
+  open:{cls:'open',pill:'live',col:'led',l:'Unfinished'},todo:{cls:'todo',pill:'todo',col:'mute',l:'Not started'}};
+const gkey=x=>!x.marked?'todo':x.complete&&GK[x.grade]?x.grade:'open';
+function renderGrades(){
+  const app=$('#app');
+  if(!G.list){
+    app.innerHTML=G.err?`<div class="loader"><b>The grades did not load</b><span>${esc(G.err)}</span><button class="ghost" id="gRetry" type="button">Try again</button></div>`
+      :`<div class="loader" role="status"><span class="spin" aria-hidden="true"></span><b>Working out the grades…</b><span>Combining every teacher's marks from the Sheet.</span></div>`;
+    $('#gRetry')?.addEventListener('click',async()=>{G.err='';renderGrades();await loadGrades(true);renderGrades()});return}
+  const days=[...new Set(G.list.map(x=>x.day))].sort();
+  const day=G.day&&(G.day==='all'||days.includes(G.day))?G.day:days.includes(S.day)?S.day:(days.filter(d=>d<=today()).pop()||days[0]||'all');
+  const list=G.list.filter(x=>day==='all'||x.day===day).sort(byTime);
+  const n={};for(const k in GK)n[k]=0;list.forEach(x=>n[gkey(x)]++);
+  const order=['Grade A','Pass','Resit','open','todo'];
+  const card=x=>{const k=gkey(x),c=GK[k],col=c.col;
+    return `<article class="gcard g-${c.cls}">
+      <div class="gc-top"><b>${x.time?`<span class="at">${x.time}</span>`:''}${esc(x.name)}</b><span class="pill ${c.pill}">${esc(c.l||k)}</span></div>
+      <div class="gc-sub">${[day==='all'?fmtDay(x.day):'',esc(x.studio),x.teachers.length?'Marked by '+esc(x.teachers.join(', ')):''].filter(Boolean).join(' · ')}</div>
+      ${!x.marked?'<div class="gc-prog">No marks yet.</div>':`
+      <div class="gc-final"><span class="gc-num" style="color:var(--${col})">${x.final}</span><span class="track" aria-hidden="true"><i style="width:${x.final}%;background:var(--${col})"></i><u style="left:60%"></u><u style="left:75%"></u></span></div>
+      <div class="gc-prog">${x.complete?'':'So far · '}score ${x.score}${x.errors.length?` − ${x.errors.length*10} for ${x.errors.length} critical error${x.errors.length>1?'s':''}`:''} · ${x.marked}/${x.total} skills marked</div>
+      <div class="gc-stages" style="grid-template-columns:repeat(${Math.max(1,x.stages.length)},1fr)">${x.stages.map(s=>`<span class="st" title="${esc(s.name)}: ${s.pct==null?'not marked':s.pct+'%'}"><span class="st-n">${s.pct==null?'–':s.pct}</span><span class="st-col">${s.pct==null?'':`<i style="height:${Math.max(6,s.pct)}%;background:var(--${s.pct>=75?'ok':s.pct>=60?'hint':'no'})"></i>`}</span><small>${esc(s.name)}</small></span>`).join('')}</div>
+      ${x.coreFails.length?`<div class="gc-flag">Core skill under 50%: ${esc(x.coreFails.join(', '))}</div>`:''}
+      ${x.errors.length?`<div class="gc-flag">Critical: ${esc(x.errors.join('; '))}</div>`:''}`}
+    </article>`};
+  app.innerHTML=`
+   <div class="gv-head"><span class="eyebrow">Grades</span><h2>${day==='all'?'All test days':fmtDay(day)}</h2>
+     <p class="readout">Every teacher's marks combined: each skill averaged, minus 10 per critical error, a core skill under 50% is a Resit. Grade A 75+, Pass 60+. A grade is final once every skill is marked.</p></div>
+   ${days.length>1?`<div class="chips" id="gDays" role="group" aria-label="Test day">${days.map(d=>`<button type="button" data-gday="${d}" aria-pressed="${d===day}">${fmtDay(d)}</button>`).join('')}<button type="button" data-gday="all" aria-pressed="${day==='all'}">All</button></div>`:''}
+   ${list.length?`<div class="gdist" aria-hidden="true">${order.filter(k=>n[k]).map(k=>`<i style="width:${n[k]/list.length*100}%;background:var(--${GK[k].col==='mute'?'line':GK[k].col})"></i>`).join('')}</div>`:''}
+   <div class="modal-sum gv-sum">${order.filter(k=>n[k]||k==='Grade A'||k==='Pass'||k==='Resit').map(k=>`<span style="--c:var(--${GK[k].col})"><b>${n[k]}</b>${esc(GK[k].l||k)}</span>`).join('')}</div>
+   <div class="gcards gv-list">${list.length?list.map(card).join(''):'<div class="empty"><b>No students yet</b>Add students on the main page or in the Sheet.</div>'}</div>
+   <div style="height:32px"></div>`;
+  app.querySelectorAll('[data-gday]').forEach(b=>b.onclick=()=>{G.day=b.dataset.gday;renderGrades()});
 }
 
 /* ---- the sheet: built once per open, then synced in place so typing is never interrupted */
@@ -868,7 +971,7 @@ function renderSheet(){
        <span class="eyebrow">Finish</span>
        <p class="readout" id="progTxt" style="margin:0;font-size:14px"></p>
        <div class="field"><label for="summary">Your feedback for the student</label><textarea id="summary" rows="3" placeholder="What went well, what to practise"></textarea></div>
-       <div class="field"><label for="moveDay">Test date</label><input type="date" id="moveDay"></div>
+       <div class="pair"><div class="field"><label for="moveDay">Test date</label><input type="date" id="moveDay"></div><div class="field"><label for="moveTime">Test time</label><input type="time" id="moveTime"></div></div>
        <div class="foot"><button class="primary" id="doneBtn" type="button">Save and back to students</button><button class="ghost danger" id="delBtn" type="button">Delete</button></div>
      </section>
    </div>`;
@@ -886,6 +989,7 @@ function renderSheet(){
   $('#critChips').onclick=e=>{const b=e.target.closest('button');if(!b||!canMark())return;const text=b.dataset.q,keys=activeKeys(text);
     if(keys.length)patchMine(S.open,{safety:Object.fromEntries(keys.map(k=>[k,null]))});else logInc(text);navigator.vibrate?.(8)};
   $('#moveDay').onchange=e=>{const d=e.target.value;if(!d)return;patch(S.open,{day:d});S.day=d;ls.set('ops.day',d);renderBar();toast('Moved to '+fmtDay(d))};
+  $('#moveTime').onchange=e=>{const v=e.target.value||'';patch(S.open,{time:v});toast(v?'Test time '+v:'Test time cleared')};
   $('#incText').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();logInc($('#incText').value.trim())}};
   $('#doneBtn').onclick=()=>{flushSoon(0);go('roster')};
   let delArm=0;$('#delBtn').onclick=async()=>{if(Date.now()-delArm>3000){delArm=Date.now();$('#delBtn').textContent='Tap again to delete';setTimeout(()=>$('#delBtn')&&($('#delBtn').textContent='Delete'),3000);return}
@@ -895,7 +999,7 @@ function renderSheet(){
     delete S.tests[S.open];delete S.pending[S.open];ls.set('ops.pending',S.pending);toast('Student removed');go('roster');load()};
   app.querySelectorAll('.stagenav a').forEach(a=>a.onclick=e=>{e.preventDefault();document.getElementById(a.getAttribute('href').slice(1))?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'})});
   const syncTimer=()=>{const on=!!timerOf(S.open);$('#tmStart').hidden=on;$('#tmReset').hidden=!on;$('#tmReset').textContent='Reset';tick()};
-  $('#tmStart').onclick=()=>{setTimer(S.open,true);buzzed.delete(S.open);syncTimer();renderBar();navigator.vibrate?.(15)};
+  $('#tmStart').onclick=()=>{audioOn();setTimer(S.open,true);buzzed.delete(S.open);syncTimer();renderBar();navigator.vibrate?.(15)};
   let tmArm=0;$('#tmReset').onclick=()=>{if(Date.now()-tmArm>3000){tmArm=Date.now();$('#tmReset').textContent='Tap again to reset';return}
     setTimer(S.open,false);syncTimer();renderBar()};
   syncTimer();
@@ -907,8 +1011,9 @@ function syncSheet(first){
   if(S.view!=='test')return;const raw=view(S.open);if(!raw||raw.deleted){go('roster');return}
   const t={id:S.open,...raw},e=mine(t),sc=scoreOf(e,t),app=$('#app');
   $('#sName').textContent=t.name;
-  $('#sMeta').textContent=t.studio||'';
+  $('#sMeta').textContent=[t.studio,t.time].filter(Boolean).join(' · ');
   const md=$('#moveDay');if(document.activeElement!==md)md.value=t.day||'';
+  const mt=$('#moveTime');if(document.activeElement!==mt)mt.value=t.time||'';
   app.querySelectorAll('.marks').forEach(g=>{const v=e.marks?.[g.dataset.crit];g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===v));(g.closest('.crit')).dataset.m=v||''});
   app.querySelectorAll('[data-note]').forEach(n=>{const v=e.notes?.[n.dataset.note]||'';if(document.activeElement!==n&&n.value!==v){n.value=v}if(v){n.hidden=false;const ab=app.querySelector(`[data-addnote="${n.dataset.note}"]`);if(ab)ab.hidden=true}if(!n.hidden)autosize(n)});
   const sm=$('#summary');if(document.activeElement!==sm&&sm.value!==(e.summary||''))sm.value=e.summary||'';
@@ -938,9 +1043,21 @@ function tick(){
     el.classList.toggle('run',!!v);el.classList.toggle('over',!!(v&&v.over));
     const n=el.querySelector('.tm-num');if(n)n.textContent=v?v.txt:'10:00';
     const l=el.querySelector('.tm-label');if(l)l.textContent=!v?'Timer':v.over?'Over time':'Time left'});
-  // a buzz when a running timer reaches zero
-  for(const [sid] of Object.entries(timers())){const v=timerOf(sid);if(v&&v.left<=0&&v.left>-3&&!buzzed.has(sid)){buzzed.add(sid);navigator.vibrate?.([220,120,220])}}
+  // a soft chime and a buzz when a running timer reaches zero
+  for(const [sid] of Object.entries(timers())){const v=timerOf(sid);if(v&&v.left<=0&&v.left>-3&&!buzzed.has(sid)){buzzed.add(sid);chime();navigator.vibrate?.([220,120,220]);
+    const t=S.tests[sid];if(t&&!(S.view==='test'&&S.open===sid))toast(t.name+': time is up')}}
 }
+/* Sound needs a tap first (phones block it otherwise): Start unlocks it, and so does any tap after the page reopens. */
+let actx=null;
+function audioOn(){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume();
+  const b=actx.createBuffer(1,1,22050),src=actx.createBufferSource();src.buffer=b;src.connect(actx.destination);src.start(0)}catch(e){}}
+document.addEventListener('pointerdown',()=>{if(!actx||actx.state==='suspended')audioOn()},{passive:true});
+// two soft bell notes, under a second: noticed in a quiet studio, never startling
+function chime(){try{if(!actx)return;if(actx.state==='suspended')actx.resume();const t0=actx.currentTime+.03;
+  for(const [f,dt] of [[1046.5,0],[784,.24]])for(const [mul,amp] of [[1,.14],[2,.025]]){
+    const o=actx.createOscillator(),g=actx.createGain();o.type='sine';o.frequency.value=f*mul;
+    g.gain.setValueAtTime(0,t0+dt);g.gain.linearRampToValueAtTime(amp,t0+dt+.012);g.gain.exponentialRampToValueAtTime(.0001,t0+dt+.9);
+    o.connect(g);g.connect(actx.destination);o.start(t0+dt);o.stop(t0+dt+.95)}}catch(e){}}
 setInterval(tick,1000);
 
 /* keep the phone awake while a test sheet is open */
