@@ -147,7 +147,7 @@ function buildStart_() {
   sh.getRange('A1:B1').merge(); sh.getRange('A2:B2').merge();
   sh.getRange('B4').setFormula('=HYPERLINK("' + PAGE_URL + '","' + PAGE_URL + '")').setFontWeight('bold');
   const tr = rows.findIndex(r => r[0] === TEAM_LABEL) + 1;
-  sh.getRange(tr, 2).setValue(teamHash_() ? SET : '').setBackground('#fff8d6').setFontWeight('bold').setFontFamily('Courier New')
+  sh.getRange(tr, 2).setNumberFormat('@').setNote(teamSetNote_()).setValue(teamHash_() ? SET : '').setBackground('#fff8d6').setFontWeight('bold').setFontFamily('Courier New')
     .setBorder(true, true, true, true, null, null, BLUE, SpreadsheetApp.BorderStyle.SOLID);
   sh.getRange(tr + 1, 2).setFontColor(MUTE);
   rows.forEach((r, i) => { if (r[0] && i > 1) sh.getRange(i + 1, 1).setFontWeight('bold'); });
@@ -272,15 +272,34 @@ function teamCell_() {
 function teamHash_() { const p = PropertiesService.getScriptProperties(); const h = p.getProperty('team_hash'); return h ? { hash: h, salt: p.getProperty('team_salt') } : null; }
 function storeTeamPassword_() {
   const cell = teamCell_(); if (!cell) return;
-  const typed = String(cell.getValue() || '').trim();
+  const typed = typedTeamPassword_(cell);
   if (!typed || typed === SET) return;
   if (typed.length < MIN_PASSWORD) { cell.setNote('Use ' + MIN_PASSWORD + ' characters or more.'); return; }
   setTeamPassword_(typed);
-  cell.setValue(SET).setNote('');
+  cell.setNumberFormat('@').setValue(SET);
+}
+/** What is typed in the team password cell, exactly as it shows (the sheet may have turned 0123456 into a number). */
+function typedTeamPassword_(cell) {
+  let v = '';
+  try { v = cell.getDisplayValue(); } catch (e) {}
+  return String(v || cell.getValue() || '').trim();
 }
 function setTeamPassword_(pw) {
   const salt = Utilities.getUuid().replace(/-/g, '');
-  PropertiesService.getScriptProperties().setProperties({ team_hash: hash_(pw, salt), team_salt: salt });
+  PropertiesService.getScriptProperties().setProperties({ team_hash: hash_(pw, salt), team_salt: salt, team_at: String(Date.now()) });
+  try { const cell = teamCell_(); if (cell) cell.setNote(teamSetNote_()); } catch (e) {}
+}
+function teamSetNote_() {
+  const at = Number(PropertiesService.getScriptProperties().getProperty('team_at'));
+  return at ? 'Set ' + Utilities.formatDate(new Date(at), Session.getScriptTimeZone(), 'dd.MM.yyyy HH:mm') + '. Type a new one over the dots to change it.' : '';
+}
+/** Phones like to capitalise the first letter or curl a quote: those versions of the password count too. */
+function teamPasswordMatches_(pw, team) {
+  const straight = pw.replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"');
+  const tries = [];
+  [pw, straight].forEach(p => [p, p.charAt(0).toLowerCase() + p.slice(1), p.charAt(0).toUpperCase() + p.slice(1)]
+    .forEach(x => { if (tries.indexOf(x) < 0) tries.push(x); }));
+  return tries.some(x => hash_(x, team.salt) === team.hash);
 }
 
 function studentsTyped_(sh, top, count) {
@@ -428,7 +447,13 @@ function login_(name, password) {
   storeTeamPassword_();                                          // a password typed in the sheet but not yet hidden
   const team = teamHash_();
   if (!team) return { ok: false, error: 'No team password is set yet. Ask the test organiser to set it on the Start here tab.' };
-  if (hash_(password, team.salt) !== team.hash) { cache.put(key, String(fails + 1), 600); return { ok: false, error: 'That password is not right.' }; }
+  if (!teamPasswordMatches_(password, team)) {
+    cache.put(key, String(fails + 1), 600);
+    // a new password typed on Start here that was too short was not taken, so the old one still applies: say so
+    const cell = teamCell_(), pending = cell ? typedTeamPassword_(cell) : '';
+    if (pending && pending !== SET) return { ok: false, error: 'That password is not right. A new password was typed on the Start here tab but it is too short, so the old one still applies. Type one with ' + MIN_PASSWORD + ' characters or more there.' };
+    return { ok: false, error: 'That password is not right.' };
+  }
   cache.remove(key);
   return startSession_(t);
 }
