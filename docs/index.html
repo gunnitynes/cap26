@@ -682,9 +682,27 @@ addEventListener('online',()=>flushSoon(10));
 addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDefault();e.returnValue=''}});
 
 
+/* ------------------------------------------------------------------ updates
+   GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
+   When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
+   it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
+const BUILD='1793382665';
+let updAt=0;
+async function checkUpdate(){
+  if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
+  try{
+    const r=await fetch(location.pathname+'?b='+Date.now(),{cache:'no-store'});const txt=await r.text();
+    const m=txt.match(/const BUILD='1793382665']+)'/);if(!m||m[1]===BUILD)return;
+    if(myPending().length){flushSoon(10);return}
+    const u=new URL(location.href);u.searchParams.set('v',m[1]);location.replace(u.toString());
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkUpdate()});
+
 /* ------------------------------------------------------------------ boot */
 async function boot(){
   if(S.demo){startDemo();return}
+  checkUpdate();
   if(!S.token){S.view='login';renderBar();render();return}
   // open at once with what this phone saw last time, marked "Updating…" until the Sheet answers
   const c=ls.get('ops.cache',null);
