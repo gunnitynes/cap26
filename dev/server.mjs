@@ -35,7 +35,7 @@ if (process.env.OPS_SEED) {
   save(at, 'Ida', { marks: { p1: 'y', p2: 'y', p3: 'h', m1: 'y' } });
   // CAPs, typed in the sheet as the organiser does
   const stu = g.SpreadsheetApp.getActive().getSheetByName('Students'), rows = book.sheets.find(x => x.name === 'Students').data;
-  rows.forEach((r, i) => { if (i && r[2]) stu.getRange(i + 1, 4).setValue(i % 3 ? 'CAP 1' : '2'); });
+  rows.forEach((r, i) => { if (i && r[2]) stu.getRange(i + 1, 4).setValue(['CAP 26A', 'CAP 26B', 'TRANSFER', 'CAP 26C'][i % 4]); });
   console.log('Seeded example students on', ymd(3), 'and', ymd(5));
 }
 // OPS_TRY_QUESTIONS=1: 45 s after start, someone "edits the Questions tab" (rewords the first question, adds a K3 one

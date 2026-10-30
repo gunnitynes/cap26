@@ -399,7 +399,12 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .slot span{font-size:10.5px;color:var(--mute)}
 .slot.none b{color:var(--line)}
 .crit-n{white-space:nowrap}
-.row .who b .cap{margin-left:4px;font-size:10px}
+/* the name shortens with … but its CAP tag and timer always stay visible */
+.row .who b{display:flex;align-items:center;min-width:0}
+.row .who b .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;font-size:inherit;color:inherit}
+.row .who b .cap,.row .who b .tm-mini{flex:none}
+.row .who b .cap{margin-left:6px;font-size:10px}
+.cap.xfer{color:var(--hint);border-color:var(--hint);background:var(--hint-soft)}
 .cap{display:inline-block;font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.03em;color:var(--ink);border:1px solid var(--line);background:var(--sunk);border-radius:4px;padding:0 5px;line-height:1.5;vertical-align:1px;white-space:nowrap}
 .row.now{border-color:var(--led);box-shadow:inset 3px 0 0 var(--led)}
 .row.now .slot b,.row.now .slot span{color:var(--led)}
@@ -615,9 +620,10 @@ function startDay(){
   if(days.has(td))return td;
   return [...days].filter(d=>d>td).sort()[0]||td;
 }
-// the CAP column in the Students tab, shown as typed ("CAP 1"); a bare "1" becomes "CAP 1"
-const capOf=t=>{const v=String(t&&t.cap||'').trim();return !v?'':/cap/i.test(v)?v:'CAP '+v};
-const capTag=t=>capOf(t)?`<span class="cap">${esc(capOf(t))}</span>`:'';
+// the CAP column in the Students tab, shown as chosen (CAP 26A … or TRANSFER); a bare "26A" becomes "CAP 26A"
+const capOf=t=>{const v=String(t&&t.cap||'').trim();return !v?'':/^\d+[a-z]?$/i.test(v)?'CAP '+v.toUpperCase():v};
+const isTransfer=t=>/^transfer/i.test(capOf(t));
+const capTag=t=>capOf(t)?`<span class="cap${isTransfer(t)?' xfer':''}" title="${isTransfer(t)?'Transfer: from outside the class':'CAP class'}">${esc(capOf(t))}</span>`:'';
 const isMine=t=>!!S.me&&(t.teacher||'').trim().toLowerCase()===S.me.trim().toLowerCase();
 // test date, then test time (students without one last), then name
 const byTime=(a,b)=>a.day<b.day?-1:a.day>b.day?1:(a.time||'99')<(b.time||'99')?-1:(a.time||'99')>(b.time||'99')?1:a.name.localeCompare(b.name);
@@ -889,7 +895,7 @@ function renderRoster(){
   const isNow=t=>{const a=toM(t.time),b=t.end?toM(t.end):a+15;return nowM>=a&&nowM<b};
   const slot=t=>!timed?'':t.time?`<span class="slot" aria-label="${t.time}${t.end?' to '+t.end:''}"><b>${t.time}</b>${t.end?`<span>${t.end}</span>`:''}</span>`:'<span class="slot none" aria-hidden="true"><b>––:––</b></span>';
   const row=t=>{const st=statusOf(t),ce=scoreOf(mine(t),t).inc.length,nt=Object.keys(entries(t)).length;
-    return `<button class="row${isNow(t)?' now':''}" data-open="${t.id}">${slot(t)}${ring(t,timed?38:44)}<span class="who"><b>${esc(t.name)}${capOf(t)?' '+capTag(t):''}${timerOf(t.id)?` <span class="tm-mini" data-timer="${t.id}"><span class="tm-num">${timerOf(t.id).txt}</span></span>`:''}</b><span>${[esc(t.studio||''),mineView||!admin?'':t.teacher?esc(t.teacher):'<span class="unas">No teacher</span>',nt?nt+' marking':''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}</span></span><span class="pill ${st.k}">${st.l}</span></button>`};
+    return `<button class="row${isNow(t)?' now':''}" data-open="${t.id}">${slot(t)}${ring(t,timed?38:44)}<span class="who"><b><span class="nm">${esc(t.name)}</span>${capTag(t)}${timerOf(t.id)?` <span class="tm-mini" data-timer="${t.id}"><span class="tm-num">${timerOf(t.id).txt}</span></span>`:''}</b><span>${[esc(t.studio||''),mineView||!admin?'':t.teacher?esc(t.teacher):'<span class="unas">No teacher</span>',nt?nt+' marking':''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}</span></span><span class="pill ${st.k}">${st.l}</span></button>`};
   const stats=`<div class="stat"><div class="n">${list.length}</div><div class="l">Students</div></div>
       <div class="stat"><div class="n">${marked}</div><div class="l">Marked by you</div></div>
       <div class="stat"><div class="n" style="color:var(--mute)">${cnt.todo}</div><div class="l">Not started</div></div>
