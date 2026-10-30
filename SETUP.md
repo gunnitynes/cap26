@@ -36,7 +36,7 @@ This is done in the **Teachers** tab. Anyone you share the Sheet with can do it.
    ```js
    window.OPS_API = 'https://script.google.com/macros/s/…/exec';
    ```
-2. Publish the `docs/` folder with GitHub Pages, for example as `gunnitynes/ops-test`. The link is then `https://gunnitynes.github.io/ops-test/`.
+2. Publish the `docs/` folder with GitHub Pages, for example as `gunnitynes/cap26`. The link is then `https://gunnitynes.github.io/cap26/`.
 
 ## 3. Send it
 

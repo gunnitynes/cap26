@@ -21,7 +21,7 @@
  *   Grades      the overview: every student's combined grade, stages, progress and errors, rebuilt by the script
  */
 
-const PAGE_URL = 'https://gunnitynes.github.io/ops-test/';
+const PAGE_URL = 'https://gunnitynes.github.io/cap26/';
 const SESSION_DAYS = 400;       // a phone stays signed in for the school year
 const HASH_ROUNDS = 400;
 const MAX_TRIES = 8;            // wrong passwords per name before a 10-minute pause
