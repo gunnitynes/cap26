@@ -309,4 +309,28 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(names(it), 'Kim,Lior,Noor,Pia'); assert.equal(names(at), '');
   ok('when the admin moves a student to another teacher, it moves between their lists');
 }
+// 10. Every teacher signs in with the one password, whatever the organiser tried first.
+{
+  const { g } = loadScript();
+  g.setup();
+  const te = g.SpreadsheetApp.getActive().getSheetByName('Teachers');
+  te.getRange(2, 1, 3, 2).setValues([['Gunni', 'admin'], ['Isuru', 'teacher'], ['Ainsley', 'teacher']]); g.setTeamPassword_('team-pass-1');
+  const login = (n, p) => call(g, { action: 'login', name: n, password: p });
+  // the organiser tries each name on their own phone first, then signs out
+  ['Gunni', 'Isuru', 'Ainsley'].forEach(n => { const t = login(n, 'team-pass-1').token; assert.ok(t); call(g, { action: 'logout', token: t }); });
+  const phones = ['Gunni', 'Isuru', 'Ainsley'].map(n => login(n, 'team-pass-1'));
+  assert.ok(phones.every(r => r.ok));
+  ok('every teacher signs in with the same password, also after the organiser tried their name first');
+  const isuru2 = login('isuru', 'team-pass-1').token;
+  call(g, { action: 'logout', token: isuru2 });
+  assert.equal(call(g, { action: 'state', token: phones[1].token }).ok, true);
+  ok('the same name signed in on two phones: signing out on one leaves the other signed in');
+  for (let i = 0; i < 8; i++) login('Ainsley', 'typo');
+  assert.match(login('Ainsley', 'team-pass-1').error, /Too many wrong tries/);
+  assert.equal(login('Isuru', 'team-pass-1').ok, true);
+  ok('8 wrong tries pause only that name, nobody else');
+  g.setTeamPassword_('team-pass-2');
+  assert.equal(login('Ainsley', 'team-pass-2').ok, true);
+  ok('typing the team password again on Start here clears a pause at once');
+}
 console.log(`\n${n} checks passed`);

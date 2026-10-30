@@ -439,9 +439,11 @@ function login_(name, password) {
   name = clean_(name, 40); password = String(password || '').trim();
   if (!name) return { ok: false, error: 'Pick your name.' };
   if (!password) return { ok: false, error: 'Type the team password.' };
-  const cache = CacheService.getScriptCache(), key = 'fail_' + norm_(name).replace(/[^a-z0-9]/g, '_');
+  // wrong tries are counted per name and per team password: setting the password again clears every pause at once
+  const stamp = PropertiesService.getScriptProperties().getProperty('team_at') || '0';
+  const cache = CacheService.getScriptCache(), key = 'fail_' + stamp + '_' + norm_(name).replace(/[^a-z0-9]/g, '_');
   const fails = Number(cache.get(key) || 0);
-  if (fails >= MAX_TRIES) return { ok: false, error: 'Too many wrong tries. Wait 10 minutes and try again.' };
+  if (fails >= MAX_TRIES) return { ok: false, error: 'Too many wrong tries for this name. Wait 10 minutes, or ask the organiser to type the team password again on Start here (that clears it at once).' };
   const t = teachers_().find(x => norm_(x.name) === norm_(name));
   if (!t) return { ok: false, error: 'That name is not in the Teachers tab any more.' };
   storeTeamPassword_();                                          // a password typed in the sheet but not yet hidden
