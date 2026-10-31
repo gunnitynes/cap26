@@ -150,7 +150,7 @@ function buildStart_() {
     ['Assign a teacher', 'Pick the teacher in the student\'s Teacher column. On the page each teacher sees only their own students; an admin (Role column in Teachers) sees everyone.'],
     ['Remove a student', 'Type anything (for example "absent") in their Removed column. Their row stays, so nothing is lost.'],
     ['Remove a teacher', 'Delete their row in Teachers. Their marks stay in Marks.'],
-    ['Change the questions', 'Each teacher has their own tab, "Questions · their name". Edit yours: one row per question, in test order. Move rows to reorder, replace a question by typing a new one, add or delete rows, or set a studio. Marks stay with their question when it moves. Your students are asked your questions; the page picks it up within a few seconds.'],
+    ['Change the questions', 'Each teacher has their own tab, "Questions · their name". Edit yours: one row per question, in test order. Drag rows to reorder, type a new question over an old one, add or delete rows, or set a studio. Marks stay with their question when it moves. Every row shows its stage (repeats are faint): a moved row keeps its stage, a new row takes the stage above, and typing a new name over the first stage cell of a block renames the whole stage. Your students are asked your questions; the page picks it up within a few seconds.'],
     ['', 'The Questions tab is the shared starting point: a new teacher\'s tab starts as a copy of it, and students without a teacher are asked it.'],
     ['', 'A test date keeps the questions it was first marked with, so grades already given never move (rewording still shows). To give a marked date the new questions anyway: Ops Test ▸ Use the current questions for a test date.'],
     ['', ''],
@@ -271,18 +271,62 @@ const STAGE_TINTS = ['#eaf0ff', '#fff3df', '#e6f5ec', '#fdeaee', '#efe9fb', '#e4
 function colourStages_(q) {
   const last = q.getLastRow(), W = SHEETS.QUESTIONS.header.length;
   if (last < 2) return;
-  const vals = rowsStd_(q);
-  const bg = [], starts = [];
-  let stage = '', n = -1;
+  const vals = rowsStd_(q), tintOf = {}, bg = [], starts = [];
+  let prev = null;
   vals.forEach((r, i) => {
     const st = String(r[Q_.STAGE] || '').trim();
-    if (st && st !== stage) { stage = st; n++; starts.push(i + 2); }
-    const tint = n < 0 || !String(r[Q_.TEXT] || '').trim() && !st ? '#ffffff' : STAGE_TINTS[n % STAGE_TINTS.length];
-    bg.push(Array(W).fill(tint));
+    if (st && !(st in tintOf)) tintOf[st] = STAGE_TINTS[Object.keys(tintOf).length % STAGE_TINTS.length];   // one colour per stage name
+    if (st && st !== prev) starts.push(i + 2);
+    if (st) prev = st;
+    bg.push(Array(W).fill(st ? tintOf[st] : '#ffffff'));
   });
   try { q.getBandings().forEach(b => b.remove()); } catch (e) {}
   q.getRange(2, 1, vals.length, W).setBackgrounds(bg).setBorder(false, false, false, false, false, false);
   starts.forEach(r => q.getRange(r, 1, 1, W).setBorder(true, null, null, null, null, null, INK, SpreadsheetApp.BorderStyle.SOLID_MEDIUM));
+  // the stage name is on every row (so a row keeps its stage when moved), but only the first of a block is shown strongly
+  try {
+    const col = q.getRange(3, Q_.STAGE + 1, Math.max(1, q.getMaxRows() - 2), 1);
+    q.setConditionalFormatRules([SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=AND(A3<>"",A3=A2)')
+      .setFontColor('#aab3c5').setBold(false).setRanges([col]).build()]);
+  } catch (e) {}
+}
+/* What happens when a teacher edits a questions tab:
+   - typing a new name over the FIRST Stage cell of a block renames the whole block (clearing it joins the stage above);
+   - a question without a stage takes the stage of the row above, written into its own cell, so it keeps it when moved;
+   - IDs and colours are brought up to date. */
+function questionsEdited_(sh, e) {
+  try {
+    const c = qcols_(sh), rg = e && e.range;
+    if (rg && c.stage >= 0 && rg.getNumRows() === 1 && rg.getNumColumns() === 1 && rg.getColumn() === c.stage + 1 && e.oldValue !== undefined)
+      renameStage_(sh, rg.getRow(), String(e.oldValue || '').trim(), String(rg.getValue() || '').trim());
+    fillStages_(sh);
+  } catch (err) {}
+  ensureQuestionIdsIn_(sh);
+  try { colourStages_(sh); } catch (err) {}
+}
+function renameStage_(sh, row, from, to) {
+  const c = qcols_(sh), last = sh.getLastRow();
+  if (!from || from === to || last < row) return;
+  const col = sh.getRange(1, c.stage + 1, last, 1), v = col.getValues();
+  if (row > 2 && String(v[row - 2][0] || '').trim() === from) return;   // not the first of its block: only this question moves stage
+  if (!to) { for (let i = row - 2; i >= 1; i--) if (String(v[i][0] || '').trim()) { to = String(v[i][0]).trim(); break; } }
+  if (!to) return;
+  v[row - 1][0] = to;
+  for (let i = row; i < last && String(v[i][0] || '').trim() === from; i++) v[i][0] = to;
+  col.setValues(v);
+}
+/** Writes the stage into every question row that has none: the stage of the row above. */
+function fillStages_(sh) {
+  const c = qcols_(sh), last = sh.getLastRow();
+  if (c.stage < 0 || c.text < 0 || last < 2) return;
+  const sr = sh.getRange(2, c.stage + 1, last - 1, 1), st = sr.getValues(), tx = sh.getRange(2, c.text + 1, last - 1, 1).getValues();
+  let cur = '', changed = false;
+  st.forEach((r, i) => {
+    const v = String(r[0] || '').trim();
+    if (v) cur = v;
+    else if (cur && String(tx[i][0] || '').trim()) { r[0] = cur; changed = true; }
+  });
+  if (changed) sr.setValues(st);
 }
 
 function styleQuestions_(q) {
@@ -302,16 +346,21 @@ function styleQuestions_(q) {
   q.getRange(2, Q_.STUDIO + 1, qr, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['Both'].concat(STUDIO_LIST), true)
     .setAllowInvalid(true).setHelpText('Both, or a studio: a K3 question is only asked of students tested in K3.').build());
   q.getRange(2, Q_.LABEL + 1, qr, 1).setFontColor(MUTE);
-  [['Short stage name: the page\'s stage bar and a Grades column. Leave it blank to keep the stage of the row above.'],
-   ['The heading over the stage on the page. Only needed on the first row of a stage.'],
+  [['The stage this question belongs to (the page\'s stage bar and a Grades column). Every row has one; repeats show faint. Rename a stage: type over its FIRST cell and the whole block follows. A new row left blank takes the stage of the row above.'],
+   ['The heading over the stage on the page. Needed on one row of the stage.'],
    ['What the teacher marks. One row per question, in the order of the test. Delete the row to remove the question.'],
    ['Optional: a question the teacher reads out loud, shown under the question. Leave it empty for none.'],
    ['Both, K3 or K4. A K3 question only shows for students tested in K3.'],
-   ['Optional: a short name for the Marks and Grades tabs.'],
+   ['Optional: a short name, the column heading in Marks. Questions with the same name in different teachers\' tabs share a column. Cleared by itself when you type a different question over this row.'],
    ['Given by the sheet. Keeps marks attached to this question when you move it (drag, sort, copy or retype) or reword it a little.']]
     .forEach((n, i) => q.getRange(1, i + 1).setNote(n[0]));
   q.hideColumns(Q_.ID + 1);
   q.setTabColor(own ? '#7c8db5' : BLUE);
+  try {   // the headings are what the script reads: changing them, or deleting a column, asks "are you sure?" first
+    q.getProtections(SpreadsheetApp.ProtectionType.RANGE).filter(p => p.getDescription() === 'ops').forEach(p => p.remove());
+    q.getRange(1, 1, 1, SHEETS.QUESTIONS.header.length).protect().setDescription('ops').setWarningOnly(true);
+  } catch (e) {}
+  fillStages_(q);
   colourStages_(q);
 }
 
@@ -351,7 +400,7 @@ function onEdit(e) {
     const sh = e && e.range && e.range.getSheet(), name = sh && sh.getName(), r = e.range.getRow();
     if (name === SHEETS.STUDENTS.name && r >= 2) { studentsTyped_(sh, r, e.range.getNumRows()); gradesDirty_(); return; }
     if (name === SHEETS.START.name) { storeTeamPassword_(); storeAdminPin_(); resetCells_(e.range); return; }
-    if (isQuestionSheet_(name) && r >= 2) { ensureQuestionIds_(); try { colourStages_(sh); } catch (e) {} gradesDirty_(); return; }
+    if (isQuestionSheet_(name) && r >= 2) { questionsEdited_(sh, e); gradesDirty_(); return; }
     if (name === SHEETS.TEACHERS.name && r >= 2) {
       const last = Math.min(sh.getLastRow(), r + e.range.getNumRows() - 1);
       for (let i = r; i <= last; i++) if (sh.getRange(i, T.NAME + 1).getValue() && !sh.getRange(i, T.ROLE + 1).getValue()) sh.getRange(i, T.ROLE + 1).setValue('teacher');
@@ -1004,8 +1053,10 @@ function ensureQuestionIdsIn_(sh) {
   if (c.id < 0) { sh.getRange(1, c.width + 1).setValue('ID'); c = qcols_(sh); }
   if (c.text < 0) return;
   const n = sh.getLastRow() - 1, texts = sh.getRange(2, c.text + 1, n, 1).getValues(), idr = sh.getRange(2, c.id + 1, n, 1), ids = idr.getValues();
-  const props = PropertiesService.getScriptProperties(), key = 'qreg_' + sh.getName();
+  const before = ids.map(r => String(r[0] || '').trim());
+  const props = PropertiesService.getScriptProperties(), key = 'qreg_' + sh.getName(), lkey = 'qlab_' + sh.getName();
   let reg = {}; try { reg = JSON.parse(props.getProperty(key) || '{}'); } catch (e) {}
+  let labs = {}; try { labs = JSON.parse(props.getProperty(lkey) || '{}'); } catch (e) {}
   const byText = {}; Object.keys(reg).forEach(id => byText[normQ_(reg[id])] = id);
   const taken = {}, next = {}; let changed = false;
   // first pass: rows whose ID still holds its own text keep it
@@ -1024,8 +1075,20 @@ function ensureQuestionIdsIn_(sh) {
     if (String(r[0] || '').trim() !== id) { r[0] = id; changed = true; }
   });
   if (changed) idr.setValues(ids);
+  // a Column name belongs to its question: when a row now holds a different question, the old name goes (or the moved one comes along)
+  const nextLabs = {};
+  if (c.label >= 0) {
+    const lr = sh.getRange(2, c.label + 1, n, 1), lv = lr.getValues();
+    let lchanged = false;
+    ids.forEach((r, i) => {
+      const id = String(r[0] || '').trim(), was = before[i], lab = String(lv[i][0] || '').trim();
+      if (id && was && id !== was && labs[was] !== undefined && lab === labs[was]) { lv[i][0] = labs[id] || ''; lchanged = true; }
+      if (id) nextLabs[id] = String(lv[i][0] || '').trim();
+    });
+    if (lchanged) lr.setValues(lv);
+  }
   Object.keys(next).forEach(k => next[k] = next[k].slice(0, 160));
-  try { props.setProperty(key, JSON.stringify(next)); } catch (e) {}
+  try { props.setProperty(key, JSON.stringify(next)); props.setProperty(lkey, JSON.stringify(nextLabs)); } catch (e) {}
 }
 function normQ_(t) { return String(t || '').toLowerCase().replace(/[^a-z0-9äöüßæøåéèáíóúð]+/g, ' ').trim(); }
 /** Two wordings of the same question: most of their words are the same. */

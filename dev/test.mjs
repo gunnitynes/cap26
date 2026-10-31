@@ -485,7 +485,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   // Isuru writes his own questions over the rows (IDs stay) and adds a Shut down question at the end
   const iq = ss.getSheetByName('Questions · Isuru'), rows = tab(book, 'Questions · Isuru').data;
   const s1 = rows.findIndex(r => r[6] === 's1') + 1;
-  iq.getRange(s1, 1).setValue('');                                    // s1 and s2 now fall under the stage above (Cue)
+  iq.getRange(s1, 1, 2, 1).setValues([[''], ['']]);                   // s1 and s2 now fall under the stage above (Cue)
   const last = iq.getLastRow() + 1;
   iq.getRange(last, 1, 1, 3).setValues([['Shut down', 'Shut down & pack down', 'Demonstrated correct shutdown & reset procedures']]);
   g.onEdit({ range: iq.getRange(last, 1, 1, 3) });
@@ -551,7 +551,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   ok('a tab with a deleted column is read by its headings: an empty Ask stays empty (no "true")');
   g.setup();
   assert.deepEqual(tab(book, 'Questions · Gunni').data[0], ['Stage', 'Stage heading', 'Question', 'Ask out loud (optional)', 'Studio', 'Column name', 'ID']);
-  assert.deepEqual(tab(book, 'Questions · Gunni').data[2], ['', '', 'Mute before console connections', '', 'K3', 'CR mute', 'p2']);
+  assert.deepEqual(tab(book, 'Questions · Gunni').data[2], ['Power', '', 'Mute before console connections', '', 'K3', 'CR mute', 'p2']);
   ok('setup puts the tab back in the standard columns, keeping every question, studio, column name and ID (Core is gone)');
 }
 // 18. Moving, replacing and rewording questions: marks stay with their question.
@@ -638,5 +638,44 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.ok(!mh.includes('Shared only name'));
   assert.ok(mh.includes('%') && !mh.includes('Teacher score %'));
   ok('Marks: one column per name across teachers, no teacher tags, no column for a question nobody asks, "%" header');
+}
+// 22. Teachers editing their tab: moving, renaming and adding stages; Column names stay with their question.
+{
+  const { g, book } = loadScript();
+  g.setup();
+  const ss = g.SpreadsheetApp.getActive(), te = ss.getSheetByName('Teachers');
+  te.getRange(2, 1, 1, 2).setValues([['Gunni', 'admin']]); g.onEdit({ range: te.getRange(2, 1, 1, 2) });
+  const q = ss.getSheetByName('Questions · Gunni'), rows = () => tab(book, 'Questions · Gunni').data;
+  const stageOf = id => g.questions_('Gunni').find(x => x.id === id).stage;
+  const rowOf = id => rows().findIndex(r => r[6] === id) + 1;
+  assert.ok(rows().slice(1).filter(r => r[2]).every(r => r[0]), 'every question row shows its stage after setup');
+  // move the FIRST row of the Mic stage to the very end: the other Mic questions stay Mic, the moved one too
+  const micFirst = rows().findIndex((r, i) => i > 0 && r[0] === 'Mic') + 1, moved = rows()[micFirst - 1].slice();
+  const micRest = rows().filter(r => r[0] === 'Mic').map(r => r[6]).filter(id => id !== moved[6]);
+  q.deleteRow(micFirst); const end = q.getLastRow() + 1;
+  q.getRange(end, 1, 1, 7).setValues([moved]); g.onEdit({ range: q.getRange(end, 1, 1, 7) });
+  assert.ok(micRest.length && micRest.every(id => stageOf(id) === 'Mic'));
+  assert.equal(stageOf(moved[6]), 'Mic');
+  ok('moving the first row of a stage keeps every question in its stage');
+  // rename a stage by typing over the first cell of its block; a later cell moves only that question
+  const rec = rows().findIndex((r, i) => i > 0 && r[0] === 'Record') + 1, routeIds = rows().filter(r => r[0] === 'Record').map(r => r[6]);
+  q.getRange(rec, 1).setValue('Recording'); g.onEdit({ range: q.getRange(rec, 1), oldValue: 'Record' });
+  assert.ok(routeIds.length === 4 && routeIds.every(id => stageOf(id) === 'Recording'));
+  const second = rowOf(routeIds[1]);
+  q.getRange(second, 1).setValue('Cue'); g.onEdit({ range: q.getRange(second, 1), oldValue: 'Recording' });
+  assert.equal(stageOf(routeIds[1]), 'Cue'); assert.equal(stageOf(routeIds[2]), 'Recording');
+  ok('typing over a stage\'s first cell renames the whole stage; over a later cell, moves just that question');
+  // a new row left without a stage takes the stage above
+  const after = rowOf(routeIds[2]);
+  q.insertRowAfter(after); q.getRange(after + 1, 3).setValue('Checks the talkback'); g.onEdit({ range: q.getRange(after + 1, 3) });
+  assert.equal(rows()[after][0], 'Recording');
+  ok('a new question row takes the stage of the row above, written into its own cell');
+  // typing a different question over a row clears its old Column name
+  const r1 = rowOf('p1');
+  assert.ok(rows()[r1 - 1][5]);
+  q.getRange(r1, 3).setValue('Labels every cable on the patch bay'); g.onEdit({ range: q.getRange(r1, 3) });
+  assert.equal(rows()[r1 - 1][5], '');
+  assert.equal(g.questions_('Gunni').find(x => x.t === 'Labels every cable on the patch bay').label, 'Labels every cable on the…');
+  ok('a question typed over another loses the old Column name (it shows its own words until named)');
 }
 console.log(`\n${n} checks passed`);

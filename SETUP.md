@@ -52,13 +52,12 @@ Edit the **Questions** tab in the Sheet. Each row is one question, in test order
 
 | Column | What it does |
 | --- | --- |
-| Stage | Short stage name (stage bar on the page, a Grades column). Blank keeps the stage of the row above. |
-| Stage heading | The heading on the page. Only needed on the first row of a stage. |
+| Stage | The question's stage (stage bar on the page, a Grades column). Every row has one, repeats show faint. Typing over the first cell of a block renames the whole stage; a new row left blank takes the stage above. |
+| Stage heading | The heading on the page. Needed on one row of the stage. |
 | Question | What the teacher marks. Delete the row to remove the question. |
 | Ask out loud | Optional question for the teacher to read out. |
-| Core | Ticked: a combined mark under 50% means Resit. |
 | Studio | Both, K3 or K4. |
-| Column name | Optional short name for the Marks and Grades tabs. |
+| Column name | Optional short name: the Marks column heading. The same name in two teachers' tabs shares one column. Cleared when a different question is typed over the row. |
 | ID (hidden) | Given by the sheet; keeps marks attached when a question is reworded or moved. |
 
 Phones pick up the change within about 10 seconds. A test date keeps the questions it was first marked with, so grades already given never move (rewording still shows there). **Ops Test ▸ Use the current questions for a test date** moves a marked date onto the current questions.
