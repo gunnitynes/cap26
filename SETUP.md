@@ -52,7 +52,7 @@ Edit the **Questions** tab in the Sheet. Each row is one question, in test order
 
 | Column | What it does |
 | --- | --- |
-| Stage | The question's stage (stage bar on the page, a Grades column). Every row has one, repeats show faint. Typing over the first cell of a block renames the whole stage; a new row left blank takes the stage above. |
+| Stage | The question's stage, picked from a dropdown. The stages are one list for every teacher, kept under **Test stages** on Start here: renaming one there renames it in every tab, and Grades has one column per stage. A new row left blank takes the stage above. |
 | Stage heading | The heading on the page. Needed on one row of the stage. |
 | Question | What the teacher marks. Delete the row to remove the question. |
 | Ask out loud | Optional question for the teacher to read out. |

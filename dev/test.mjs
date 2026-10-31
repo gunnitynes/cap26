@@ -658,14 +658,29 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.ok(micRest.length && micRest.every(id => stageOf(id) === 'Mic'));
   assert.equal(stageOf(moved[6]), 'Mic');
   ok('moving the first row of a stage keeps every question in its stage');
-  // rename a stage by typing over the first cell of its block; a later cell moves only that question
-  const rec = rows().findIndex((r, i) => i > 0 && r[0] === 'Record') + 1, routeIds = rows().filter(r => r[0] === 'Record').map(r => r[6]);
-  q.getRange(rec, 1).setValue('Recording'); g.onEdit({ range: q.getRange(rec, 1), oldValue: 'Record' });
+  // the stages are one list on Start here: renaming one there renames it in every teacher's tab
+  assert.deepEqual(JSON.parse(JSON.stringify(g.stages_())), ['Power', 'Mic', 'Route', 'Record', 'Cue', 'Shut down']);
+  const routeIds = rows().filter(r => r[0] === 'Record').map(r => r[6]);
+  const start = ss.getSheetByName('Start here'), sa = tab(book, 'Start here').data.findIndex(r => r[0] === 'Test stages') + 1;
+  const recCell = start.getRange(sa + 3, 2);
+  assert.equal(recCell.getValue(), 'Record');
+  recCell.setValue('Recording'); g.onEdit({ range: recCell, oldValue: 'Record' });
   assert.ok(routeIds.length === 4 && routeIds.every(id => stageOf(id) === 'Recording'));
+  assert.ok(!tab(book, 'Questions').data.some(r => r[0] === 'Record') && tab(book, 'Questions').data.some(r => r[0] === 'Recording'));
+  assert.equal(g.stages_()[3], 'Recording');
+  // picking another stage for one question moves just that question
   const second = rowOf(routeIds[1]);
   q.getRange(second, 1).setValue('Cue'); g.onEdit({ range: q.getRange(second, 1), oldValue: 'Recording' });
   assert.equal(stageOf(routeIds[1]), 'Cue'); assert.equal(stageOf(routeIds[2]), 'Recording');
-  ok('typing over a stage\'s first cell renames the whole stage; over a later cell, moves just that question');
+  ok('renaming a stage on Start here renames it in every teacher\'s tab; picking a stage moves one question');
+  // a stage typed with other capitals or spaces still counts as the listed stage
+  q.getRange(rowOf(routeIds[2]), 1).setValue('  recording '); g.onEdit({ range: q.getRange(rowOf(routeIds[2]), 1) });
+  assert.equal(stageOf(routeIds[2]), 'Recording');
+  g.buildGrades_();
+  const gh = tab(book, 'Grades').data[6];
+  assert.equal(gh.filter(h => /^recording$/i.test(String(h).trim())).length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(gh.slice(6, 12))), ['Power', 'Mic', 'Route', 'Recording', 'Cue', 'Shut down']);
+  ok('Grades has one column per listed stage, in list order, whatever capitals or spaces a teacher typed');
   // a new row left without a stage takes the stage above
   const after = rowOf(routeIds[2]);
   q.insertRowAfter(after); q.getRange(after + 1, 3).setValue('Checks the talkback'); g.onEdit({ range: q.getRange(after + 1, 3) });

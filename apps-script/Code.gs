@@ -34,6 +34,8 @@ const TEAM_LABEL = 'Team password';
 const PIN_LABEL = 'Admin PIN';
 const RESET_ONE_LABEL = 'Reset a student';
 const RESET_ALL_LABEL = 'Reset everything';
+const STAGES_LABEL = 'Test stages';
+const MAX_STAGES = 8;
 const MIN_PIN = 4;
 // Marks, best first. Tolerant on purpose: "Got there" on everything still passes.
 const POINTS = { p: 1, y: 0.8, h: 0.65, g: 0.5, n: 0 };
@@ -142,6 +144,8 @@ function buildStart_() {
     ['', 'Type a student\'s name in the cell above and press Enter: every teacher\'s marks for that student are removed, the student stays on the list. If the name is there twice, add the date, like "Kim 02.11.2026". (On the page: open the student, scroll down, tap Reset.)'],
     [RESET_ALL_LABEL, ''],
     ['', 'Type RESET in the cell above and press Enter to remove every mark for every student, for example after beta testing. Students, teachers and questions stay.'],
+    ...stageSlots_().map((st, i) => [i ? '' : STAGES_LABEL, st]),
+    ['', 'The stages of the test, in order, the same for every teacher: the Stage column of every questions tab is a dropdown of these, and Grades has one column per stage. Rename a stage here and it is renamed in every teacher\'s tab. Add one in an empty cell; clear one to take it off the list.'],
     ['Add a teacher', 'Type their name in the Teachers tab. It then appears on the sign-in page: they pick it and type the team password.'],
     ['Add students', 'Open the Students tab. Type the test date, the test time (like 10:30), the student\'s name and the studio, one student per row.'],
     ['', 'Pasting a whole list? Paste the names into the Student column and type the date once at the top: rows below take the date and studio from the row above. Each student keeps their own time.'],
@@ -150,7 +154,7 @@ function buildStart_() {
     ['Assign a teacher', 'Pick the teacher in the student\'s Teacher column. On the page each teacher sees only their own students; an admin (Role column in Teachers) sees everyone.'],
     ['Remove a student', 'Type anything (for example "absent") in their Removed column. Their row stays, so nothing is lost.'],
     ['Remove a teacher', 'Delete their row in Teachers. Their marks stay in Marks.'],
-    ['Change the questions', 'Each teacher has their own tab, "Questions · their name". Edit yours: one row per question, in test order. Drag rows to reorder, type a new question over an old one, add or delete rows, or set a studio. Marks stay with their question when it moves. Every row shows its stage (repeats are faint): a moved row keeps its stage, a new row takes the stage above, and typing a new name over the first stage cell of a block renames the whole stage. Your students are asked your questions; the page picks it up within a few seconds.'],
+    ['Change the questions', 'Each teacher has their own tab, "Questions · their name". Edit yours: one row per question, in test order. Drag rows to reorder, type a new question over an old one, add or delete rows, or set a studio. Marks stay with their question when it moves. Every row shows its stage (repeats are faint), picked from a dropdown of the Test stages above: a moved row keeps its stage, a new row takes the stage above. Your students are asked your questions; the page picks it up within a few seconds.'],
     ['', 'The Questions tab is the shared starting point: a new teacher\'s tab starts as a copy of it, and students without a teacher are asked it.'],
     ['', 'A test date keeps the questions it was first marked with, so grades already given never move (rewording still shows). To give a marked date the new questions anyway: Ops Test ▸ Use the current questions for a test date.'],
     ['', ''],
@@ -185,6 +189,10 @@ function buildStart_() {
     sh.getRange(at, 1).setFontColor('#c62828');
     sh.getRange(at + 1, 2).setFontColor(MUTE);
   });
+  const sa = rows.findIndex(r => r[0] === STAGES_LABEL) + 1;
+  sh.getRange(sa, 2, MAX_STAGES, 1).setNumberFormat('@').setBackground('#eaf0ff').setFontWeight('bold').setFontColor(BLUE)
+    .setBorder(true, true, true, true, null, true, BLUE, SpreadsheetApp.BorderStyle.SOLID);
+  sh.getRange(sa + MAX_STAGES, 2).setFontColor(MUTE);
   rows.forEach((r, i) => { if (r[0] && i > 1) sh.getRange(i + 1, 1).setFontWeight('bold'); });
   const tabsAt = rows.findIndex(r => r[0] === 'What the tabs hold') + 1;   // (row numbers move when rows are added above)
   sh.getRange(tabsAt, 1, 1, 2).setBackground(PAPER);
@@ -291,29 +299,64 @@ function colourStages_(q) {
   } catch (e) {}
 }
 /* What happens when a teacher edits a questions tab:
-   - typing a new name over the FIRST Stage cell of a block renames the whole block (clearing it joins the stage above);
    - a question without a stage takes the stage of the row above, written into its own cell, so it keeps it when moved;
    - IDs and colours are brought up to date. */
 function questionsEdited_(sh, e) {
   try {
-    const c = qcols_(sh), rg = e && e.range;
-    if (rg && c.stage >= 0 && rg.getNumRows() === 1 && rg.getNumColumns() === 1 && rg.getColumn() === c.stage + 1 && e.oldValue !== undefined)
-      renameStage_(sh, rg.getRow(), String(e.oldValue || '').trim(), String(rg.getValue() || '').trim());
     fillStages_(sh);
   } catch (err) {}
   ensureQuestionIdsIn_(sh);
   try { colourStages_(sh); } catch (err) {}
 }
-function renameStage_(sh, row, from, to) {
-  const c = qcols_(sh), last = sh.getLastRow();
-  if (!from || from === to || last < row) return;
-  const col = sh.getRange(1, c.stage + 1, last, 1), v = col.getValues();
-  if (row > 2 && String(v[row - 2][0] || '').trim() === from) return;   // not the first of its block: only this question moves stage
-  if (!to) { for (let i = row - 2; i >= 1; i--) if (String(v[i][0] || '').trim()) { to = String(v[i][0]).trim(); break; } }
-  if (!to) return;
-  v[row - 1][0] = to;
-  for (let i = row; i < last && String(v[i][0] || '').trim() === from; i++) v[i][0] = to;
-  col.setValues(v);
+/* The test's stages: one list for every teacher, kept in the script's storage and shown on Start here.
+   Every questions tab's Stage column is a dropdown of it, and Grades has one column per stage in this order. */
+let STAGES_CACHE_ = null;
+function stages_() {
+  if (STAGES_CACHE_) return STAGES_CACHE_;
+  let list = null; try { list = JSON.parse(PropertiesService.getScriptProperties().getProperty('stages') || 'null'); } catch (e) {}
+  if (!list || !list.length) {   // first time: the stages the tabs use now, in order
+    list = [];
+    questionSheets_().forEach(sh => rowsStd_(sh).forEach(r => { const st = clean_(r[Q_.STAGE], 40); if (st && !list.some(x => norm_(x) === norm_(st))) list.push(st); }));
+    if (list.length) setStages_(list.slice(0, MAX_STAGES));
+  }
+  return (STAGES_CACHE_ = list);
+}
+function setStages_(list) { STAGES_CACHE_ = list; PropertiesService.getScriptProperties().setProperty('stages', JSON.stringify(list)); }
+function stageSlots_() { const l = stages_(); return Array.from({ length: MAX_STAGES }, (_, i) => l[i] || ''); }
+/** A stage name as the list spells it ("shut down " → "Shut down"); a name not on the list stays as typed. */
+function stageName_(st) { st = String(st || '').trim(); const hit = stages_().find(x => norm_(x) === norm_(st)); return hit || st; }
+/** Start here: a stage typed over another renames it in every teacher's tab; the list is saved and the dropdowns follow. */
+function stagesTyped_(e) {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEETS.START.name), rg = e && e.range;
+  if (!sh || !rg) return;
+  const at = sh.getRange(1, 1, Math.max(1, sh.getLastRow()), 1).getValues().findIndex(r => String(r[0]) === STAGES_LABEL) + 1;
+  if (!at || rg.getColumn() > 2 || rg.getLastColumn() < 2 || rg.getLastRow() < at || rg.getRow() > at + MAX_STAGES - 1) return;
+  const from = String(e.oldValue || '').trim(), to = String(rg.getValue() || '').trim();
+  if (rg.getNumRows() === 1 && from && to && from !== to) renameStageEverywhere_(from, to);   // a new name, or a corrected spelling
+  const list = [];
+  sh.getRange(at, 2, MAX_STAGES, 1).getValues().forEach(r => { const v = clean_(r[0], 40); if (v && !list.some(x => norm_(x) === norm_(v))) list.push(v); });
+  setStages_(list);
+  questionSheets_().forEach(applyStageList_);
+  gradesDirty_();
+}
+function renameStageEverywhere_(from, to) {
+  questionSheets_().forEach(sh => {
+    const c = qcols_(sh), last = sh.getLastRow();
+    if (c.stage < 0 || last < 2) return;
+    const rg = sh.getRange(2, c.stage + 1, last - 1, 1), v = rg.getValues();
+    let changed = false;
+    v.forEach(r => { if (norm_(r[0]) === norm_(from)) { r[0] = to; changed = true; } });
+    if (changed) rg.setValues(v);
+  });
+}
+/** The Stage column of a questions tab: a dropdown of the stage list. */
+function applyStageList_(sh) {
+  const c = qcols_(sh), list = stages_();
+  if (c.stage < 0) return;
+  const col = sh.getRange(2, c.stage + 1, Math.max(1, sh.getMaxRows() - 1), 1);
+  if (!list.length) { col.clearDataValidations(); return; }
+  col.setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(list, true).setAllowInvalid(false)
+    .setHelpText('A stage from the list on Start here (the same for every teacher). Ask the test organiser to add or rename one.').build());
 }
 /** Writes the stage into every question row that has none: the stage of the row above. */
 function fillStages_(sh) {
@@ -346,7 +389,7 @@ function styleQuestions_(q) {
   q.getRange(2, Q_.STUDIO + 1, qr, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['Both'].concat(STUDIO_LIST), true)
     .setAllowInvalid(true).setHelpText('Both, or a studio: a K3 question is only asked of students tested in K3.').build());
   q.getRange(2, Q_.LABEL + 1, qr, 1).setFontColor(MUTE);
-  [['The stage this question belongs to (the page\'s stage bar and a Grades column). Every row has one; repeats show faint. Rename a stage: type over its FIRST cell and the whole block follows. A new row left blank takes the stage of the row above.'],
+  [['The stage this question belongs to: pick it from the dropdown (the stages are the same for every teacher; the test organiser keeps the list on Start here). Every row has one; repeats show faint. A new row left blank takes the stage of the row above.'],
    ['The heading over the stage on the page. Needed on one row of the stage.'],
    ['What the teacher marks. One row per question, in the order of the test. Delete the row to remove the question.'],
    ['Optional: a question the teacher reads out loud, shown under the question. Leave it empty for none.'],
@@ -361,6 +404,7 @@ function styleQuestions_(q) {
     q.getRange(1, 1, 1, SHEETS.QUESTIONS.header.length).protect().setDescription('ops').setWarningOnly(true);
   } catch (e) {}
   fillStages_(q);
+  applyStageList_(q);
   colourStages_(q);
 }
 
@@ -400,7 +444,7 @@ function onEdit(e) {
   try {
     const sh = e && e.range && e.range.getSheet(), name = sh && sh.getName(), r = e.range.getRow();
     if (name === SHEETS.STUDENTS.name && r >= 2) { studentsTyped_(sh, r, e.range.getNumRows()); gradesDirty_(); return; }
-    if (name === SHEETS.START.name) { storeTeamPassword_(); storeAdminPin_(); resetCells_(e.range); return; }
+    if (name === SHEETS.START.name) { storeTeamPassword_(); storeAdminPin_(); resetCells_(e.range); stagesTyped_(e); return; }
     if (isQuestionSheet_(name) && r >= 2) { questionsEdited_(sh, e); gradesDirty_(); return; }
     if (name === SHEETS.TEACHERS.name && r >= 2) {
       const last = Math.min(sh.getLastRow(), r + e.range.getNumRows() - 1);
@@ -1024,7 +1068,7 @@ function readQuestions_(sh) {
   const out = [], heading = {}, seen = {};
   let stage = '';
   rows.forEach(r => {
-    if (clean_(r[Q_.STAGE], 40)) stage = clean_(r[Q_.STAGE], 40);
+    if (clean_(r[Q_.STAGE], 40)) stage = stageName_(clean_(r[Q_.STAGE], 40));
     if (stage && clean_(r[Q_.HEADING], 80) && !heading[stage]) heading[stage] = clean_(r[Q_.HEADING], 80);
     const t = clean_(r[Q_.TEXT], 300), id = clean_(r[Q_.ID], 40);
     if (!t || !id || seen[id]) return;
@@ -1134,7 +1178,7 @@ function questionsFor_(day, teacher, sets) {
   return f.map(q => {
     const l = byId[q.id], o = Object.assign({ stage: 'Test', t: '(removed question)', ask: '', label: q.id }, q);
     if (l) Object.assign(o, { stage: l.stage, heading: l.heading, t: l.t, ask: l.ask, label: l.label });
-    o.heading = o.heading || o.stage;
+    o.stage = stageName_(o.stage); o.heading = o.heading || o.stage;
     return o;
   });
 }
@@ -1245,7 +1289,7 @@ function buildGrades_() {
   const rank = s => { const i = order.indexOf(norm_(s.teacher)); return i < 0 ? order.length : i; };
   const list = g0.list.slice().sort((a, b) => rank(a.s) - rank(b.s) || byTestTime_(a.s, b.s)), students = list.map(x => x.s);
   const stageNames = [];
-  live.concat(...list.map(x => x.qs)).forEach(q => { if (stageNames.indexOf(q.stage) < 0) stageNames.push(q.stage); });
+  stages_().concat(live.concat(...list.map(x => x.qs)).map(q => q.stage)).forEach(n => { if (stageNames.indexOf(n) < 0) stageNames.push(n); });
   const nS = stageNames.length, top = 8;
   const head = ['Test date', 'Student', 'Studio', 'Teachers', 'Marked', 'Progress'].concat(stageNames)
     .concat(['Score %', 'Errors', '', 'Grade', 'Critical errors']);
