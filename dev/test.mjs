@@ -596,5 +596,23 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(tab(book, 'Marks').data.filter(x => x[1]).length, 1);   // only the header
   assert.equal(g.frozenKeys_().length, 0);
   ok('"Reset ALL test results" removes every mark and unfixes every test date');
+  // the same from the two cells on Start here (the menu hides on narrow windows)
+  g.setup();
+  call(g, { action: 'saveEntry', token: tok, sid: st[1].id, patch: { marks: { p1: 'y' } } });
+  call(g, { action: 'saveEntry', token: tok, sid: st[0].id, patch: { marks: { p1: 'y' } } });
+  const one = g.startCell_('Reset a student'), all = g.startCell_('Reset everything');
+  one.setValue('Lior'); g.onEdit({ range: one });
+  assert.match(String(one.getValue()), /^✓ Lior reset: 1 marking removed/);
+  assert.equal(tab(book, 'Marks').data.filter(x => x[1] === 'Lior').length, 0);
+  one.setValue('Nobody'); g.onEdit({ range: one });
+  assert.match(String(one.getValue()), /^✗ No student called "Nobody"/);
+  all.setValue('reset'); g.onEdit({ range: all });
+  assert.match(String(all.getValue()), /^✗ Nothing was reset/);
+  assert.equal(tab(book, 'Marks').data.filter(x => x[1]).length, 2);
+  all.setValue('RESET'); g.onEdit({ range: all });
+  assert.match(String(all.getValue()), /^✓ Everything reset: 1 marking removed/);
+  assert.equal(tab(book, 'Marks').data.filter(x => x[1]).length, 1);
+  g.onEdit({ range: all });   // editing the message again does nothing
+  ok('typing a name, or RESET, in the Start here reset cells resets and says so in the cell');
 }
 console.log(`\n${n} checks passed`);

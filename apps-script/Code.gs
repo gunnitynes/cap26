@@ -32,6 +32,8 @@ const MIN_PASSWORD = 6;
 const SET = '●●●●●● set';       // what Start here shows once the team password is stored
 const TEAM_LABEL = 'Team password';
 const PIN_LABEL = 'Admin PIN';
+const RESET_ONE_LABEL = 'Reset a student';
+const RESET_ALL_LABEL = 'Reset everything';
 const MIN_PIN = 4;
 // Marks, best first. Tolerant on purpose: "Got there" on everything still passes.
 const POINTS = { p: 1, y: 0.8, h: 0.65, g: 0.5, n: 0 };
@@ -136,6 +138,10 @@ function buildStart_() {
     ['', 'Everyone signs in with this one password. Type it in the cell above (6 characters or more); it is hidden as soon as you press Enter. Type a new one over the dots to change it.'],
     [PIN_LABEL, ''],
     ['', 'Only for admins (Role "admin" in the Teachers tab): asked after the team password, so the team password alone never opens an admin account. Type it in the cell above (4 characters or more); it is hidden at once. Setting it signs admins out once; teachers are not affected.'],
+    [RESET_ONE_LABEL, ''],
+    ['', 'Type a student\'s name in the cell above and press Enter: every teacher\'s marks for that student are removed, the student stays on the list. If the name is there twice, add the date, like "Kim 02.11.2026". (On the page: open the student, scroll down, tap Reset.)'],
+    [RESET_ALL_LABEL, ''],
+    ['', 'Type RESET in the cell above and press Enter to remove every mark for every student, for example after beta testing. Students, teachers and questions stay.'],
     ['Add a teacher', 'Type their name in the Teachers tab. It then appears on the sign-in page: they pick it and type the team password.'],
     ['Add students', 'Open the Students tab. Type the test date, the test time (like 10:30), the student\'s name and the studio, one student per row.'],
     ['', 'Pasting a whole list? Paste the names into the Student column and type the date once at the top: rows below take the date and studio from the row above. Each student keeps their own time.'],
@@ -152,7 +158,6 @@ function buildStart_() {
     ['Teachers', 'Who can sign in. Their names are the list on the sign-in page.'],
     ['Students', 'Everyone booked for a test: date, time, name, studio. Type or paste here, or add them on the page.'],
     ['Questions', 'The shared test: every question, its stage and which studio it is for. Each teacher\'s own tab starts as a copy of it.'],
-    ['Reset a test', 'On the page: open the student, scroll to the bottom and tap Reset. In this Sheet: Ops Test ▸ Reset a student\'s test… (all teachers\' marks for that student), or Ops Test ▸ Reset ALL test results… (for example after beta testing). Reload the Sheet once if the menu items are missing.'],
     ['Marks', 'One row per student per teacher, every skill readable. The last column is the page\'s own copy; leave it alone.'],
     ['Grades', 'The overview: every student\'s grade, progress, a colour per test stage and their critical errors. Kept up to date by itself.'],
     ['', ''],
@@ -173,10 +178,17 @@ function buildStart_() {
   sh.getRange(pr, 2).setNumberFormat('@').setValue(adminPinHash_() ? SET : '').setBackground('#fff8d6').setFontWeight('bold').setFontFamily('Courier New')
     .setBorder(true, true, true, true, null, null, BLUE, SpreadsheetApp.BorderStyle.SOLID);
   sh.getRange(pr + 1, 2).setFontColor(MUTE);
+  [RESET_ONE_LABEL, RESET_ALL_LABEL].forEach(label => {
+    const at = rows.findIndex(r => r[0] === label) + 1;
+    sh.getRange(at, 2).setNumberFormat('@').setBackground('#fdecec').setFontWeight('bold')
+      .setBorder(true, true, true, true, null, null, '#c62828', SpreadsheetApp.BorderStyle.SOLID);
+    sh.getRange(at, 1).setFontColor('#c62828');
+    sh.getRange(at + 1, 2).setFontColor(MUTE);
+  });
   rows.forEach((r, i) => { if (r[0] && i > 1) sh.getRange(i + 1, 1).setFontWeight('bold'); });
   const tabsAt = rows.findIndex(r => r[0] === 'What the tabs hold') + 1;   // (row numbers move when rows are added above)
   sh.getRange(tabsAt, 1, 1, 2).setBackground(PAPER);
-  sh.getRange(tabsAt + 1, 1, 6, 1).setFontColor(BLUE);
+  sh.getRange(tabsAt + 1, 1, 5, 1).setFontColor(BLUE);
   sh.setHiddenGridlines(true);
   sh.setTabColor(BLUE);
   sh.setFrozenRows(0);
@@ -338,7 +350,7 @@ function onEdit(e) {
   try {
     const sh = e && e.range && e.range.getSheet(), name = sh && sh.getName(), r = e.range.getRow();
     if (name === SHEETS.STUDENTS.name && r >= 2) { studentsTyped_(sh, r, e.range.getNumRows()); gradesDirty_(); return; }
-    if (name === SHEETS.START.name) { storeTeamPassword_(); storeAdminPin_(); return; }
+    if (name === SHEETS.START.name) { storeTeamPassword_(); storeAdminPin_(); resetCells_(e.range); return; }
     if (isQuestionSheet_(name) && r >= 2) { ensureQuestionIds_(); try { colourStages_(sh); } catch (e) {} gradesDirty_(); return; }
     if (name === SHEETS.TEACHERS.name && r >= 2) {
       const last = Math.min(sh.getLastRow(), r + e.range.getNumRows() - 1);
@@ -533,12 +545,43 @@ function menuResetAll() {
   const n = withLock_(() => resetAll_());
   ui.alert('Done: ' + n + ' marking' + (n === 1 ? '' : 's') + ' removed.');
 }
-function resetAll_() {
-  const n = removeMarksRows_(() => true);
+function resetAll_(quick) {
+  const sh = sheet_(SHEETS.MARKS), n = Math.max(0, sh.getLastRow() - 1);
+  if (n) sh.deleteRows(2, n);
   const props = PropertiesService.getScriptProperties();
   frozenKeys_().forEach(k => props.deleteProperty(k));
-  gradesDirty_(); syncMarks_(); buildGrades_();
+  gradesDirty_();
+  if (!quick) syncMarks_();   // from a cell edit (30 s limit) the page's next tidy does this
+  buildGrades_();
   return n;
+}
+/* The two reset cells on Start here: typed into, they reset, then say what happened in the cell itself.
+   (The Ops Test menu does the same, but Sheets hides it when the window is narrow.) */
+function startCell_(label) {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEETS.START.name);
+  if (!sh) return null;
+  const i = sh.getRange(1, 1, Math.max(1, sh.getLastRow()), 1).getValues().findIndex(r => String(r[0]) === label);
+  return i < 0 ? null : sh.getRange(i + 1, 2);
+}
+function resetCells_(edited) {
+  [[RESET_ONE_LABEL, t => {
+     const r = withLock_(() => resetStudent_(t));
+     return r.ok ? '✓ ' + r.name + ' reset: ' + r.rows + ' marking' + (r.rows === 1 ? '' : 's') + ' removed' : '✗ ' + r.error;
+   }],
+   [RESET_ALL_LABEL, t => {
+     if (t !== 'RESET') return '✗ Nothing was reset. Type RESET in capitals.';
+     const n = withLock_(() => resetAll_(true));
+     if (typeof n !== 'number') return '✗ ' + n.error;
+     return '✓ Everything reset: ' + n + ' marking' + (n === 1 ? '' : 's') + ' removed';
+   }]].forEach(([label, run]) => {
+    const cell = startCell_(label);
+    if (!cell || (edited && (edited.getRow() > cell.getRow() || edited.getLastRow() < cell.getRow()))) return;
+    const t = String(cell.getValue() || '').trim();
+    if (!t || /^[✓✗]/.test(t)) return;
+    let msg;
+    try { msg = run(t); } catch (err) { msg = '✗ ' + (err && err.message || err); }
+    cell.setValue(msg + ' · ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd.MM HH:mm'));
+  });
 }
 /** Removes the Marks rows that match, keeping the header. Returns how many went. */
 function removeMarksRows_(match) {
