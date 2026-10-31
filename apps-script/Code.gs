@@ -64,8 +64,8 @@ const DEFAULT_QUESTIONS = [
 ];
 // the standard column order of a questions tab; tabs are READ by their headings, so a moved or deleted column cannot scramble them
 const Q_ = { STAGE: 0, HEADING: 1, TEXT: 2, ASK: 3, STUDIO: 4, LABEL: 5, ID: 6 };
-const MARKS_HEAD = ['Test date', 'Student', 'Teacher', 'Skills marked', '%', 'Critical errors'];
-const MARKS_TAIL = ['Feedback', 'Updated', 'Student ID', 'Page data (do not edit)'];
+const MARKS_HEAD = ['Test date', 'Student', 'Teacher', 'Skills marked', '%'];
+const MARKS_TAIL = ['Critical errors', 'Feedback', 'Updated', 'Student ID', 'Page data (do not edit)'];
 const NOT_ASKED = '–';   // in Marks: this question is not part of that student's test (another teacher's own question)
 // The score is the share of all the teacher's questions (each worth the same), as a percentage.
 // Grade A from 85 (needs Perfects), Pass from 40. Any critical error is a Resit whatever the score.
@@ -371,7 +371,7 @@ function styleMarks_(n) {
   const head = m.getRange(1, 1, 1, w);
   head.setFontWeight('bold').setFontColor('#ffffff').setBackground(BLUE).setVerticalAlignment('middle').setWrap(true);
   m.setRowHeight(1, 40); m.setFrozenRows(1); m.setFrozenColumns(3);
-  MARKS_HEAD.map((x, i) => [100, 170, 120, 100, 110, 220][i]).concat(Array(n).fill(92)).concat([260, 140, 110, 120]).forEach((x, i) => m.setColumnWidth(i + 1, x));
+  [100, 170, 120, 100, 70].concat(Array(n).fill(92)).concat([220, 260, 140, 110, 120]).forEach((x, i) => m.setColumnWidth(i + 1, x));
   m.getRange(2, 1, rows, w).setFontFamily('Arial').setFontSize(10).setVerticalAlignment('middle');
   try { m.getBandings().forEach(b => b.remove()); m.getRange(1, 1, m.getMaxRows(), w).applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY, true, false); } catch (e) {}
   head.setBackground(BLUE).setFontColor('#ffffff');
@@ -379,8 +379,9 @@ function styleMarks_(n) {
   m.getRange(2, w - 2, rows, 1).setNumberFormat('dd.MM.yyyy HH:mm');
   m.hideColumns(w - 1, 2);
   if (!n) { m.setConditionalFormatRules([]); m.setTabColor(INK); return; }
-  m.getRange(1, 7, 1, n).setTextRotation(0).setHorizontalAlignment('center');
-  const markRange = m.getRange(2, 7, rows, n);
+  const first = MARKS_HEAD.length + 1;
+  m.getRange(1, first, 1, n).setTextRotation(0).setHorizontalAlignment('center');
+  const markRange = m.getRange(2, first, rows, n);
   markRange.setHorizontalAlignment('center');
   const rule = (range, text, bg, fg) => SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(text).setBackground(bg).setFontColor(fg).setBold(true).setRanges([range]).build();
   m.setConditionalFormatRules([
@@ -822,9 +823,9 @@ function marksRows_() {
   const sh = sheet_(SHEETS.MARKS), last = sh.getLastRow(), w = sh.getLastColumn();
   if (last < 2 || !w) return [];
   const head = sh.getRange(1, 1, 1, w).getValues()[0].map(String);
-  let dataCol = head.indexOf(MARKS_TAIL[3]), idCol = head.indexOf(MARKS_TAIL[2]);
+  let dataCol = head.indexOf('Page data (do not edit)'), idCol = head.indexOf('Student ID');
   if (dataCol < 0) { dataCol = w - 1; idCol = w - 2; }
-  const upCol = head.indexOf(MARKS_TAIL[1]);
+  const upCol = head.indexOf('Updated');
   return sh.getRange(2, 1, last - 1, w).getValues().map((r, i) => {
     let data = {}; try { data = JSON.parse(r[dataCol] || '{}'); } catch (e) {}
     return { row: i + 2, sid: String(r[idCol] || ''), teacher: String(r[2] || ''), data, day: day_(r[0]), name: String(r[1] || ''), updated: upCol >= 0 ? r[upCol] : '' };
@@ -931,9 +932,9 @@ function marksRow_(s, teacher, data, ctx, updated) {
   const marked = ids.filter(id => m[id] in POINTS);
   const score = marked.length ? Math.round(marked.reduce((a, id) => a + POINTS[m[id]], 0) / marked.length * 100) : '';
   const errors = Object.keys(data.safety || {}).map(k => data.safety[k]).filter(Boolean).map(x => x.text);
-  return [s.day ? toDate_(s.day) : '', s.name, teacher, marked.length + '/' + ids.length, score, errors.join('; ')]
+  return [s.day ? toDate_(s.day) : '', s.name, teacher, marked.length + '/' + ids.length, score]
     .concat(ctx.cols.map(c => !(c.key in byName) ? NOT_ASKED : MARK_LABEL[m[byName[c.key]]] || ''))   // a dash: not part of this student's test
-    .concat([data.summary || '', updated || new Date(), s.id, JSON.stringify(data)]);
+    .concat([errors.join('; '), data.summary || '', updated || new Date(), s.id, JSON.stringify(data)]);
 }
 
 /** Keeps the Marks columns in step with the questions. When they change, every row is rewritten from its own page copy. */

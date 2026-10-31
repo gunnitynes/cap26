@@ -80,6 +80,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(row[head.indexOf('Phantom power')], 'Hint'); assert.equal(row[head.indexOf('Pre vs post fader')], 'Failed');
   assert.equal(row[head.indexOf('Skills marked')], '3/18');
   assert.equal(row[head.indexOf('Critical errors')], 'Speakers switched with level up');
+  assert.equal(head.indexOf('Critical errors'), head.indexOf('Feedback') - 1);   // last before Feedback
   assert.deepEqual(JSON.parse(row[head.length - 1]).marks, { p1: 'y', m4: 'h', c2: 'n' });
   ok('Marks shows every skill in words; unknown values are dropped');
   const st = call(g, { action: 'state', token: gt });
