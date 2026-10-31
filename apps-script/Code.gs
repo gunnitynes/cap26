@@ -64,7 +64,7 @@ const DEFAULT_QUESTIONS = [
 ];
 // the standard column order of a questions tab; tabs are READ by their headings, so a moved or deleted column cannot scramble them
 const Q_ = { STAGE: 0, HEADING: 1, TEXT: 2, ASK: 3, STUDIO: 4, LABEL: 5, ID: 6 };
-const MARKS_HEAD = ['Test date', 'Student', 'Teacher', 'Skills marked', 'Teacher score %', 'Critical errors'];
+const MARKS_HEAD = ['Test date', 'Student', 'Teacher', 'Skills marked', '%', 'Critical errors'];
 const MARKS_TAIL = ['Feedback', 'Updated', 'Student ID', 'Page data (do not edit)'];
 const NOT_ASKED = '–';   // in Marks: this question is not part of that student's test (another teacher's own question)
 // The score is the share of all the teacher's questions (each worth the same), as a percentage.
@@ -877,12 +877,13 @@ function saveEntry_(me, req) {
 /** The readable row in Marks: every skill spelled out, plus the page's own copy in the last column. */
 function marksRow_(s, teacher, data, ctx, updated) {
   ctx = ctx || marksCtx_();
-  const m = data.marks || {}, ids = forStudio_(questionsFor_(s.day, s.teacher, ctx.sets), s.studio).map(q => q.id);
+  const qs = forStudio_(questionsFor_(s.day, s.teacher, ctx.sets), s.studio), m = data.marks || {}, ids = qs.map(q => q.id);
+  const byName = {}; colNames_(qs).forEach((c, i) => byName[c.key] = ids[i]);
   const marked = ids.filter(id => m[id] in POINTS);
   const score = marked.length ? Math.round(marked.reduce((a, id) => a + POINTS[m[id]], 0) / marked.length * 100) : '';
   const errors = Object.keys(data.safety || {}).map(k => data.safety[k]).filter(Boolean).map(x => x.text);
   return [s.day ? toDate_(s.day) : '', s.name, teacher, marked.length + '/' + ids.length, score, errors.join('; ')]
-    .concat(ctx.cols.map(c => ids.indexOf(c.id) < 0 ? NOT_ASKED : MARK_LABEL[m[c.id]] || ''))   // a dash: not part of this student's test
+    .concat(ctx.cols.map(c => !(c.key in byName) ? NOT_ASKED : MARK_LABEL[m[byName[c.key]]] || ''))   // a dash: not part of this student's test
     .concat([data.summary || '', updated || new Date(), s.id, JSON.stringify(data)]);
 }
 
@@ -902,18 +903,34 @@ function syncMarks_() {
 }
 function marksCtx_() { const sets = liveSets_(); return { sets, live: sets[''], cols: markColumns_(sets) }; }
 function marksHeader_(cols) { return MARKS_HEAD.concat(cols.map(c => c.label)).concat(MARKS_TAIL); }
-/** The skill columns in Marks: the shared questions, then each teacher's own, then any only a marked date still uses. */
+/* The skill columns in Marks go by NAME (the Column name, or the question shortened), not by question:
+   questions with the same name in different teachers' tabs share one column, and renaming a Column name renames it.
+   Every teacher's questions in the Teachers order; the shared tab only while a student has no teacher. */
 function markColumns_(sets) {
   sets = sets || liveSets_();
-  const cols = [], have = {}, shared = {}, who = {};
-  (sets[''] || []).forEach(q => shared[q.id] = 1);
-  teachers_().forEach(t => who[norm_(t.name)] = t.name);
-  const add = (q, tag) => { if (!have[q.id]) { have[q.id] = 1; cols.push({ id: q.id, label: (q.label || q.id) + (tag ? ' · ' + tag : '') }); } };
-  (sets[''] || []).forEach(q => add(q));
-  // a question only in a teacher's own tab: its heading says whose it is
-  Object.keys(sets).filter(k => k).forEach(k => sets[k].forEach(q => add(q, shared[q.id] ? '' : who[k] || k)));
-  frozenKeys_().forEach(k => (frozenRaw_(k) || []).forEach(q => add(q, 'old')));
+  const cols = [], at = {};
+  const keys = teachers_().map(t => norm_(t.name)).filter(k => sets[k]);
+  if (!keys.length || students_().some(s => !s.removed && !s.teacher)) keys.unshift('');
+  const all = keys.map(k => sets[k] || []);
+  frozenKeys_().forEach(k => all.push(questionsFor_(k.slice(2, 12), k.slice(13), sets)));   // a fixed date: its questions, named as now
+  all.forEach(qs => {
+    let prev = -1;
+    colNames_(qs).forEach(c => {
+      if (!(c.key in at)) { cols.splice(prev + 1, 0, c); cols.forEach((x, i) => at[x.key] = i); }   // a new name goes after the one before it
+      prev = at[c.key];
+    });
+  });
   return cols;
+}
+/** Each question's column name in one set; a name used twice in the same set gets "(2)". */
+function colNames_(qs) {
+  const seen = {};
+  return qs.map(q => {
+    const base = String(q.label || q.id).trim(); let label = base, n = 1;
+    while (seen[norm_(label)]) label = base + ' (' + (++n) + ')';
+    seen[norm_(label)] = 1;
+    return { key: norm_(label), label };
+  });
 }
 
 // ─────────────────────────────────────────────────────────────── the questions (the Questions tab)

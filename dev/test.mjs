@@ -398,13 +398,13 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   call(g, { action: 'saveEntry', token: it, sid: kim, patch: { marks: { p1: 'p' } } });
   call(g, { action: 'tidy', token: gt });
   const mh = tab(book, 'Marks').data[0];
-  assert.ok(mh.includes('Coils the cables over-under · Isuru'));
+  assert.ok(mh.includes('Coils the cables over-under'));
   const kimRow = tab(book, 'Marks').data.find(r => r[1] === 'Kim');
-  assert.equal(kimRow[mh.indexOf('Coils the cables over-under · Isuru')], '');   // in Kim's test, not marked yet
+  assert.equal(kimRow[mh.indexOf('Coils the cables over-under')], '');   // in Kim's test, not marked yet
   const noorRow = g.marksRow_({ id: noor, day: '2026-11-04', name: 'Noor', studio: 'K3', teacher: 'Ainsley' }, 'Ainsley', { marks: { p1: 'y' } });
-  assert.equal(noorRow[mh.indexOf('Coils the cables over-under · Isuru')], '–');   // not in Ainsley's test: a dash
+  assert.equal(noorRow[mh.indexOf('Coils the cables over-under')], '–');   // not in Ainsley's test: a dash
   assert.equal(noorRow[mh.indexOf('Power-up order')], 'Pass');
-  ok('a teacher\'s own question is labelled with their name in Marks, and shows a dash for other teachers\' students');
+  ok('a teacher\'s own question gets its own Marks column, a dash for other teachers\' students');
   const gr = call(g, { action: 'grades', token: gt }).students;
   assert.equal(gr.find(x => x.name === 'Kim').total, 19); assert.equal(gr.find(x => x.name === 'Noor').total, 18);
   ok('Marks gets a column for a teacher\'s own question, and each student is graded on their teacher\'s set');
@@ -614,5 +614,29 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(tab(book, 'Marks').data.filter(x => x[1]).length, 1);
   g.onEdit({ range: all });   // editing the message again does nothing
   ok('typing a name, or RESET, in the Start here reset cells resets and says so in the cell');
+}
+// 21. Marks columns go by name: the same name in two teachers' tabs is one column; a shared-only question has none.
+{
+  const { g, book } = loadScript();
+  g.setup();
+  const ss = g.SpreadsheetApp.getActive(), te = ss.getSheetByName('Teachers');
+  te.getRange(2, 1, 2, 2).setValues([['Gunni', 'admin'], ['Isuru', 'teacher']]); g.onEdit({ range: te.getRange(2, 1, 2, 2) });
+  g.setTeamPassword_('team-pass-1');
+  const gt = call(g, { action: 'login', name: 'Gunni', password: 'team-pass-1', pin: '' }).token;
+  call(g, { action: 'addStudents', token: gt, names: ['Kim'], studio: 'K3', day: '2026-11-04' });
+  ss.getSheetByName('Students').getRange(2, 6).setValue('Isuru');   // every student has a teacher: the shared tab is not asked
+  const gq = ss.getSheetByName('Questions · Gunni'), iq = ss.getSheetByName('Questions · Isuru');
+  const lastG = gq.getLastRow(), lastI = iq.getLastRow();
+  gq.getRange(lastG, 3).setValue('Leaves the studio as it was found'); gq.getRange(lastG, 6).setValue('Leaves the studio');
+  iq.getRange(lastI, 3).setValue('Puts every cable back where it belongs'); iq.getRange(lastI, 6).setValue('Leaves the studio');
+  g.onEdit({ range: gq.getRange(lastG, 3) }); g.onEdit({ range: iq.getRange(lastI, 3) });
+  const sh = ss.getSheetByName('Questions'); sh.getRange(sh.getLastRow(), 6).setValue('Shared only name');
+  call(g, { action: 'tidy', token: gt });
+  const mh = tab(book, 'Marks').data[0];
+  assert.equal(mh.filter(h => h === 'Leaves the studio').length, 1);
+  assert.ok(!mh.some(h => /·/.test(h)));
+  assert.ok(!mh.includes('Shared only name'));
+  assert.ok(mh.includes('%') && !mh.includes('Teacher score %'));
+  ok('Marks: one column per name across teachers, no teacher tags, no column for a question nobody asks, "%" header');
 }
 console.log(`\n${n} checks passed`);
