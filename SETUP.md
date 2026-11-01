@@ -68,6 +68,10 @@ Phones pick up the change within about 10 seconds. A graded student keeps the qu
 
 Try it locally: `OPS_TRY_QUESTIONS=1 node dev/server.mjs` edits the tab 45 seconds after start, so an open page shows the change.
 
+## If the Sheet can't be reached
+
+Every mark is also kept on the teacher's phone, one copy per student. A save, a sign-out or the Sheet never clears that copy, and it is kept for 60 days. **Export my marks** in the teacher menu gives a spreadsheet file (CSV) of everything that teacher marked: the score, result, critical errors and notes, every question's mark, and an **In the Sheet** column saying *Yes*, *Not yet: waiting on this phone*, or *Missing from the Sheet: this is the phone copy*.
+
 ## What is where in the Sheet
 
 | Tab | What it holds |

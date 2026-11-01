@@ -86,6 +86,7 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .menu-big{display:flex;align-items:center;justify-content:space-between;width:100%;border:1px solid var(--line);background:var(--sunk);color:var(--ink);border-radius:10px;padding:10px 12px;font:inherit;font-weight:700;font-size:14px}
 .menu-big span{color:var(--mute);font-size:18px;line-height:1}
 .menu-big:hover{border-color:var(--led)}
+.menu-note{font-size:12px;color:var(--mute);line-height:1.35}
 .menu-i{border:0;background:transparent;text-align:left;padding:12px;border-radius:9px;font:inherit;font-weight:600;font-size:15px;color:var(--ink)}
 .menu-i:hover{background:var(--sunk)}
 .menu-i.danger{color:var(--no);border-top:1px solid var(--line);border-radius:0 0 9px 9px;margin-top:4px}
@@ -773,7 +774,7 @@ function applyState(j){
   const tests={};
   for(const st of j.students)tests[st.id]={name:st.name,cap:st.cap||'',studio:st.studio,day:st.day,time:st.time||'',end:st.end||'',teacher:st.teacher||'',by:{}};
   for(const e of j.entries)if(tests[e.sid])tests[e.sid].by[e.teacher]=e.data||{_progress:e.progress||0};
-  S.tests=tests;
+  S.tests=tests;backupFromSheet();
   S.teachers=Object.fromEntries(j.teachers.map(n=>[n,{name:n}]));
   if(Array.isArray(j.questions)){
     setQuestions(j.questions,j.qlive||{},j.qsets||{});
@@ -821,7 +822,68 @@ function patch(id,obj){
   refresh();flushSoon(obj.by?QUIET_MS:400);if(!flushing&&S.sync!=='err')setSync('local');
 }
 const QUIET_MS=90000;
-const patchMine=(id,obj)=>{if(!canMark())return;patch(id,{by:{[S.me]:obj}})};
+const patchMine=(id,obj)=>{if(!canMark())return;patch(id,{by:{[S.me]:obj}});backup(id)};
+
+/* ---- the safety copy: everything this teacher marks is also kept on this phone, one record per student. A save, a sign-out
+   or the Sheet never clears it, so if the Sheet can't be reached (or loses something) Export in the menu still has every mark.
+   Kept per teacher name, for 60 days. */
+const bkKey=()=>'ops.backup.'+String(S.me||'').trim().toLowerCase();
+const BK_DAYS=60;
+function backups(){const b=ls.get(bkKey(),{}),old=Date.now()-BK_DAYS*864e5;for(const k of Object.keys(b))if(!b[k]||b[k].at<old)delete b[k];return b}
+const hasWork=e=>!!e&&(Object.values(e.marks||{}).some(v=>v in POINTS)||Object.values(e.safety||{}).some(Boolean)||!!(e.summary||'').trim()||Object.values(e.notes||{}).some(v=>(v||'').trim())||!!e.ended);
+function backup(id,saved){
+  if(!S.me||S.demo)return;const t=view(id);if(!t)return;
+  const b=backups(),e=mine(t),was=b[id]||{};
+  b[id]={name:t.name,day:t.day,time:t.time||'',studio:t.studio||'',cap:t.cap||'',teacher:t.teacher||'',e:JSON.parse(JSON.stringify(e)),at:Date.now(),savedAt:saved?Date.now():was.savedAt||0};
+  ls.set(bkKey(),b);
+}
+// marks made on another phone: kept here too, but never over a copy this phone already has
+function backupFromSheet(){
+  if(!S.me||S.demo)return;const b=backups();let n=0;
+  for(const [id,t] of Object.entries(S.tests)){const e=(t.by||{})[S.me];if(!b[id]&&e&&!e._progress&&hasWork(e)){b[id]={name:t.name,day:t.day,time:t.time||'',studio:t.studio||'',cap:t.cap||'',teacher:t.teacher||'',e:JSON.parse(JSON.stringify(e)),at:Date.now(),savedAt:Date.now()};n++}}
+  if(n)ls.set(bkKey(),b);
+}
+const markedN=e=>Object.values((e&&e.marks)||{}).filter(v=>v in POINTS).length;
+/* Export: one row per student this teacher marked, as a spreadsheet file (CSV opens in Numbers, Excel and Google Sheets).
+   It uses what the page shows, unless the safety copy has more marks than that (the Sheet lost them, or the student is gone). */
+function exportRows(){
+  const b=backups(),pend=new Set(myPending()),ids=new Set(Object.keys(b));
+  for(const [id,t] of Object.entries(S.tests)){const e=(t.by||{})[S.me];if(hasWork(e&&!e._progress?e:null)||hasWork(S.pending[id]?.by?.[S.me]))ids.add(id)}
+  const rows=[];
+  for(const id of ids){
+    const live=S.tests[id]&&!view(id).deleted?{id,...view(id)}:null,le=live?mine(live):null,bk=b[id];
+    const useBk=bk&&(!live||markedN(bk.e)>markedN(le));
+    const e=useBk?bk.e:le;if(!hasWork(e))continue;
+    const t=live||{id,name:bk.name,day:bk.day,time:bk.time,studio:bk.studio,cap:bk.cap,teacher:bk.teacher};
+    const where=pend.has(id)?'Not yet: waiting on this phone':!live?'No: student not in the Sheet':useBk?'Missing from the Sheet: this is the phone copy':'Yes';
+    rows.push({t,e,where});
+  }
+  return rows.sort((a,b)=>byTime(a.t,b.t));
+}
+const csvCell=v=>{v=String(v??'');return /[",\n\r;]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+function exportCSV(rows){
+  // one column per question, in the order the questions come
+  const cols=[],seen=new Set();
+  for(const {t} of rows)for(const c of skillsFor(t))if(!seen.has(c.id)){seen.add(c.id);cols.push(c)}
+  const head=['Test date','Time','Student','CAP','Studio','Marked by','Score %','Result','Marked','Critical errors','Notes','Test ended','In the Sheet',...cols.map(c=>c.stage+': '+c.t)];
+  const out=[head];
+  for(const {t,e,where} of rows){
+    const sc=scoreOf(e,t),res=sc.inc.length?'Resit':sc.n?bandOf(sc.pct*100).l:'';
+    const qs=skillsFor(t),notes=[(e.summary||'').trim(),...qs.filter(c=>(e.notes?.[c.id]||'').trim()).map(c=>c.t+': '+e.notes[c.id].trim())].filter(Boolean).join(' | ');
+    out.push([t.day||'',t.time||'',t.name||'',capOf(t),t.studio||'',S.me,sc.n?Math.round(sc.pct*1000)/10:'',res,sc.n+'/'+sc.total,sc.inc.join('; '),notes,e.ended?new Date(e.ended).toLocaleString('en-GB'):'',where,
+      ...cols.map(c=>MARK[e.marks?.[c.id]]||'')]);
+  }
+  return '﻿'+out.map(r=>r.map(csvCell).join(',')).join('\r\n');
+}
+async function exportMarks(){
+  const rows=exportRows();if(!rows.length){toast('Nothing marked yet on this phone.');return}
+  const name=`Operation Test marks - ${S.me} - ${today()}.csv`,blob=new Blob([exportCSV(rows)],{type:'text/csv'});
+  // phones: the share sheet (save to Files, AirDrop, mail); otherwise an ordinary download
+  try{const f=new File([blob],name,{type:'text/csv'});if(touchDevice&&navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:name});return}}
+  catch(err){if(err&&err.name==='AbortError')return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  toast('Exported '+rows.length+' student'+(rows.length===1?'':'s'));
+}
 let flushT=null,flushAt=0,flushing=false,backoff=1000,wseq=0;
 // never pushes a send that is already due sooner further away
 function flushSoon(d=400){const at=Date.now()+d;if(flushT&&flushAt<=at)return;clearTimeout(flushT);flushAt=at;flushT=setTimeout(()=>{flushT=null;flush()},d)}
@@ -844,7 +906,7 @@ async function flush(){
   wseq++;
   for(const [id,p] of Object.entries(sent)){
     const m=p.by&&p.by[S.me],other=p.by?Object.fromEntries(Object.entries(p.by).filter(([k])=>k!==S.me)):{};
-    if(!bad[id])S.tests[id]=merge(S.tests[id],{...p,by:{[S.me]:m||{}}});
+    if(!bad[id]){S.tests[id]=merge(S.tests[id],{...p,by:{[S.me]:m||{}}});if(m)backup(id,true)}
     if(S.pending[id]===p){if(Object.keys(other).length)S.pending[id]={by:other};else delete S.pending[id]}
     // tapped again while this was on its way: only the newer part is still waiting
     else if(S.pending[id]&&m&&S.pending[id].by&&S.pending[id].by[S.me]){const d=diff(S.pending[id].by[S.me],m);if(Object.keys(d).length)S.pending[id].by[S.me]=d;else delete S.pending[id].by[S.me]}
@@ -913,7 +975,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793539273';
+const BUILD='1793558459';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1042,6 +1104,9 @@ function whoMenu(){const st=markStyle();
       <button class="menu-big" type="button" role="menuitem" data-go="add">Add students<span aria-hidden="true">›</span></button></div>
     <div class="menu-sec">
       <button class="menu-sync" id="menuSync" type="button" role="menuitem"><span class="sync" id="sync" data-c="ok"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 0 1-13.2 4.9M4.5 12a7.5 7.5 0 0 1 13.2-4.9"/><path d="M18.4 3.6v3.7h-3.7M5.6 20.4v-3.7h3.7"/></svg></span><span class="ms-t"><b id="msTitle"></b><small id="msSub"></small></span></button></div>
+    <div class="menu-sec"><span class="menu-l">Safety copy</span>
+      <button class="menu-big" type="button" role="menuitem" id="menuExport">Export my marks<span aria-hidden="true">↓</span></button>
+      <span class="menu-note" id="mBk"></span></div>
     <div class="menu-sec"><span class="menu-l">Appearance</span>
       <div class="seg" role="group" aria-label="Appearance">${[['auto','Auto'],['light','Light'],['dark','Dark']].map(([k,l])=>`<button type="button" role="menuitemradio" data-theme-pick="${k}" aria-pressed="${themeNow()===k}">${l}</button>`).join('')}</div></div>
     <div class="menu-sec"><span class="menu-l">How you mark</span>
@@ -1049,13 +1114,15 @@ function whoMenu(){const st=markStyle();
     <button class="menu-i danger" type="button" role="menuitem" id="menuOut">Sign out</button>
   </div>`}
 function menuCounts(){const c=dayCounts(),set=(id,v)=>{const el=$(id);if(el)el.textContent=v};
-  set('#mDay',fmtDay(S.day)+(S.day===today()?' · today':''));set('#mN',c.n);set('#mDone',c.done);set('#mLeft',c.left)}
+  set('#mDay',fmtDay(S.day)+(S.day===today()?' · today':''));set('#mN',c.n);set('#mDone',c.done);set('#mLeft',c.left);
+  const n=S.demo?0:exportRows().length;set('#mBk',n?'Every mark is also kept on this phone ('+n+' student'+(n===1?'':'s')+'), even if the Sheet can\'t be reached.':'Every mark is also kept on this phone, even if the Sheet can\'t be reached.')}
 function bindWhoMenu(){
   const b=$('#whoBtn'),m=$('#whoMenu');if(!b||!m)return;
   const show=on=>{m.hidden=!on;b.setAttribute('aria-expanded',on);if(on){menuCounts();document.addEventListener('pointerdown',away,true);document.addEventListener('keydown',esc_)}else{document.removeEventListener('pointerdown',away,true);document.removeEventListener('keydown',esc_)}};
   const away=e=>{if(!e.target.closest('.who'))show(false)},esc_=e=>{if(e.key==='Escape'){show(false);b.focus()}};
   b.onclick=()=>show(m.hidden);
   m.onclick=e=>{if(e.target.closest('#menuSync')){syncNow();return}
+    if(e.target.closest('#menuExport')){show(false);exportMarks();return}
     if(e.target.closest('#menuOverview')){show(false);openGrades();return}   // the menu stays open, so the sync is seen happening
     const th=e.target.closest('[data-theme-pick]');
     if(th){setTheme(th.dataset.themePick);m.querySelectorAll('[data-theme-pick]').forEach(x=>x.setAttribute('aria-pressed',x===th));return}
