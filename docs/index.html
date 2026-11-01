@@ -59,14 +59,14 @@ h1,h2,h3{text-wrap:balance;margin:0}
 /* top bar */
 .bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--panel);border-bottom:1px solid var(--line)}
 .bar .wrap{padding-block:10px 0}
-.barrow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:10px;min-height:58px;padding-bottom:10px}
+.barrow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:10px;min-height:48px;padding-bottom:8px}
 .bar-l{display:flex;align-items:center;gap:8px;min-width:0;padding-right:10px}
 .bar-r{display:flex;align-items:center;justify-content:flex-end;min-width:0}
 .brand{align-items:center;justify-content:center;text-align:center}
-.brand .ttl{display:flex;flex-direction:column;align-items:flex-end;text-align:right;font-size:21px;font-weight:800;line-height:1.02;letter-spacing:-.015em;white-space:nowrap}
+.brand .ttl{font-size:18px;font-weight:800;line-height:1.1;letter-spacing:-.015em;white-space:nowrap}
 .who{position:relative;min-width:0}
-.whobtn{display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 10px 0 4px;border:1px solid var(--line);background:var(--sunk);color:var(--ink);border-radius:999px;font:inherit;font-weight:700;font-size:14px;max-width:100%}
-.whobtn .av{flex:none;width:34px;height:34px;border-radius:50%;background:var(--led);color:#fff;display:grid;place-items:center;font-size:15px;font-weight:800}
+.whobtn{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 10px 0 4px;border:1px solid var(--line);background:var(--sunk);color:var(--ink);border-radius:999px;font:inherit;font-weight:700;font-size:14px;max-width:100%}
+.whobtn .av{flex:none;width:30px;height:30px;border-radius:50%;background:var(--led);color:#fff;display:grid;place-items:center;font-size:15px;font-weight:800}
 .whobtn .wn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .whobtn svg{flex:none;color:var(--mute)}
 .whobtn[aria-expanded="true"]{border-color:var(--led)}
@@ -88,21 +88,11 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .brand{display:flex;flex-direction:row;gap:16px;min-width:0;flex:1}
 .brand .eyebrow{display:flex;gap:8px;align-items:center;white-space:nowrap;overflow:hidden}
 .brand b{font-weight:800}
-@media (max-width:400px){.brand .ttl{font-size:19px}}
-.a2hs-btn{display:flex;align-items:center;gap:12px;width:100%;margin-top:14px;border:1px dashed var(--line);background:transparent;color:var(--ink);border-radius:12px;padding:12px 14px;font:inherit;text-align:left}
-.a2hs-btn svg{flex:none;width:26px;height:26px;fill:none;stroke:var(--led);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.a2hs-btn span{display:flex;flex-direction:column}.a2hs-btn b{font-size:15px}.a2hs-btn small{font-size:12px;color:var(--mute)}
-.a2hs-how{margin-top:14px;border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px}
-.a2hs-how ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:14px;line-height:1.45}
-.a2hs-ic{display:inline-flex;align-items:center;gap:3px;font-weight:700}.a2hs-ic svg{width:16px;height:16px;fill:none;stroke:var(--led);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.a2hs-row{display:flex;gap:8px;margin-top:4px}.a2hs-row .primary{flex:1}
+@media (max-width:400px){.brand .ttl{font-size:17px}}
 .menu-sync{display:flex;align-items:center;gap:12px;width:100%;border:1px solid var(--line);background:var(--sunk);color:var(--ink);border-radius:10px;padding:8px 12px 8px 8px;font:inherit;text-align:left}
 .ms-t{display:flex;flex-direction:column;min-width:0}.ms-t b{font-size:14px}.ms-t small{font-size:12px;color:var(--mute)}
 .whobtn .av{position:relative}
-.whobtn .av::after{content:"";position:absolute;top:-1px;right:-1px;width:11px;height:11px;border-radius:50%;background:var(--hint);border:2px solid var(--panel);opacity:0;transform:scale(.4);transition:opacity .2s,transform .2s}
-.whobtn[data-sync="wait"] .av::after,.whobtn[data-sync="spin"] .av::after{opacity:1;transform:none}
-.whobtn[data-sync="spin"] .av::after{animation:pulse 1.1s ease-in-out infinite}
-@keyframes pulse{50%{opacity:.35}}
+
 .sync{flex:none;display:grid;place-items:center;width:40px;height:40px;padding:0;border:0;border-radius:50%;cursor:pointer;color:var(--ok);background:color-mix(in srgb,currentColor 14%,transparent);box-shadow:0 0 10px -2px currentColor;transition:color .25s,background .25s}
 .sync svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .sync[data-c="wait"],.sync[data-c="spin"]{color:var(--hint)}
@@ -137,7 +127,7 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .dcell[aria-pressed="true"]:not([data-n]) .c{background:transparent}
 .dcell.mstart .w{color:var(--led);font-weight:700}
 .dcell[aria-pressed="true"].mstart .w{color:#fff}
-.datecard{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:52px;height:46px;border-radius:12px;background:var(--led);color:#fff;line-height:1.05}
+.datecard{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:46px;height:40px;border-radius:12px;background:var(--led);color:#fff;line-height:1.05}
 .datecard small{font-family:var(--mono);font-size:9px;letter-spacing:.1em;opacity:.85}
 .datecard b{font-size:18px;font-weight:800}
 .datecard span{font-family:var(--mono);font-size:9px;letter-spacing:.08em;opacity:.85;text-transform:uppercase}
@@ -903,7 +893,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793531323';
+const BUILD='1793532277';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -974,9 +964,9 @@ function renderBar(){
   const t=S.view==='test'&&view(S.open);
   const nm=S.view==='login'?'':S.me;
   const td=t&&new Date(t.day+'T12:00');
-  $('#barInner').innerHTML=`<div class="barrow"><div class="bar-l">${S.view==='test'||S.view==='account'||S.view==='grades'||S.view==='questions'?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
+  $('#barInner').innerHTML=`<div class="barrow"><div class="bar-l">${S.view==='test'||S.view==='account'||S.view==='grades'||S.view==='questions'||S.view==='add'?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
    ${S.me&&nm?`<div class="who"><button class="whobtn" id="whoBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(nm)}: menu"><span class="av" aria-hidden="true">${esc(nm.trim().charAt(0).toUpperCase())}</span><span class="wn">${esc(nm)}</span><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>${whoMenu()}</div>`:''}</div>
-   <div class="brand"><b class="ttl"><span>Operations</span><span>Test</span></b></div><div class="bar-r">
+   <div class="brand"><b class="ttl">Operations Test</b></div><div class="bar-r">
    ${S.view==='test'&&t&&timerOf(S.open)?`<button class="tm-pill" data-timer="${S.open}" id="tmPill" type="button" aria-label="Timer"><span class="tm-num">${timerOf(S.open).txt}</span></button>`:''}
    ${S.view==='test'&&t&&!timerOf(S.open)?`<span class="datecard" title="Test date"><small>${td.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase()}</small><b>${td.getDate()}</b><span>${td.toLocaleDateString('en-GB',{month:'short'})}</span></span>`:''}
    ${S.view==='roster'&&(S.ready||S.demo)?(()=>{const sd=new Date(S.day+'T12:00');return `<button class="datecard datebtn" id="dateBtn" type="button" aria-expanded="${!!S.stripOpen}" aria-label="Test date ${fmtDay(S.day)}. Change date"><small>${S.day===today()?'TODAY':sd.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase()}</small><b>${sd.getDate()}</b><span>${sd.toLocaleDateString('en-GB',{month:'short'})}</span></button>`})():''}</div></div>
@@ -1010,6 +1000,8 @@ if(themeNow()!=='auto')setTheme(themeNow());
 function whoMenu(){const st=markStyle();
   return `<div class="menu" id="whoMenu" role="menu" hidden>
     <div class="menu-h"><b>${esc(S.me)}</b><span>${S.role==='admin'?'Admin':'Teacher'} · signed in</span></div>
+    <div class="menu-sec"><span class="menu-l">Students</span>
+      <button class="menu-big" type="button" role="menuitem" data-go="add">Add students<span aria-hidden="true">›</span></button></div>
     <div class="menu-sec"><span class="menu-l">Questions</span>
       <button class="menu-big" type="button" role="menuitem" data-go="questions">${S.role==='admin'?'Edit questions':'My questions'}<span aria-hidden="true">›</span></button></div>
     <div class="menu-sec"><span class="menu-l">Google Sheet</span>
@@ -1040,32 +1032,11 @@ function go(v,id){if(S.view==='test'&&v!=='test')flushSoon(0);   // leaving a st
   S.view=v;S.open=id||null;renderBar();render();scrollTo(0,0);wake(v==='test')}
 // the open sheet is rebuilt only when its questions changed (someone edited the Questions tab), otherwise synced in place
 const sheetSig=t=>JSON.stringify(skillsFor(t).map(c=>[c.id,c.t,c.ask,c.s,c.heading]));
-function refresh(){if(S.view==='test'){const raw=view(S.open);if(raw&&!raw.deleted&&sheetSig({id:S.open,...raw})!==S.sheetSig)renderSheet();else syncSheet()}else if(S.view==='roster')render();else if(S.view==='account')renderAccount(true);else if(S.view==='questions'){}else if(S.view==='grades')loadGrades().then(()=>{if(S.view==='grades')renderGrades()})}
+function refresh(){if(S.view==='test'){const raw=view(S.open);if(raw&&!raw.deleted&&sheetSig({id:S.open,...raw})!==S.sheetSig)renderSheet();else syncSheet()}else if(S.view==='roster')render();else if(S.view==='account')renderAccount(true);else if(S.view==='questions'||S.view==='add'){}else if(S.view==='grades')loadGrades().then(()=>{if(S.view==='grades')renderGrades()})}
 function render(){
   if(!S.demo&&S.view!=='login'&&!S.ready){renderLoading();return}
-  S.view==='login'?renderLogin():S.view==='grades'?renderGrades():S.view==='account'?renderAccount():S.view==='questions'?renderQuestions():S.view==='test'&&view(S.open)?renderSheet():renderRoster()}
+  S.view==='login'?renderLogin():S.view==='grades'?renderGrades():S.view==='account'?renderAccount():S.view==='questions'?renderQuestions():S.view==='add'?renderAdd():S.view==='test'&&view(S.open)?renderSheet():renderRoster()}
 
-/* "Add to Home Screen": offered on the sign-in page until it is done, never inside the installed app.
-   Android browsers give a real install prompt; on an iPhone a page cannot add itself, so it shows the three taps. */
-let a2hsEvt=null;
-addEventListener('beforeinstallprompt',e=>{e.preventDefault();a2hsEvt=e;drawA2hs()});
-addEventListener('appinstalled',()=>{ls.set('ops.a2hs','done');drawA2hs()});
-const isStandalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
-const isIOS=()=>/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-if(isStandalone())ls.set('ops.a2hs','done');
-function drawA2hs(){const el=$('#a2hs');if(!el)return;
-  if(S.demo||isStandalone()||ls.get('ops.a2hs','')){el.innerHTML='';return}
-  el.innerHTML=`<button class="a2hs-btn" id="a2hsBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M12 8.5v7M8.5 12h7"/></svg><span><b>Add to Home Screen</b><small>Opens full screen, like an app</small></span></button>`;
-  $('#a2hsBtn').onclick=async()=>{
-    if(a2hsEvt){a2hsEvt.prompt();const r=await a2hsEvt.userChoice.catch(()=>({}));a2hsEvt=null;if(r.outcome==='accepted'){ls.set('ops.a2hs','done');toast('Added to your Home Screen')}drawA2hs();return}
-    const ios=isIOS();
-    el.innerHTML=`<div class="a2hs-how" role="dialog" aria-label="Add to Home Screen"><b>Add to Home Screen</b>
-      <ol>${ios?`<li>Tap <span class="a2hs-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11v8.5h12V11"/></svg> Share</span> at the bottom of Safari (or at the top on an iPad).</li><li>Scroll down and tap <b>Add to Home Screen</b>.</li><li>Tap <b>Add</b>. The app is now on your Home Screen.</li>`
-        :`<li>Open the browser menu <b>⋮</b> (top right).</li><li>Tap <b>Add to Home screen</b> or <b>Install app</b>.</li><li>Tap <b>Add</b> or <b>Install</b>.</li>`}</ol>
-      <div class="a2hs-row"><button class="primary" id="a2hsDone" type="button">Done, it’s on my Home Screen</button><button class="ghost" id="a2hsLater" type="button">Later</button></div></div>`;
-    $('#a2hsDone').onclick=()=>{ls.set('ops.a2hs','done');drawA2hs();toast('Open it from your Home Screen next time')};
-    $('#a2hsLater').onclick=drawA2hs};
-}
 function renderLogin(){
   const last=ls.get('ops.lastName','');
   $('#app').innerHTML=`<div class="door">
@@ -1084,9 +1055,7 @@ function renderLogin(){
       <p class="readout err" id="lErr" hidden></p>
       ${S.demo?'<p class="readout">Preview: any name opens the example students.</p>':''}
     </form>
-    <div id="a2hs"></div>
   </div>`;
-  drawA2hs();
   const f=$('#loginForm');let picked=last;
   /* The phone keyboard covers the lower half of the screen (and a home-screen app does not shrink the page for it):
      scroll only as far as needed for the password field and the Sign in button to sit just above the keyboard. */
@@ -1213,6 +1182,35 @@ function takeQuestions(j){
 function fitQ(ta){ta.style.height='auto';ta.style.height=(ta.scrollHeight+2)+'px'}
 addEventListener('resize',()=>{if(S.view==='questions')document.querySelectorAll('.qcard .qt').forEach(fitQ)});
 function qDirty(){Q.dirty=true;const st=$('#qState');if(st){st.textContent='Unsaved changes';st.dataset.d='1'}const b=$('#qSave');if(b)b.disabled=false}
+/* Add students (teacher menu): names for one test date, one per line, each optionally starting with its time. */
+function renderAdd(){
+  const admin=S.role==='admin'||S.demo,lastStudio=STUDIOS.includes(ls.get('ops.studio',''))?ls.get('ops.studio',''):STUDIOS[0];
+  $('#app').innerHTML=`<div class="landing"><form class="card add" id="addForm" autocomplete="off">
+     <span class="eyebrow">Add students</span>
+     <div class="field"><label for="addDay">Test date</label><input type="date" id="addDay" value="${S.day}"></div>
+     <div class="field"><label for="addNames">Names, one per line. Start with time.</label><textarea id="addNames" rows="5" placeholder="10:30 Kim Novak&#10;10:45 Alex Berg"></textarea></div>
+     ${!admin?'':`<div class="field"><label>Teacher</label><div class="seg" id="addTeacher" role="group" aria-label="Teacher">${Object.keys(S.teachers).map(n=>`<button type="button" data-teacher="${esc(n)}" aria-pressed="${n===S.me}">${esc(n)}</button>`).join('')}</div></div>`}
+     <div class="field"><label>Studio</label><div class="seg" id="addStudio" role="group" aria-label="Studio">${STUDIOS.map(x=>`<button type="button" data-studio="${x}" aria-pressed="${x===lastStudio}">${x}</button>`).join('')}</div></div>
+     <button class="primary" type="submit" ${!canMark()?'disabled':''}>Add students</button>
+   </form></div>`;
+  if($('#addTeacher'))$('#addTeacher').onclick=e=>{const b=e.target.closest('[data-teacher]');if(!b)return;$('#addTeacher').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b))};
+  $('#addStudio').onclick=e=>{const b=e.target.closest('[data-studio]');if(!b)return;$('#addStudio').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b))};
+  $('#addNames').focus();
+  $('#addForm').onsubmit=async e=>{e.preventDefault();if(!canMark())return;
+    const names=$('#addNames').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!names.length){toast('Type at least one name');return}
+    const day=$('#addDay').value;if(!day){toast('Pick a test date');return}
+    const lines=names.map(parseLine);
+    const studio=$('#addStudio [aria-pressed="true"]')?.dataset.studio||STUDIOS[0];ls.set('ops.studio',studio);
+    const teacher=$('#addTeacher [aria-pressed="true"]')?.dataset.teacher||S.me;
+    const msg=(names.length>1?`Added ${names.length} students`:`Added ${lines[0].name}`)+' to '+fmtDay(day);
+    const show=()=>{S.day=day;ls.set('ops.day',day);go('roster');toast(msg)};   // back to the list, on the day they were added to
+    if(S.demo){lines.forEach(l=>{S.tests[rid()]={name:l.name,time:l.time,studio,teacher,day,by:{}}});show();return}
+    const btn=e.target.querySelector('button[type=submit]');btn.disabled=true;btn.textContent='Adding…';
+    const j=await api('addStudents',{names,studio,day,teacher});
+    if(!j.ok){btn.disabled=false;btn.textContent='Add students';toast(j.error);return}
+    S.h='';await load();show();
+  };
+}
 function renderQuestions(){
   const app=$('#app');
   if(!Q.list){app.innerHTML=Q.err?`<div class="loader"><b>Can’t open the questions</b><span>${esc(Q.err)}</span><button class="ghost" id="qRetry" type="button">Try again</button></div>`:`<div class="loader"><div id="qProg" style="width:min(420px,100%)"></div></div>`;
@@ -1328,16 +1326,9 @@ function renderRoster(){
    <div class="summary">${stats}</div>
    <div class="list">
      <div class="dayhead"><b>${fmtDay(S.day)}${S.day===today()?' · today':''}</b><span>${list.length} student${list.length===1?'':'s'}</span></div>
-     ${list.length?list.map(row).join(''):dayList.length?`<div class="empty"><b>None of your students on ${fmtDay(S.day)}</b>${dayList.length} ${dayList.length===1?'student is':'students are'} booked with other teachers or have no teacher yet. Tap Everyone to see them.</div>`:!admin&&!all.length?`<div class="empty"><b>No students on your list yet</b>The organiser puts your name in the Teacher column of the Students tab. Your students then show up here.</div>`:`<div class="empty"><b>No tests for you on ${fmtDay(S.day)}</b>Pick another date, or add students below.</div>`}
+     ${list.length?list.map(row).join(''):dayList.length?`<div class="empty"><b>None of your students on ${fmtDay(S.day)}</b>${dayList.length} ${dayList.length===1?'student is':'students are'} booked with other teachers or have no teacher yet. Tap Everyone to see them.</div>`:!admin&&!all.length?`<div class="empty"><b>No students on your list yet</b>The organiser puts your name in the Teacher column of the Students tab. Your students then show up here.</div>`:`<div class="empty"><b>No tests for you on ${fmtDay(S.day)}</b>Pick another date, or add students from the menu.</div>`}
    </div>
 
-   <form class="card add" id="addForm" autocomplete="off">
-     <h3 style="font-size:16px">Add students to ${fmtDay(S.day)}</h3>
-     <div class="field"><label for="addNames">Names, one per line. Start with time.</label><textarea id="addNames" rows="3" placeholder="10:30 Kim Novak&#10;10:45 Alex Berg"></textarea></div>
-     ${!admin?'':`<div class="field"><label>Teacher</label><div class="seg" id="addTeacher" role="group" aria-label="Teacher">${Object.keys(S.teachers).map(n=>`<button type="button" data-teacher="${esc(n)}" aria-pressed="${n===S.me}">${esc(n)}</button>`).join('')}</div></div>`}
-     <div class="field"><label>Studio</label><div class="seg" id="addStudio" role="group" aria-label="Studio">${STUDIOS.map(x=>`<button type="button" data-studio="${x}" aria-pressed="${x===lastStudio}">${x}</button>`).join('')}</div></div>
-     <button class="primary" type="submit" ${!canMark()?'disabled':''}>Add to ${fmtDay(S.day)}</button>
-   </form>
 
 
    <div style="height:32px"></div>`;
@@ -1346,21 +1337,6 @@ function renderRoster(){
   $('#app').querySelectorAll('[data-mo]').forEach(b=>b.onclick=()=>{const [y,m]=(S.cal||S.day.slice(0,7)).split('-').map(Number);const d=new Date(y,m-1+(+b.dataset.mo),1);S.cal=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');render()});
   $('#app').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>go('test',b.dataset.open));
   $('#gradesBtn').onclick=openGrades;
-  if($('#addTeacher'))$('#addTeacher').onclick=e=>{const b=e.target.closest('[data-teacher]');if(!b)return;$('#addTeacher').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b))};
-  $('#addStudio').onclick=e=>{const b=e.target.closest('[data-studio]');if(!b)return;$('#addStudio').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b))};
-  $('#addForm').onsubmit=async e=>{e.preventDefault();if(!canMark())return;
-    const names=$('#addNames').value.split('\n').map(s=>s.trim()).filter(Boolean);if(!names.length){toast('Type at least one name');return}
-    const lines=names.map(parseLine);
-    const studio=$('#addStudio [aria-pressed="true"]')?.dataset.studio||STUDIOS[0],day=S.day;ls.set('ops.studio',studio);
-    const teacher=$('#addTeacher [aria-pressed="true"]')?.dataset.teacher||S.me;
-    const msg=(names.length>1?`Added ${names.length} students`:`Added ${lines[0].name}`)+' to '+fmtDay(day);
-    if(S.demo){lines.forEach(l=>{S.tests[rid()]={name:l.name,time:l.time,studio,teacher,day,by:{}}});render();toast(msg);return}
-    const btn=e.target.querySelector('button[type=submit]');btn.disabled=true;btn.textContent='Adding…';
-    const j=await api('addStudents',{names,studio,day,teacher});
-    btn.disabled=false;
-    if(!j.ok){btn.textContent='Add to '+fmtDay(day);toast(j.error);return}
-    $('#addNames').value='';await load();toast(msg);
-  };
 }
 
 const parseLine=l=>{const m=l.match(/^(\d{1,2})[:.](\d{2})\s+(.+)$/);return m&&+m[1]<24&&+m[2]<60?{time:m[1].padStart(2,'0')+':'+m[2],name:m[3].trim()}:{time:'',name:l}};
