@@ -202,6 +202,7 @@ details.guide[open] summary::after{content:"–"}
 .stage-h .count{font-family:var(--mono);font-size:12px;color:var(--mute)}
 .crit{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:10px}
 .crit[data-m="y"]{border-color:color-mix(in srgb,var(--ok) 45%,var(--line))}
+.crit[data-m="p"]{border-color:var(--ok);box-shadow:0 0 0 1.5px var(--ok),0 0 18px -4px var(--ok)}
 .crit[data-m="h"]{border-color:color-mix(in srgb,var(--hint) 45%,var(--line))}
 .crit[data-m="n"]{border-color:color-mix(in srgb,var(--no) 45%,var(--line))}
 .crit[data-m="g"]{border-color:color-mix(in srgb,var(--late) 45%,var(--line))}
@@ -365,8 +366,10 @@ details.errfold[open]>summary::after{content:"–"}
 .qstage{display:flex;flex-direction:column;gap:10px}
 .qst-h{display:flex;align-items:baseline;gap:10px}.qst-h .mono{color:var(--led);font-size:12px}.qst-h b{font-size:18px;font-weight:800}.qst-h .qn{margin-left:auto;font-size:12px;color:var(--mute)}
 .qhead{font-size:14px!important}
-.qcard{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--sunk);display:flex;flex-direction:column;gap:8px}
-.qcard .qt{background:var(--panel);font-weight:600;font-size:15px;resize:vertical}
+.qstage{gap:14px!important}
+.qcard{position:relative;border:1px solid color-mix(in srgb,var(--ink) 22%,var(--line));border-left:4px solid var(--led);border-radius:12px;padding:10px 10px 10px 12px;background:var(--sunk);display:flex;flex-direction:column;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.qno{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--led)}
+.qcard .qt{background:var(--panel);font-weight:600;font-size:15px;line-height:1.4;resize:none;overflow:hidden;min-height:48px}
 .qtools{display:flex;gap:6px}
 .qb{border:1px solid var(--line);background:var(--panel);border-radius:8px;min-width:40px;height:36px;padding:0 10px;font-weight:700;font-size:14px;color:var(--ink)}
 .qb:disabled{opacity:.35}.qb.wide{margin-left:auto}.qb.del{color:var(--no)}.qb.del[data-arm="1"]{background:var(--no);color:#fff;border-color:var(--no)}
@@ -850,7 +853,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793503361';
+const BUILD='1793503974';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1121,6 +1124,9 @@ function takeQuestions(j){
   Q.head={};j.questions.forEach(q=>{if(q.heading&&!Q.head[q.stage])Q.head[q.stage]=q.heading});
   Q.list=j.questions.map(q=>({...q,k:++Q.seq}));
 }
+// a question box grows to show the whole question, however long
+function fitQ(ta){ta.style.height='auto';ta.style.height=(ta.scrollHeight+2)+'px'}
+addEventListener('resize',()=>{if(S.view==='questions')document.querySelectorAll('.qcard .qt').forEach(fitQ)});
 function qDirty(){Q.dirty=true;const st=$('#qState');if(st){st.textContent='Unsaved changes';st.dataset.d='1'}const b=$('#qSave');if(b)b.disabled=false}
 function renderQuestions(){
   const app=$('#app');
@@ -1129,7 +1135,8 @@ function renderQuestions(){
     return}
   const y=scrollY,admin=S.role==='admin',SB=['Both','K3','K4'];
   const qcard=(q,i,arr)=>`<article class="qcard" data-k="${q.k}">
-      <textarea class="qt" rows="2" aria-label="Question" placeholder="What the teacher marks">${esc(q.t)}</textarea>
+      <span class="qno">Question ${i+1}</span>
+      <textarea class="qt" rows="2" aria-label="Question ${i+1}" placeholder="What the teacher marks">${esc(q.t)}</textarea>
       <div class="qtools"><button type="button" class="qb" data-act="up" aria-label="Move up"${i?'':' disabled'}>↑</button><button type="button" class="qb" data-act="down" aria-label="Move down"${i<arr.length-1?'':' disabled'}>↓</button>
         <button type="button" class="qb wide" data-act="more" aria-expanded="${!!q.open}">${q.open?'Less':'Details'}</button><button type="button" class="qb del" data-act="del">Delete</button></div>
       <div class="qmore"${q.open?'':' hidden'}>
@@ -1149,6 +1156,7 @@ function renderQuestions(){
       <button type="button" class="ghost qadd" data-add="${esc(st)}">+ Add a question</button></section>`}).join('')}
     <div style="height:84px"></div></div>
     <div class="qbar"><span id="qState"${Q.dirty?' data-d="1"':''}>${Q.dirty?'Unsaved changes':'All saved'}</span><button class="ghost" id="qUndo" type="button">Undo all</button><button class="primary" id="qSave" type="button"${Q.dirty?'':' disabled'}>Save</button></div>`;
+  app.querySelectorAll('.qcard .qt').forEach(fitQ);
   scrollTo(0,y);
   const byK=k=>Q.list.find(q=>q.k===+k),cardOf=el=>el.closest('.qcard');
   $('#qWho')?.addEventListener('change',e=>{if(Q.dirty&&!confirm('Switch without saving your changes?')){e.target.value=Q.who;return}Q.who=e.target.value;loadQuestions(Q.who)});
@@ -1156,7 +1164,7 @@ function renderQuestions(){
   app.oninput=e=>{const c=cardOf(e.target);
     if(e.target.classList.contains('qhead')){Q.head[e.target.closest('.qstage').dataset.stage]=e.target.value;qDirty();return}
     if(!c)return;const q=byK(c.dataset.k);
-    if(e.target.classList.contains('qt'))q.t=e.target.value;else if(e.target.classList.contains('qa'))q.ask=e.target.value;else if(e.target.classList.contains('ql'))q.label=e.target.value;else return;
+    if(e.target.classList.contains('qt')){q.t=e.target.value;fitQ(e.target)}else if(e.target.classList.contains('qa'))q.ask=e.target.value;else if(e.target.classList.contains('ql'))q.label=e.target.value;else return;
     qDirty()};
   app.onchange=e=>{if(!e.target.classList.contains('qs'))return;const q=byK(cardOf(e.target).dataset.k);
     Q.list.splice(Q.list.indexOf(q),1);q.stage=e.target.value;Q.list.push(q);qDirty();renderQuestions();toast('Moved to '+q.stage)};
