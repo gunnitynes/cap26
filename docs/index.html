@@ -68,7 +68,8 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .whobtn .wn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .whobtn svg{flex:none;color:var(--mute)}
 .whobtn[aria-expanded="true"]{border-color:var(--led)}
-@media (max-width:560px){.whobtn .wn{display:none}.whobtn{padding:0 8px 0 3px;gap:4px}}
+@media (max-width:560px){.whobtn .wn{display:none}.whobtn{padding:0 8px 0 3px;gap:4px}
+  .bar-l:has(#back) .whobtn svg{display:none}.bar-l:has(#back) .whobtn{padding:0 3px;width:42px;justify-content:center}}
 .menu{position:absolute;top:calc(100% + 8px);left:0;z-index:30;width:min(290px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 36px rgba(0,0,0,.28);padding:6px;display:flex;flex-direction:column}
 .menu[hidden]{display:none}
 .menu-h{display:flex;flex-direction:column;padding:10px 12px 8px;border-bottom:1px solid var(--line);margin-bottom:4px}
@@ -268,6 +269,12 @@ details.guide[open] summary::after{content:"–"}
 
 .safety{border-color:var(--no)}
 .safety h3{font-size:15px}
+details.errfold>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px}
+details.errfold>summary::-webkit-details-marker{display:none}
+details.errfold>summary::after{content:"+";margin-left:auto;font-family:var(--mono);font-size:18px;color:var(--no)}
+details.errfold[open]>summary::after{content:"–"}
+.errn{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--no);background:var(--no-soft);border-radius:6px;padding:2px 7px}
+.errn:empty{display:none}
 .incident{display:flex;gap:8px;align-items:flex-start;font-size:14px;border-top:1px solid var(--line);padding-top:8px}
 .incident .mono{font-size:11px;color:var(--mute);flex:none;padding-top:2px}
 .incident p{margin:0;flex:1;min-width:0;overflow-wrap:anywhere}
@@ -522,6 +529,19 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .st small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .endbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:19;width:min(560px,calc(100% - 32px));display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--ink);color:var(--bg);padding:10px 10px 10px 16px;border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.35);font-weight:600;font-size:14px}
 .endbar .primary{width:auto;flex:none;padding:10px 14px}
+.donewrap{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:24px;background:rgba(6,8,12,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);animation:fadein .18s ease-out}
+.donewrap.out{opacity:0;transition:opacity .18s}
+.donecard{width:min(380px,100%);background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:28px 22px 20px;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.4);animation:popin .32s cubic-bezier(.2,1.3,.4,1)}
+.donecard b{font-size:24px;font-weight:800;letter-spacing:-.01em}
+.donecard .done-sub{font-size:14px;color:var(--mute);line-height:1.45}
+.done-sync{font-family:var(--mono);font-size:11.5px;color:var(--mute);margin-top:4px;min-height:16px}
+.done-sync[data-s="ok"]{color:var(--ok)} .done-sync[data-s="err"]{color:var(--hint)}
+.donecard .primary{width:100%;margin-top:12px}
+.donetick{width:76px;height:76px;margin-bottom:4px}
+.donetick circle{fill:var(--ok-soft);stroke:var(--ok);stroke-width:3}
+.donetick path{fill:none;stroke:var(--ok);stroke-width:5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:48;stroke-dashoffset:48;animation:tick .45s .12s ease-out forwards}
+@keyframes tick{to{stroke-dashoffset:0}} @keyframes popin{from{transform:scale(.88);opacity:0}} @keyframes fadein{from{opacity:0}}
+@media (prefers-reduced-motion:reduce){.donecard,.donewrap{animation:none}.donetick path{animation:none;stroke-dashoffset:0}}
 .toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;font-weight:600;z-index:20;max-width:calc(100% - 32px)}
 .export{margin-top:10px;font-family:var(--mono);font-size:11px;min-height:120px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -779,7 +799,26 @@ async function flush(){
 }
 // what is in a but not already in b (both are patches); a key whose value is the same is dropped
 function diff(a,b){const o={};for(const [k,v] of Object.entries(a||{})){if(v&&typeof v==='object'&&b&&b[k]&&typeof b[k]==='object'){const d=diff(v,b[k]);if(Object.keys(d).length)o[k]=d}else if(!b||JSON.stringify(b[k])!==JSON.stringify(v))o[k]=v}return o}
-function setSync(s){S.sync=s;const el=$('#sync');if(!el)return;el.dataset.s=s;el.querySelector('span').textContent=s==='ok'?(S.demo?'Preview only':'Saved in Sheet'):s==='busy'?'Sending…':s==='local'?'Kept on this phone':'Not sent yet, retrying'}
+/* After End test and grade: a card over the list that says plainly the test is over, what went in, and when it is
+   safely in the Sheet. It stays until the teacher taps (or 15 seconds pass). */
+function showDone(t,wasEnded){
+  document.getElementById('doneCard')?.remove();
+  const e=mine(view(t.id)||t),sc=scoreOf(e,t),errs=sc.inc.length;
+  const el=document.createElement('div');el.id='doneCard';el.className='donewrap';el.setAttribute('role','alertdialog');el.setAttribute('aria-labelledby','doneT');
+  el.innerHTML=`<div class="donecard">
+    <svg class="donetick" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="29"/><path d="M19 33.5 28 42l17-19"/></svg>
+    <span class="eyebrow">${wasEnded?'Changes saved':'Test ended'}</span>
+    <b id="doneT">${esc(t.name)}</b>
+    <span class="done-sub">${wasEnded?'The grade is updated.':'This student is graded.'} ${sc.n} of ${sc.total} skills marked${errs?` · <span class="crit-n">${errs} critical error${errs>1?'s':''}</span>`:''}</span>
+    <span class="done-sync" id="doneSync"></span>
+    <button class="primary" id="doneOk" type="button">Back to students</button></div>`;
+  document.body.appendChild(el);doneSync();navigator.vibrate?.([12,60,12]);
+  const close=()=>{clearTimeout(h);el.classList.add('out');setTimeout(()=>el.remove(),180)},h=setTimeout(close,15000);
+  el.querySelector('#doneOk').onclick=close;el.onclick=ev=>{if(ev.target===el)close()};el.querySelector('#doneOk').focus();
+}
+function doneSync(){const d=$('#doneSync');if(!d)return;d.dataset.s=S.sync;
+  d.textContent=S.sync==='ok'?'✓ Saved in the Google Sheet':S.sync==='err'?'Kept on this phone. It goes to the Sheet as soon as there is internet.':'Sending to the Google Sheet…'}
+function setSync(s){S.sync=s;doneSync();const el=$('#sync');if(!el)return;el.dataset.s=s;el.querySelector('span').textContent=s==='ok'?(S.demo?'Preview only':'Saved in Sheet'):s==='busy'?'Sending…':s==='local'?'Kept on this phone':'Not sent yet, retrying'}
 addEventListener('online',()=>flushSoon(10));
 // a tab closed with marks still waiting gets a warning
 addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDefault();e.returnValue=''}});
@@ -789,7 +828,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793500710';
+const BUILD='1793502093';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -892,8 +931,8 @@ function whoMenu(){const st=markStyle();
   return `<div class="menu" id="whoMenu" role="menu" hidden>
     <div class="menu-h"><b>${esc(S.me)}</b><span>${S.role==='admin'?'Admin':'Teacher'} · signed in</span></div>
     <div class="menu-sec"><span class="menu-l">How you mark</span>
-      <div class="seg" role="group" aria-label="How you mark"><button type="button" role="menuitemradio" data-style="buttons" aria-pressed="${st==='buttons'}">Buttons</button><button type="button" role="menuitemradio" data-style="swipe" aria-pressed="${st==='swipe'}">Swipe</button></div>
-      <span class="menu-note">Swipe: one fader per question; double-tap a fader to clear it. Same five marks. Back to buttons next time the app opens.</span></div>
+      <div class="seg" role="group" aria-label="How you mark"><button type="button" role="menuitemradio" data-style="buttons" aria-pressed="${st==='buttons'}">Buttons</button><button type="button" role="menuitemradio" data-style="swipe" aria-pressed="${st==='swipe'}">Scale</button></div>
+      <span class="menu-note">Scale: one fader per question; double-tap a fader to clear it. Same five marks. Back to buttons next time the app opens.</span></div>
     <button class="menu-i" type="button" role="menuitem" data-go="account">${S.role==='admin'?'Teachers & account':'Account'}</button>
     <button class="menu-i danger" type="button" role="menuitem" id="menuOut">Sign out</button>
   </div>`}
@@ -904,7 +943,7 @@ function bindWhoMenu(){
   b.onclick=()=>show(m.hidden);
   m.onclick=e=>{const st=e.target.closest('[data-style]');
     if(st){S.style=st.dataset.style;m.querySelectorAll('[data-style]').forEach(x=>x.setAttribute('aria-pressed',x===st));
-      if(S.view==='test')renderSheet();toast(st.dataset.style==='swipe'?'Swipe marking on':'Button marking on');return}
+      if(S.view==='test')renderSheet();toast(st.dataset.style==='swipe'?'Scale marking on':'Button marking on');return}
     if(e.target.closest('[data-go]')){show(false);go('account');return}
     if(e.target.closest('#menuOut')){show(false);signOut()}};
 }
@@ -1251,17 +1290,16 @@ function renderSheet(){
      </section>`).join('')}
 
      <section class="card safety" id="st-errors" aria-label="Critical Errors">
-       <h3>Critical Errors</h3>
+       <details class="errfold" id="errBox"><summary><h3>Critical Errors</h3><span class="errn" id="errCount"></span></summary>
        <div class="quick" id="critChips" style="margin-top:10px"></div>
        <input type="text" id="incText" placeholder="Something else…" enterkeyhint="done" style="margin-top:10px">
+       </details>
      </section>
 
      <section class="card verdict" id="st-result">
        <span class="eyebrow">Finish</span>
        <p class="readout" id="progTxt" style="margin:0;font-size:14px"></p>
        <details class="notes" id="notesBox"${mine(t).summary?' open':''}><summary>Notes<span id="notesHint">${mine(t).summary?'':'optional'}</span></summary><textarea id="summary" rows="3" placeholder="Anything worth remembering about this test"></textarea></details>
-       <div class="pair"><div class="field"><label for="moveDay">Test date</label><input type="date" id="moveDay"></div><div class="field"><label for="moveTime">Test time</label><input type="time" id="moveTime"></div></div>
-       <div class="field"${S.role==='admin'||S.demo?'':' hidden'}><label for="moveTeacher">Teacher</label><select id="moveTeacher">${[...new Set(['',...Object.keys(S.teachers),t.teacher||''])].map(n=>`<option value="${esc(n)}">${n?esc(n):'No teacher yet'}</option>`).join('')}</select></div>
        <div class="foot"><button class="primary" id="doneBtn" type="button">${mine(t).ended?'Save changes':'End test and grade'}</button><button class="ghost danger" id="resetBtn" type="button">Reset</button></div>
        <div class="endbar" id="endBar" hidden role="status"><span id="endBarTxt"></span><button class="primary" id="endBarBtn" type="button">${mine(t).ended?'Save changes':'End test and grade'}</button></div>
        <div class="card confirm" id="resetAsk" hidden role="alertdialog" aria-labelledby="resetQ">
@@ -1286,9 +1324,6 @@ function renderSheet(){
   const logInc=text=>{if(!text||!canMark())return;if(activeKeys(text).length){$('#incText').value='';return}patchMine(S.open,{safety:{[rid()]:{t:Date.now(),text}}});$('#incText').value='';$('#incText').blur()};
   $('#critChips').onclick=e=>{const b=e.target.closest('button');if(!b||!canMark())return;const text=b.dataset.q,keys=activeKeys(text);
     if(keys.length)patchMine(S.open,{safety:Object.fromEntries(keys.map(k=>[k,null]))});else logInc(text);navigator.vibrate?.(8)};
-  $('#moveDay').onchange=e=>{const d=e.target.value;if(!d)return;patch(S.open,{day:d});S.day=d;ls.set('ops.day',d);renderBar();toast('Moved to '+fmtDay(d))};
-  $('#moveTeacher').onchange=e=>{const v=e.target.value;patch(S.open,{teacher:v});toast(v?'Teacher: '+v:'No teacher')};
-  $('#moveTime').onchange=e=>{const v=e.target.value||'';patch(S.open,{time:v});toast(v?'Test time '+v:'Test time cleared')};
   $('#incText').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();logInc($('#incText').value.trim())}};
   /* End test and grade is the end of the test: the student shows as Graded and the whole test goes to the Sheet in one call
      while the teacher is already back on the list. A skill still unmarked is pointed out first: jump to
@@ -1311,9 +1346,9 @@ function renderSheet(){
     if(canMark()){
       clearTimeout(debounced._s);const fb=$('#summary').value;
       patchMine(S.open,{...(fb!==(e.summary||'')?{summary:fb}:{}),...(e.ended?{}:{ended:Date.now()})});
-      toast(e.ended?'Changes saved':t.name+' graded');
     }
-    flushSoon(0);go('roster')};
+    flushSoon(0);go('roster');
+    if(canMark())showDone(t,!!e.ended)};   // (t was taken before leaving the student)
   $('#endBarBtn').onclick=finish;
   /* Reset clears this teacher's own marks, notes and critical errors for the student, after a confirmation.
      (Students are removed in the Sheet, not here.) */
@@ -1325,7 +1360,7 @@ function renderSheet(){
     $('#resetAsk').hidden=true;app.querySelectorAll('article.crit.missing').forEach(a=>a.classList.remove('missing'));
     app.querySelectorAll('[data-note]').forEach(n=>{n.value='';n.hidden=true;const ab=app.querySelector(`[data-addnote="${n.dataset.note}"]`);if(ab)ab.hidden=false});
     toast('Test reset');scrollTo({top:0,behavior:'smooth'})};
-  app.querySelectorAll('.stagenav a').forEach(a=>a.onclick=e=>{e.preventDefault();document.getElementById(a.getAttribute('href').slice(1))?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'})});
+  app.querySelectorAll('.stagenav a').forEach(a=>a.onclick=e=>{e.preventDefault();if(a.dataset.st==='errors')$('#errBox').open=true;document.getElementById(a.getAttribute('href').slice(1))?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'})});
   const syncTimer=()=>{const on=!!timerOf(S.open);$('#tmStart').hidden=on;$('#tmReset').hidden=!on;$('#tmReset').textContent='Reset';tick()};
   $('#tmStart').onclick=()=>{audioOn();setTimer(S.open,true);buzzed.delete(S.open);syncTimer();renderBar();navigator.vibrate?.(15)};
   let tmArm=0;$('#tmReset').onclick=()=>{if(Date.now()-tmArm>3000){tmArm=Date.now();$('#tmReset').textContent='Tap again to reset';return}
@@ -1341,9 +1376,6 @@ function syncSheet(first){
   if(S.view!=='test')return;const raw=view(S.open);if(!raw||raw.deleted){go('roster');return}
   const t={id:S.open,...raw},e=mine(t),sc=scoreOf(e,t),app=$('#app');
   $('#sName').textContent=t.name;
-  const mtc=$('#moveTeacher');if(document.activeElement!==mtc)mtc.value=t.teacher||'';
-  const md=$('#moveDay');if(document.activeElement!==md)md.value=t.day||'';
-  const mt=$('#moveTime');if(document.activeElement!==mt)mt.value=t.time||'';
   app.querySelectorAll('.marks').forEach(g=>{const v=e.marks?.[g.dataset.crit];g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===v));swipeShow(g,v);const a=g.closest('.crit');a.dataset.m=v||'';if(v)a.classList.remove('missing')});
   app.querySelectorAll('[data-note]').forEach(n=>{const v=e.notes?.[n.dataset.note]||'';if(document.activeElement!==n&&n.value!==v){n.value=v}if(v){n.hidden=false;const ab=app.querySelector(`[data-addnote="${n.dataset.note}"]`);if(ab)ab.hidden=true}if(!n.hidden)autosize(n)});
   const sm=$('#summary');if(document.activeElement!==sm&&sm.value!==(e.summary||''))sm.value=e.summary||'';
@@ -1359,6 +1391,7 @@ function syncSheet(first){
   const on=new Set(inc.map(([,i])=>i.text)),chips=[...QUICK,...[...on].filter(x=>!QUICK.includes(x))];
   const cc=$('#critChips'),html=chips.map(q=>`<button type="button" data-q="${esc(q)}" aria-pressed="${on.has(q)}"><i></i>${esc(q)}</button>`).join('');
   if(cc.innerHTML!==html)cc.innerHTML=html;
+  const ec=$('#errCount');if(ec)ec.textContent=inc.length?(inc.length===1?'1 logged':inc.length+' logged'):'';
   const others=Object.entries(entries(t)).filter(([uid])=>uid!==S.me);
   $('#progTxt').textContent=(mine(t).ended?'Test ended and graded. You can still change marks and notes. ':'')+`You have marked ${sc.n} of ${sc.total} skills.`+(others.length?' Also marking: '+others.map(([uid,x])=>teacherName(uid)+' ('+(x._progress??scoreOf(x,t).n)+'/'+sc.total+')').join(', ')+'.':'');
   if(!canMark())app.querySelectorAll('.sheet button,.sheet textarea,.sheet input').forEach(x=>x.disabled=true);
