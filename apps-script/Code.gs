@@ -1484,7 +1484,7 @@ function buildGrades_() {
   } else {
     sh.getRange(top, 1).setValue('No students yet. Add them in the Students tab or on the page.').setFontColor(MUTE);
   }
-  [110, 170, 90, 150, 64, 110].concat(stageNames.map(() => 66)).concat([70, 58, 110, 104, 300]).forEach((w, i) => sh.setColumnWidth(i + 1, w));
+  [110, 170, 90, 150, 86, 110].concat(stageNames.map(() => 66)).concat([70, 58, 110, 104, 300]).forEach((w, i) => sh.setColumnWidth(i + 1, w));
   sh.setFrozenRows(top - 1); sh.setFrozenColumns(2);
   sh.setHiddenGridlines(true);
   sh.setTabColor(BLUE);
