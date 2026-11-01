@@ -220,31 +220,36 @@ details.guide[open] summary::after{content:"–"}
 @keyframes missing{50%{box-shadow:0 0 0 6px var(--hint-soft)}}
 @media (prefers-reduced-motion:reduce){.crit.missing{animation:none}}
 .marks{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
-.marks.swipe{display:flex;align-items:center;gap:8px}
+.marks.swipe{display:block}
 .marks.swipe>button{display:none}
-.sw{--p:#3ddc84;--y:#a6d84a;--h:#f2c53d;--g:#fb8a4c;--n:#ff5a5a;position:relative;flex:1;height:70px;border-radius:8px;
+/* Swipe marking: one horizontal fader. The cap follows the finger freely and glides to the nearest mark on release.
+   Not marked: the cap rests dim in the middle and the readout says so. Double-tap clears. The panel never changes size. */
+.sw{--p:#3ddc84;--y:#a6d84a;--h:#f2c53d;--g:#fb8a4c;--n:#ff5a5a;--c:#4a4f59;--x:50;position:relative;height:88px;border-radius:9px;
   background:linear-gradient(180deg,#30333b,#1a1c21);border:1px solid #0b0c0f;box-shadow:inset 0 1px 0 rgba(255,255,255,.09),inset 0 -1px 0 rgba(0,0,0,.5),0 2px 6px rgba(0,0,0,.25);
-  touch-action:pan-y;cursor:pointer;user-select:none;-webkit-user-select:none;outline-offset:3px}
-/* the fader slot */
-.sw::before{content:"";position:absolute;left:10%;right:10%;top:31px;height:7px;border-radius:4px;background:#050607;box-shadow:inset 0 1px 3px #000,0 1px 0 rgba(255,255,255,.08)}
-/* the scale: a tick, an LED and an engraved name at each of the five marks */
+  touch-action:pan-y;cursor:grab;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;outline-offset:3px}
+.sw.drag{cursor:grabbing}
+.sw[data-z="p"]{--c:var(--p)} .sw[data-z="y"]{--c:var(--y)} .sw[data-z="h"]{--c:var(--h)} .sw[data-z="g"]{--c:var(--g)} .sw[data-z="n"]{--c:var(--n)}
+.sw-lcd{position:absolute;left:10px;top:8px;display:flex;align-items:center;gap:7px;height:20px;min-width:128px;padding:0 8px;border-radius:4px;background:#07090a;box-shadow:inset 0 1px 3px #000,0 1px 0 rgba(255,255,255,.06);
+  font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;color:#5d636e;transition:color .12s}
+.sw-lcd i{flex:none;width:6px;height:6px;border-radius:50%;background:#2c3038;transition:background .12s,box-shadow .12s}
+.sw-lcd em{font-style:normal;margin-left:auto;padding-left:8px}
+.sw:not([data-z=""]) .sw-lcd{color:var(--c)}
+.sw:not([data-z=""]) .sw-lcd i{background:var(--c);box-shadow:0 0 7px var(--c)}
+.sw-tip{position:absolute;right:11px;top:12px;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:#7d838f;opacity:0;transition:opacity .2s;pointer-events:none}
+.sw:not([data-v=""]):not(.drag) .sw-tip{opacity:1}
+.sw-slot{position:absolute;left:6%;right:6%;top:43px;height:8px;border-radius:4px;background:#050607;box-shadow:inset 0 1px 3px #000,0 1px 0 rgba(255,255,255,.08);pointer-events:none}
+.sw-slot::after{content:"";position:absolute;left:4.5%;right:4.5%;top:13px;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--p),var(--y) 25%,var(--h) 50%,var(--g) 75%,var(--n));opacity:.4}
 .sw-scale{position:absolute;inset:0;pointer-events:none}
-.sw-scale i{position:absolute;top:0;bottom:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:7px 0 6px;font-style:normal;font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.08em;color:#7d838f;text-transform:uppercase;white-space:nowrap}
-.sw-scale i b{width:7px;height:7px;border-radius:50%;background:#3a3e47;box-shadow:inset 0 1px 1px rgba(0,0,0,.6)}
-.sw-scale i.on{color:#eef0f4}
-.sw-scale i.on b{background:var(--c);box-shadow:0 0 6px var(--c),0 0 1px #fff inset}
-.sw-scale i[data-v="p"]{--c:var(--p)} .sw-scale i[data-v="y"]{--c:var(--y)} .sw-scale i[data-v="h"]{--c:var(--h)} .sw-scale i[data-v="g"]{--c:var(--g)} .sw-scale i[data-v="n"]{--c:var(--n)}
-.sw-hint{display:none}
-/* the fader cap: brushed metal with a coloured index line */
-.sw-thumb{position:absolute;top:35px;width:30px;height:34px;transform:translate(-50%,-50%);border-radius:4px;pointer-events:none;border:1px solid #0b0c0f;
+.sw-scale i{position:absolute;bottom:7px;transform:translateX(-50%);font-style:normal;font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.08em;color:#757b87;text-transform:uppercase;white-space:nowrap;transition:color .12s}
+.sw-scale i[data-v="p"]{--k:var(--p)} .sw-scale i[data-v="y"]{--k:var(--y)} .sw-scale i[data-v="h"]{--k:var(--h)} .sw-scale i[data-v="g"]{--k:var(--g)} .sw-scale i[data-v="n"]{--k:var(--n)}
+.sw-scale i.on{color:var(--k)}
+.sw-cap{position:absolute;top:47px;left:calc(var(--x) * 1%);width:30px;height:38px;transform:translate(-50%,-50%);border-radius:4px;pointer-events:none;border:1px solid #0b0c0f;
   background:repeating-linear-gradient(0deg,rgba(0,0,0,.13) 0 1px,transparent 1px 4px),linear-gradient(90deg,#8f959e,#e8eaee 28%,#fbfbfc 50%,#d6d9de 72%,#878d96);
-  box-shadow:0 5px 9px rgba(0,0,0,.55),inset 0 1px 0 #fff;transition:left .07s}
-.sw-thumb::before{content:"";position:absolute;left:50%;top:3px;bottom:3px;width:3px;transform:translateX(-50%);border-radius:2px;background:#16181c}
-.sw-thumb[data-v="p"]::before{background:var(--p)} .sw-thumb[data-v="y"]::before{background:var(--y)} .sw-thumb[data-v="h"]::before{background:var(--h)} .sw-thumb[data-v="g"]::before{background:var(--g)} .sw-thumb[data-v="n"]::before{background:var(--n)}
-.sw-thumb[hidden]{display:none}
-.sw-x{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line);background:var(--sunk);color:var(--mute);font-size:13px;cursor:pointer}
-.sw-x[hidden]{display:none}
-@media (max-width:380px){.sw-scale i{font-size:7.5px;letter-spacing:.04em}}
+  box-shadow:0 5px 10px rgba(0,0,0,.55),inset 0 1px 0 #fff;transition:left .26s cubic-bezier(.25,1.4,.5,1),opacity .18s,filter .18s;will-change:left}
+.sw-cap::before{content:"";position:absolute;left:50%;top:3px;bottom:3px;width:3px;transform:translateX(-50%);border-radius:2px;background:var(--c);box-shadow:0 0 4px var(--c);transition:background .12s}
+.sw.drag .sw-cap{transition:left .05s linear;box-shadow:0 8px 14px rgba(0,0,0,.6),inset 0 1px 0 #fff}
+.sw[data-v=""]:not(.drag) .sw-cap{opacity:.42;filter:grayscale(1)}
+@media (max-width:380px){.sw-scale i{font-size:7.5px;letter-spacing:.03em}.sw-tip{display:none}}
 .marks button{border:1px solid var(--line);background:var(--sunk);border-radius:9px;padding:10px 2px 9px;font-size:12.5px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:5px;transition:background .12s,border-color .12s}
 .marks button i{width:9px;height:9px;border-radius:50%;background:var(--line);transition:background .12s,box-shadow .12s}
 .marks button[data-v="p"][aria-pressed="true"]{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
@@ -784,7 +789,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793500241';
+const BUILD='1793500710';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -888,7 +893,7 @@ function whoMenu(){const st=markStyle();
     <div class="menu-h"><b>${esc(S.me)}</b><span>${S.role==='admin'?'Admin':'Teacher'} · signed in</span></div>
     <div class="menu-sec"><span class="menu-l">How you mark</span>
       <div class="seg" role="group" aria-label="How you mark"><button type="button" role="menuitemradio" data-style="buttons" aria-pressed="${st==='buttons'}">Buttons</button><button type="button" role="menuitemradio" data-style="swipe" aria-pressed="${st==='swipe'}">Swipe</button></div>
-      <span class="menu-note">Swipe: one fader per question. Same five marks. Back to buttons next time the app opens.</span></div>
+      <span class="menu-note">Swipe: one fader per question; double-tap a fader to clear it. Same five marks. Back to buttons next time the app opens.</span></div>
     <button class="menu-i" type="button" role="menuitem" data-go="account">${S.role==='admin'?'Teachers & account':'Account'}</button>
     <button class="menu-i danger" type="button" role="menuitem" id="menuOut">Sign out</button>
   </div>`}
@@ -1183,25 +1188,42 @@ function markBtns(kind,id,opts){
   // The buttons stay underneath and the bar only ever picks one of the same five marks, so what is saved never changes.
   const sw=kind==='crit'&&opts.length===5&&markStyle()==='swipe';
   return `<div class="marks${opts.length===3?' three':''}${sw?' swipe':''}" data-${kind}="${id}">${opts.map(v=>`<button type="button" data-v="${v}" aria-pressed="false"><i></i>${MARK[v]}</button>`).join('')}${sw?swipeBar():''}</div>`}
-const SWIPE=['p','y','h','g','n'];   // left (green) to right (red)
-function swipeBar(){return `<div class="sw" role="slider" tabindex="0" aria-label="Mark" aria-valuemin="0" aria-valuemax="4" aria-valuetext="Not marked"><span class="sw-hint">Slide: Perfect ← → Failed</span><span class="sw-scale" aria-hidden="true">${SWIPE.map((v,i)=>`<i data-v="${v}" style="left:${10+i*20}%"><b></b>${MARK[v]}</i>`).join('')}</span><span class="sw-thumb" hidden></span></div><span class="sw-x" role="button" tabindex="0" aria-label="Clear the mark" hidden>✕</span>`}
-// shows a mark (or none) on a group's bar
-function swipeShow(g,v){const bar=g.querySelector('.sw');if(!bar)return;const i=SWIPE.indexOf(v),th=bar.querySelector('.sw-thumb');
-  bar.dataset.v=v||'';th.hidden=i<0;g.querySelector('.sw-x').hidden=i<0;bar.querySelector('.sw-hint').hidden=i>=0;
-  if(i>=0){th.style.left=(10+i*20)+'%';th.dataset.v=v}
-  bar.querySelectorAll('.sw-scale i').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
+const SWIPE=['p','y','h','g','n'],SW_AT=[10,30,50,70,90];   // left (green) to right (red), as % along the panel
+function swipeBar(){return `<div class="sw" role="slider" tabindex="0" aria-label="Mark. Double-tap clears" aria-valuemin="0" aria-valuemax="4" aria-valuetext="Not marked" data-v="" data-z="" style="--x:50">
+  <span class="sw-lcd" aria-hidden="true"><i></i><b>NOT MARKED</b><em></em></span><span class="sw-tip" aria-hidden="true">double-tap to clear</span>
+  <span class="sw-slot"></span><span class="sw-scale" aria-hidden="true">${SWIPE.map((v,i)=>`<i data-v="${v}" style="left:${SW_AT[i]}%">${MARK[v]}</i>`).join('')}</span><span class="sw-cap"></span></div>`}
+// draws the cap at x (0-100) and the mark zone z it is in ('' = none)
+function swipePaint(bar,z,x){bar.style.setProperty('--x',x.toFixed(2));if(bar.dataset.z===z)return;bar.dataset.z=z;
+  bar.querySelector('.sw-lcd b').textContent=z?MARK[z].toUpperCase():'NOT MARKED';bar.querySelector('.sw-lcd em').textContent=z?Math.round(POINTS[z]*100):'';
+  bar.querySelectorAll('.sw-scale i').forEach(i=>i.classList.toggle('on',i.dataset.v===z))}
+// shows a saved mark (or none: the cap rests dim in the middle); left alone while a finger is on it
+function swipeShow(g,v){const bar=g.querySelector('.sw');if(!bar||bar.classList.contains('drag'))return;const i=SWIPE.indexOf(v);
+  bar.dataset.v=i<0?'':v;swipePaint(bar,i<0?'':v,i<0?50:SW_AT[i]);
   bar.setAttribute('aria-valuenow',i<0?'':i);bar.setAttribute('aria-valuetext',i<0?'Not marked':MARK[v])}
 function bindSwipe(app,commit){
   app.querySelectorAll('.marks.swipe').forEach(g=>{
-    const bar=g.querySelector('.sw'),id=g.dataset.crit;let drag=null;
-    const at=x=>{const r=bar.getBoundingClientRect();return SWIPE[Math.max(0,Math.min(4,Math.floor((x-r.left)/r.width*5)))]};
-    bar.onpointerdown=e=>{if(!canMark())return;drag={from:bar.dataset.v||'',v:at(e.clientX)};bar.setPointerCapture?.(e.pointerId);swipeShow(g,drag.v);bar.classList.add('on')};
-    bar.onpointermove=e=>{if(!drag)return;const v=at(e.clientX);if(v!==drag.v){drag.v=v;swipeShow(g,v);navigator.vibrate?.(5)}};
-    bar.onpointerup=()=>{if(!drag)return;const v=drag.v;drag=null;bar.classList.remove('on');if(v)commit(id,v)};
-    bar.onpointercancel=()=>{if(!drag)return;swipeShow(g,drag.from);drag=null;bar.classList.remove('on')};   // the page scrolled instead
-    bar.onkeydown=e=>{const i=SWIPE.indexOf(bar.dataset.v),d=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;if(!d)return;e.preventDefault();
-      commit(id,SWIPE[Math.max(0,Math.min(4,(i<0?(d>0?-1:5):i)+d))])};
-    const x=g.querySelector('.sw-x');x.onclick=()=>{if(canMark())commit(id,null)};x.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();x.click()}};
+    const bar=g.querySelector('.sw'),id=g.dataset.crit;let d=null,lastTap=0,lastTapX=-1e3;
+    const zoneOf=x=>SWIPE[Math.max(0,Math.min(4,Math.round((x-10)/20)))];
+    const xOf=e=>Math.max(6,Math.min(94,(e.clientX-d.left)/d.w*100-d.off));
+    const set=v=>{bar.dataset.v=v||'';swipeShow(g,v);commit(id,v)};
+    bar.onpointerdown=e=>{if(!canMark()||e.button>0)return;
+      const r=bar.getBoundingClientRect(),cur=parseFloat(bar.style.getPropertyValue('--x'))||50,px=(e.clientX-r.left)/r.width*100;
+      // on the cap: it moves with the finger from where it was held; anywhere else: it comes to the finger
+      d={left:r.left,w:r.width,from:bar.dataset.v,x0:e.clientX,moved:false,off:Math.abs(px-cur)<6&&bar.dataset.v?px-cur:0};
+      try{bar.setPointerCapture(e.pointerId)}catch(err){}
+      bar.classList.add('drag');const x=xOf(e);swipePaint(bar,zoneOf(x),x)};
+    bar.onpointermove=e=>{if(!d)return;if(Math.abs(e.clientX-d.x0)>5)d.moved=true;
+      const x=xOf(e),z=zoneOf(x);if(z!==bar.dataset.z)navigator.vibrate?.(4);swipePaint(bar,z,x)};
+    bar.onpointerup=e=>{if(!d)return;const z=bar.dataset.z,from=d.from,tap=!d.moved,now=Date.now();d=null;bar.classList.remove('drag');
+      // a second tap in the same place within a moment: back to not marked
+      if(tap&&now-lastTap<350&&Math.abs(e.clientX-lastTapX)<40){lastTap=0;if(bar.dataset.v||from)set(null);else swipeShow(g,null);navigator.vibrate?.([6,40,6]);return}
+      lastTap=tap?now:0;lastTapX=e.clientX;
+      if(z!==from)set(z);else swipeShow(g,z)};   // glides to the mark's own spot
+    bar.onpointercancel=()=>{if(!d)return;const from=d.from;d=null;bar.classList.remove('drag');swipeShow(g,from)};   // the page scrolled instead
+    bar.onkeydown=e=>{const i=SWIPE.indexOf(bar.dataset.v);
+      if(e.key==='Backspace'||e.key==='Delete'){e.preventDefault();if(i>=0)set(null);return}
+      const k=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;if(!k)return;e.preventDefault();
+      set(SWIPE[i<0?2:Math.max(0,Math.min(4,i+k))])};
   })}
 function renderSheet(){
   const t={id:S.open,...view(S.open)};
@@ -1322,7 +1344,7 @@ function syncSheet(first){
   const mtc=$('#moveTeacher');if(document.activeElement!==mtc)mtc.value=t.teacher||'';
   const md=$('#moveDay');if(document.activeElement!==md)md.value=t.day||'';
   const mt=$('#moveTime');if(document.activeElement!==mt)mt.value=t.time||'';
-  app.querySelectorAll('.marks').forEach(g=>{const v=e.marks?.[g.dataset.crit];g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===v));if(!g.querySelector('.sw.on'))swipeShow(g,v);const a=g.closest('.crit');a.dataset.m=v||'';if(v)a.classList.remove('missing')});
+  app.querySelectorAll('.marks').forEach(g=>{const v=e.marks?.[g.dataset.crit];g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===v));swipeShow(g,v);const a=g.closest('.crit');a.dataset.m=v||'';if(v)a.classList.remove('missing')});
   app.querySelectorAll('[data-note]').forEach(n=>{const v=e.notes?.[n.dataset.note]||'';if(document.activeElement!==n&&n.value!==v){n.value=v}if(v){n.hidden=false;const ab=app.querySelector(`[data-addnote="${n.dataset.note}"]`);if(ab)ab.hidden=true}if(!n.hidden)autosize(n)});
   const sm=$('#summary');if(document.activeElement!==sm&&sm.value!==(e.summary||''))sm.value=e.summary||'';
   if($('#endBar')&&!$('#endBar').hidden){const m=e.marks||{},left=skillsFor(t).filter(c=>!(m[c.id] in POINTS));endBar(left.length);
