@@ -167,7 +167,7 @@ function buildStart_() {
     ['Teachers', 'Who can sign in. Their names are the list on the sign-in page.'],
     ['Students', 'Everyone booked for a test: date, time, name, studio. Type or paste here, or add them on the page.'],
     ['Questions', 'The shared test: every question, its stage and which studio it is for. Each teacher\'s own tab starts as a copy of it.'],
-    ['Marks', 'One row per student per teacher: result, score and a % per test stage, the same columns for every teacher. Every single skill is folded away on the right (press + above the columns). The last column is the page\'s own copy; leave it alone.'],
+    ['Marks', 'One row per student per teacher: result, score and a % per test stage, the same columns for every teacher. Every single skill is folded away on the right (press + above the Updated column). The last column is the page\'s own copy; leave it alone.'],
     ['Grades', 'The overview: every student\'s grade, progress, a colour per test stage and their critical errors. Kept up to date by itself.'],
     ['', ''],
     ['How the grade works', 'Each mark is worth: Perfect 100 · Pass 80 · Hint 65 · Got there 50 · Failed 0. Each test stage gets the average of its questions (each skill averaged over every teacher who marked it), and the score is the average of the stages, so every stage counts the same however many questions a teacher put in it. Grade A from 85%, Pass from 40%. Any critical error means Resit.'],
@@ -420,7 +420,7 @@ function styleMarks_(ctx) {
   const S0 = MARKS_HEAD.length + 1, M0 = S0 + nS, D0 = M0 + MARKS_MID.length;   // first stage, first middle, first skill column
   try { m.getRange(1, 1, 1, m.getMaxColumns()).shiftColumnGroupDepth(-8); } catch (e) {}   // drop the old fold
   try { m.showColumns(1, m.getMaxColumns()); } catch (e) {}
-  try { m.getRange(1, 1, m.getMaxRows(), m.getMaxColumns()).setBackground(null).setFontColor(null).setFontWeight(null).setBorder(false, false, false, false, false, false); } catch (e) {}
+  try { m.getRange(1, 1, m.getMaxRows(), m.getMaxColumns()).setBackground(null).setFontColor(null).setFontWeight(null).setFontSize(10).setHorizontalAlignment(null).setBorder(false, false, false, false, false, false); } catch (e) {}
   const head = m.getRange(1, 1, 1, w);
   head.setFontWeight('bold').setFontColor('#ffffff').setBackground(BLUE).setVerticalAlignment('middle').setWrap(true).setHorizontalAlignment('center');
   m.getRange(1, 1, 1, 3).setHorizontalAlignment('left');
@@ -434,9 +434,10 @@ function styleMarks_(ctx) {
   m.getRange(2, 1, rows, 1).setNumberFormat(DATE_FMT).setHorizontalAlignment('left');
   m.getRange(2, 2, rows, 1).setFontWeight('bold');
   m.getRange(2, 4, rows, 3 + nS).setHorizontalAlignment('center');
-  m.getRange(2, 5, rows, 1 + nS).setNumberFormat('0');
+  m.getRange(2, 5, rows, 1).setNumberFormat('0'); if (nS) m.getRange(2, S0, rows, nS).setNumberFormat('0');
   m.getRange(2, 5, rows, 1).setFontWeight('bold').setFontSize(12);
   m.getRange(2, M0, rows, 1).setFontColor(BANDS[2][2]).setWrap(true);
+  m.getRange(2, M0, rows, 2).setHorizontalAlignment('left');
   m.getRange(2, M0 + 1, rows, 1).setWrap(true);
   m.getRange(2, M0 + 2, rows, 2).setNumberFormat('dd.MM.yyyy HH:mm').setFontColor(MUTE);
   // a thick line after the stages and after the summary, so the three parts read apart
@@ -450,7 +451,7 @@ function styleMarks_(ctx) {
   const heat = SpreadsheetApp.newConditionalFormatRule()
     .setGradientMinpointWithValue('#f4c7c3', SpreadsheetApp.InterpolationType.NUMBER, '0')
     .setGradientMidpointWithValue('#fce8b2', SpreadsheetApp.InterpolationType.NUMBER, '60')
-    .setGradientMaxpointWithValue('#b7e1cd', SpreadsheetApp.InterpolationType.NUMBER, '100').setRanges([m.getRange(2, 5, rows, 1 + nS)]).build();
+    .setGradientMaxpointWithValue('#b7e1cd', SpreadsheetApp.InterpolationType.NUMBER, '100').setRanges([m.getRange(2, 5, rows, 1)].concat(nS ? [m.getRange(2, S0, rows, nS)] : [])).build();
   const rules = [heat, text('Grade A', BANDS[0][3], BANDS[0][2]), text('Pass', BANDS[1][3], INK), text('Resit', BANDS[2][3], BANDS[2][2]),
     text('In progress', PAPER, MUTE), text('Not started', '#ffffff', '#9aa3b5')];
   if (nD) {
@@ -459,8 +460,9 @@ function styleMarks_(ctx) {
     rules.push(r('Perfect', '#d8f1e6', '#0f7a57'), r('Pass', '#dbe6ff', '#0b43e0'), r('Hint', '#fbeccf', '#a35f00'), r('Got there', '#fde2d3', '#c2410c'), r('Failed', '#fbe0e0', '#bf2b2b'),
       r(NOT_ASKED, '#ffffff', '#d5d9e1'));
     // every skill in one fold, closed: press + above the columns to open it
-    try { m.getRange(1, D0, 1, nD).shiftColumnGroupDepth(1); m.getColumnGroup(D0, 1).collapse(); } catch (e) {}
-    try { m.getRange(1, D0).setNote('Every skill, one column each, as each teacher marked it. A dash: not part of that student\'s test. Press − above the columns to fold them away again.'); } catch (e) {}
+    // (the + sits on the column BEFORE the fold: after it there is only the hidden page copy, so it would not show)
+    try { m.setColumnGroupControlPosition(SpreadsheetApp.GroupControlTogglePosition.BEFORE); m.getRange(1, D0, 1, nD).shiftColumnGroupDepth(1); m.getColumnGroup(D0, 1).collapse(); } catch (e) {}
+    try { m.getRange(1, D0).setNote('Every skill, one column each, as each teacher marked it. A dash: not part of that student\'s test. Press − above the columns to fold them away again (+ above Updated opens them).'); } catch (e) {}
   }
   m.setConditionalFormatRules(rules);
   m.setTabColor(INK);

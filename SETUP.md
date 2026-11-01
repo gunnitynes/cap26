@@ -73,7 +73,7 @@ Try it locally: `OPS_TRY_QUESTIONS=1 node dev/server.mjs` edits the tab 45 secon
 | Start here | The page link, how to add teachers, what each tab holds, how grades work. |
 | Teachers | Name, password (shown as dots), role, status, last sign-in. The scrambled password sits in two hidden columns. |
 | Students | One row per student and test date. Removing a student marks the row "Deleted" (with who and when), so nothing is lost. |
-| Marks | One row per student per teacher: Result, Score % and one % column per test stage (the same columns for every teacher), then critical errors and notes. Every single skill is folded away on the right (press + above the columns). A hidden last column holds the page's own copy. |
+| Marks | One row per student per teacher: Result, Score % and one % column per test stage (the same columns for every teacher), then critical errors and notes. Every single skill is folded away on the right (press + above the Updated column). A hidden last column holds the page's own copy. |
 | Days | Which test dates have their grades revealed. |
 | Results | The tally. The page writes it whenever grades are revealed or downloaded. |
 
