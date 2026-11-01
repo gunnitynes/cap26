@@ -75,8 +75,8 @@ const MARKS_END = ['Student ID', 'Page data (do not edit)'];
 const NOT_ASKED = '–';   // in Marks: this question is not part of that student's test (another teacher's own question)
 // The score: each stage's marks averaged (a %), then the average of the stages, so every stage counts the same and a
 // teacher with 3 questions in a stage weighs the same as one with 5.
-// Grade A from 85 (needs Perfects), Pass from 40. Any critical error is a Resit whatever the score.
-const BANDS = [['Grade A', 85, '#0f7a57', '#d8f1e6'], ['Pass', 40, '#5a6276', '#eef0f4'], ['Resit', 0, '#bf2b2b', '#fbe0e0']];
+// Grade A from 85 (needs Perfects), Qualified from 40 (the grade; "Pass" is only a mark on one skill). Any critical error is a Resit whatever the score.
+const BANDS = [['Grade A', 85, '#0f7a57', '#d8f1e6'], ['Qualified', 40, '#5a6276', '#eef0f4'], ['Resit', 0, '#bf2b2b', '#fbe0e0']];
 
 const STUDIO_LIST = ['K3', 'K4'];   // the studios a test can be in
 const CAP_LIST = ['CAP 26A', 'CAP 26B', 'CAP 26C', 'TRANSFER'];   // the CAP groups, a dropdown in the Students tab; TRANSFER = a student from outside the class
@@ -170,7 +170,7 @@ function buildStart_() {
     ['Marks', 'One row per student per teacher: result, score and a % per test stage, the same columns for every teacher. Every single skill is folded away on the right (press + above the Updated column). The last column is the page\'s own copy; leave it alone.'],
     ['Grades', 'The overview: every student\'s grade, progress, a colour per test stage and their critical errors. Kept up to date by itself.'],
     ['', ''],
-    ['How the grade works', 'Each mark is worth: Perfect 100 · Pass 80 · Hint 65 · Got there 50 · Failed 0. Each test stage gets the average of its questions (each skill averaged over every teacher who marked it), and the score is the average of the stages, so every stage counts the same however many questions a teacher put in it. Grade A from 85%, Pass from 40%. Any critical error means Resit.'],
+    ['How the grade works', 'Each mark is worth: Perfect 100 · Pass 80 · Hint 65 · Got there 50 · Failed 0. Each test stage gets the average of its questions (each skill averaged over every teacher who marked it), and the score is the average of the stages, so every stage counts the same however many questions a teacher put in it. Grade A from 85%, Qualified from 40%. Any critical error means Resit.'],
   ];
   sh.getRange(1, 1, rows.length, 2).setValues(rows);
   sh.setColumnWidth(1, 190); sh.setColumnWidth(2, 640);
@@ -458,7 +458,7 @@ function styleMarks_(ctx) {
     .setGradientMinpointWithValue('#f4c7c3', SpreadsheetApp.InterpolationType.NUMBER, '0')
     .setGradientMidpointWithValue('#fce8b2', SpreadsheetApp.InterpolationType.NUMBER, '60')
     .setGradientMaxpointWithValue('#b7e1cd', SpreadsheetApp.InterpolationType.NUMBER, '100').setRanges([m.getRange(2, 5, rows, 1)].concat(nS ? [m.getRange(2, S0, rows, nS)] : [])).build();
-  const rules = [heat, text('Grade A', BANDS[0][3], BANDS[0][2]), text('Pass', BANDS[1][3], INK), text('Resit', BANDS[2][3], BANDS[2][2]),
+  const rules = [heat, text('Grade A', BANDS[0][3], BANDS[0][2]), text(BANDS[1][0], BANDS[1][3], INK), text('Resit', BANDS[2][3], BANDS[2][2]),
     text('In progress', PAPER, MUTE), text('Not started', '#ffffff', '#9aa3b5')];
   if (nD) {
     const det = m.getRange(2, D0, rows, nD), r = (t, bg, fg) => SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(t).setBackground(bg).setFontColor(fg).setRanges([det]).build();
@@ -1400,13 +1400,13 @@ function buildGrades_() {
     .concat(['Score %', 'Errors', '', 'Grade', 'Critical errors']);
   const W = head.length, C = { STAGE: 7, SCORE: 7 + nS, ERR: 8 + nS, BAR: 9 + nS, GRADE: 10 + nS };
 
-  const counts = { 'Grade A': 0, Pass: 0, Resit: 0, Unfinished: 0 };
+  const counts = { 'Grade A': 0, Qualified: 0, Resit: 0, Remaining: 0 };
   const values = [], bars = [], groupStarts = [], bandRows = [];
   let prevDay = '', prevTeacher = null;
   list.forEach(({ s, qs, g }) => {
     const N = qs.length;
-    const label = !g.marked ? 'Not started' : g.complete ? g.band[0] : 'Unfinished';
-    if (g.complete) counts[g.band[0]]++; else counts.Unfinished++;
+    const label = !g.marked ? 'Not started' : g.complete ? g.band[0] : 'Remaining';
+    if (g.complete) counts[g.band[0]]++; else counts.Remaining++;
     const tk = rank(s);
     if (tk !== prevTeacher) {
       // a band naming the teacher and how far their students are
@@ -1434,12 +1434,13 @@ function buildGrades_() {
   sh.setRowHeights(1, top - 1, 21);                    // reset the heights a previous layout may have left
   sh.setRowHeight(2, 8);                                // a thin gap under the title
   // the summary: one block per grade, with a bar showing its share of all students
-  const names = ['Grade A', 'Pass', 'Resit', 'Unfinished'];
+  // Qualified, Resit and Remaining side by side, Grade A on its own further right (column F)
+  const names = ['Grade A', 'Qualified', 'Resit', 'Remaining'], cols = [6, 3, 4, 5];
   const colours = [BANDS[0], BANDS[1], BANDS[2], ['', 0, '#9aa3b5', PAPER]];
   sh.getRange(3, 1, 2, 1).setValues([['Overview'], [students.length + (students.length === 1 ? ' student' : ' students')]]);
   sh.getRange('A3').setFontWeight('bold'); sh.getRange('A4').setFontColor(MUTE);
   names.forEach((n, i) => {
-    const c = 2 + i;
+    const c = cols[i];
     sh.getRange(3, c).setValue(n).setFontWeight('bold').setFontColor(colours[i][2]);
     sh.getRange(4, c).setValue(counts[n]).setFontSize(24).setFontWeight('bold').setFontColor(colours[i][2]).setHorizontalAlignment('left');
     sh.getRange(5, c).setFormula('=SPARKLINE(' + counts[n] + ',{"charttype","bar";"max",' + total + ';"color1","' + colours[i][2] + '"})');
@@ -1476,8 +1477,8 @@ function buildGrades_() {
     const text = (t, bg, fg) => SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(t).setBackground(bg).setFontColor(fg).setBold(true).setRanges([gradeCol]).build();
     sh.setConditionalFormatRules((nS ? [heat(sh.getRange(top, C.STAGE, values.length, nS))] : []).concat([
       heat(sh.getRange(top, C.SCORE, values.length, 1)),
-      text('Grade A', BANDS[0][3], BANDS[0][2]), text('Pass', BANDS[1][3], INK), text('Resit', BANDS[2][3], BANDS[2][2]),
-      text('Unfinished', PAPER, MUTE), text('Not started', '#ffffff', '#9aa3b5'),
+      text('Grade A', BANDS[0][3], BANDS[0][2]), text(BANDS[1][0], BANDS[1][3], INK), text('Resit', BANDS[2][3], BANDS[2][2]),
+      text('Remaining', PAPER, MUTE), text('Not started', '#ffffff', '#9aa3b5'),
       SpreadsheetApp.newConditionalFormatRule().whenNumberGreaterThan(0).setFontColor(BANDS[2][2]).setBold(true).setRanges([sh.getRange(top, C.ERR, values.length, 1)]).build(),
     ]));
   } else {
