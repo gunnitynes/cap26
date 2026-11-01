@@ -222,17 +222,29 @@ details.guide[open] summary::after{content:"–"}
 .marks{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
 .marks.swipe{display:flex;align-items:center;gap:8px}
 .marks.swipe>button{display:none}
-.sw{position:relative;flex:1;height:48px;border-radius:12px;background:linear-gradient(90deg,var(--ok) 0%,var(--ok) 10%,var(--hint) 50%,var(--late) 70%,var(--no) 90%,var(--no));touch-action:pan-y;cursor:pointer;user-select:none;-webkit-user-select:none;outline-offset:3px}
-.sw::before{content:"";position:absolute;inset:0;border-radius:inherit;background:var(--panel);opacity:.62;transition:opacity .15s}
-.sw[data-v]:not([data-v=""])::before,.sw.on::before{opacity:.3}
-.sw-hint{position:absolute;inset:0;display:grid;place-items:center;font-size:12.5px;font-weight:700;color:var(--ink);opacity:.75;pointer-events:none}
-.sw-thumb{position:absolute;top:50%;transform:translate(-50%,-50%);min-width:84px;padding:9px 10px;border-radius:10px;background:var(--panel);border:2px solid var(--ink);text-align:center;font-size:13px;font-weight:800;pointer-events:none;box-shadow:0 3px 12px rgba(0,0,0,.25);transition:left .08s}
+.sw{--p:#3ddc84;--y:#a6d84a;--h:#f2c53d;--g:#fb8a4c;--n:#ff5a5a;position:relative;flex:1;height:70px;border-radius:8px;
+  background:linear-gradient(180deg,#30333b,#1a1c21);border:1px solid #0b0c0f;box-shadow:inset 0 1px 0 rgba(255,255,255,.09),inset 0 -1px 0 rgba(0,0,0,.5),0 2px 6px rgba(0,0,0,.25);
+  touch-action:pan-y;cursor:pointer;user-select:none;-webkit-user-select:none;outline-offset:3px}
+/* the fader slot */
+.sw::before{content:"";position:absolute;left:10%;right:10%;top:31px;height:7px;border-radius:4px;background:#050607;box-shadow:inset 0 1px 3px #000,0 1px 0 rgba(255,255,255,.08)}
+/* the scale: a tick, an LED and an engraved name at each of the five marks */
+.sw-scale{position:absolute;inset:0;pointer-events:none}
+.sw-scale i{position:absolute;top:0;bottom:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:7px 0 6px;font-style:normal;font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.08em;color:#7d838f;text-transform:uppercase;white-space:nowrap}
+.sw-scale i b{width:7px;height:7px;border-radius:50%;background:#3a3e47;box-shadow:inset 0 1px 1px rgba(0,0,0,.6)}
+.sw-scale i.on{color:#eef0f4}
+.sw-scale i.on b{background:var(--c);box-shadow:0 0 6px var(--c),0 0 1px #fff inset}
+.sw-scale i[data-v="p"]{--c:var(--p)} .sw-scale i[data-v="y"]{--c:var(--y)} .sw-scale i[data-v="h"]{--c:var(--h)} .sw-scale i[data-v="g"]{--c:var(--g)} .sw-scale i[data-v="n"]{--c:var(--n)}
+.sw-hint{display:none}
+/* the fader cap: brushed metal with a coloured index line */
+.sw-thumb{position:absolute;top:35px;width:30px;height:34px;transform:translate(-50%,-50%);border-radius:4px;pointer-events:none;border:1px solid #0b0c0f;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.13) 0 1px,transparent 1px 4px),linear-gradient(90deg,#8f959e,#e8eaee 28%,#fbfbfc 50%,#d6d9de 72%,#878d96);
+  box-shadow:0 5px 9px rgba(0,0,0,.55),inset 0 1px 0 #fff;transition:left .07s}
+.sw-thumb::before{content:"";position:absolute;left:50%;top:3px;bottom:3px;width:3px;transform:translateX(-50%);border-radius:2px;background:#16181c}
+.sw-thumb[data-v="p"]::before{background:var(--p)} .sw-thumb[data-v="y"]::before{background:var(--y)} .sw-thumb[data-v="h"]::before{background:var(--h)} .sw-thumb[data-v="g"]::before{background:var(--g)} .sw-thumb[data-v="n"]::before{background:var(--n)}
 .sw-thumb[hidden]{display:none}
-.sw-thumb[data-v="p"]{border-color:var(--ok);color:var(--ok)} .sw-thumb[data-v="y"]{border-color:var(--led);color:var(--led)} .sw-thumb[data-v="h"]{border-color:var(--hint);color:var(--hint)}
-.sw-thumb[data-v="g"]{border-color:var(--late);color:var(--late)} .sw-thumb[data-v="n"]{border-color:var(--no);color:var(--no)}
 .sw-x{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--line);background:var(--sunk);color:var(--mute);font-size:13px;cursor:pointer}
 .sw-x[hidden]{display:none}
-@media (max-width:380px){.sw-thumb{min-width:70px;font-size:12px;padding:8px 6px}}
+@media (max-width:380px){.sw-scale i{font-size:7.5px;letter-spacing:.04em}}
 .marks button{border:1px solid var(--line);background:var(--sunk);border-radius:9px;padding:10px 2px 9px;font-size:12.5px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:5px;transition:background .12s,border-color .12s}
 .marks button i{width:9px;height:9px;border-radius:50%;background:var(--line);transition:background .12s,box-shadow .12s}
 .marks button[data-v="p"][aria-pressed="true"]{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
@@ -772,7 +784,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793499200';
+const BUILD='1793500241';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -869,13 +881,14 @@ function renderBar(){
   const h=document.querySelector('.bar').offsetHeight;document.documentElement.style.setProperty('--barh',h+'px');
 }
 /* The teacher menu (the name button, top left): marking style, the account page (teachers, for an admin), sign out last. */
-const markStyle=()=>ls.get('ops.style','buttons')==='swipe'?'swipe':'buttons';
+// buttons every time the app opens; Swipe lasts only until the page is closed or reloaded
+const markStyle=()=>S.style==='swipe'?'swipe':'buttons';
 function whoMenu(){const st=markStyle();
   return `<div class="menu" id="whoMenu" role="menu" hidden>
     <div class="menu-h"><b>${esc(S.me)}</b><span>${S.role==='admin'?'Admin':'Teacher'} · signed in</span></div>
     <div class="menu-sec"><span class="menu-l">How you mark</span>
       <div class="seg" role="group" aria-label="How you mark"><button type="button" role="menuitemradio" data-style="buttons" aria-pressed="${st==='buttons'}">Buttons</button><button type="button" role="menuitemradio" data-style="swipe" aria-pressed="${st==='swipe'}">Swipe</button></div>
-      <span class="menu-note">Swipe: slide along a green-to-red bar. Same five marks, only on this phone.</span></div>
+      <span class="menu-note">Swipe: one fader per question. Same five marks. Back to buttons next time the app opens.</span></div>
     <button class="menu-i" type="button" role="menuitem" data-go="account">${S.role==='admin'?'Teachers & account':'Account'}</button>
     <button class="menu-i danger" type="button" role="menuitem" id="menuOut">Sign out</button>
   </div>`}
@@ -885,7 +898,7 @@ function bindWhoMenu(){
   const away=e=>{if(!e.target.closest('.who'))show(false)},esc_=e=>{if(e.key==='Escape'){show(false);b.focus()}};
   b.onclick=()=>show(m.hidden);
   m.onclick=e=>{const st=e.target.closest('[data-style]');
-    if(st){ls.set('ops.style',st.dataset.style);m.querySelectorAll('[data-style]').forEach(x=>x.setAttribute('aria-pressed',x===st));
+    if(st){S.style=st.dataset.style;m.querySelectorAll('[data-style]').forEach(x=>x.setAttribute('aria-pressed',x===st));
       if(S.view==='test')renderSheet();toast(st.dataset.style==='swipe'?'Swipe marking on':'Button marking on');return}
     if(e.target.closest('[data-go]')){show(false);go('account');return}
     if(e.target.closest('#menuOut')){show(false);signOut()}};
@@ -1079,8 +1092,7 @@ function renderRoster(){
 
    <form class="card add" id="addForm" autocomplete="off">
      <h3 style="font-size:16px">Add students to ${fmtDay(S.day)}</h3>
-     <p class="readout" style="margin:-4px 0 0">Plan ahead: change the date at the top first, then add the students for that day.</p>
-     <div class="field"><label for="addNames">Names, one per line. Start a line with the test time, like 10:30 Kim</label><textarea id="addNames" rows="3" placeholder="10:30 Student name"></textarea></div>
+     <div class="field"><label for="addNames">Names, one per line. Start with time.</label><textarea id="addNames" rows="3" placeholder="10:30 Kim Novak&#10;10:45 Alex Berg"></textarea></div>
      ${!admin?'':`<div class="field"><label>Teacher</label><div class="seg" id="addTeacher" role="group" aria-label="Teacher">${Object.keys(S.teachers).map(n=>`<button type="button" data-teacher="${esc(n)}" aria-pressed="${n===S.me}">${esc(n)}</button>`).join('')}</div></div>`}
      <div class="field"><label>Studio</label><div class="seg" id="addStudio" role="group" aria-label="Studio">${STUDIOS.map(x=>`<button type="button" data-studio="${x}" aria-pressed="${x===lastStudio}">${x}</button>`).join('')}</div></div>
      <button class="primary" type="submit" ${!canMark()?'disabled':''}>Add to ${fmtDay(S.day)}</button>
@@ -1172,11 +1184,12 @@ function markBtns(kind,id,opts){
   const sw=kind==='crit'&&opts.length===5&&markStyle()==='swipe';
   return `<div class="marks${opts.length===3?' three':''}${sw?' swipe':''}" data-${kind}="${id}">${opts.map(v=>`<button type="button" data-v="${v}" aria-pressed="false"><i></i>${MARK[v]}</button>`).join('')}${sw?swipeBar():''}</div>`}
 const SWIPE=['p','y','h','g','n'];   // left (green) to right (red)
-function swipeBar(){return `<div class="sw" role="slider" tabindex="0" aria-label="Mark" aria-valuemin="0" aria-valuemax="4" aria-valuetext="Not marked"><span class="sw-hint">Slide: Perfect ← → Failed</span><span class="sw-thumb" hidden></span></div><span class="sw-x" role="button" tabindex="0" aria-label="Clear the mark" hidden>✕</span>`}
+function swipeBar(){return `<div class="sw" role="slider" tabindex="0" aria-label="Mark" aria-valuemin="0" aria-valuemax="4" aria-valuetext="Not marked"><span class="sw-hint">Slide: Perfect ← → Failed</span><span class="sw-scale" aria-hidden="true">${SWIPE.map((v,i)=>`<i data-v="${v}" style="left:${10+i*20}%"><b></b>${MARK[v]}</i>`).join('')}</span><span class="sw-thumb" hidden></span></div><span class="sw-x" role="button" tabindex="0" aria-label="Clear the mark" hidden>✕</span>`}
 // shows a mark (or none) on a group's bar
 function swipeShow(g,v){const bar=g.querySelector('.sw');if(!bar)return;const i=SWIPE.indexOf(v),th=bar.querySelector('.sw-thumb');
   bar.dataset.v=v||'';th.hidden=i<0;g.querySelector('.sw-x').hidden=i<0;bar.querySelector('.sw-hint').hidden=i>=0;
-  if(i>=0){th.style.left=`clamp(44px,${10+i*20}%,calc(100% - 44px))`;th.textContent=MARK[v];th.dataset.v=v}
+  if(i>=0){th.style.left=(10+i*20)+'%';th.dataset.v=v}
+  bar.querySelectorAll('.sw-scale i').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
   bar.setAttribute('aria-valuenow',i<0?'':i);bar.setAttribute('aria-valuetext',i<0?'Not marked':MARK[v])}
 function bindSwipe(app,commit){
   app.querySelectorAll('.marks.swipe').forEach(g=>{
