@@ -74,10 +74,15 @@ h1,h2,h3{text-wrap:balance;margin:0}
   .bar-l:has(#back) .whobtn svg{display:none}.bar-l:has(#back) .whobtn{padding:0 3px;width:42px;justify-content:center}}
 .menu{position:absolute;top:calc(100% + 8px);left:0;z-index:30;width:min(290px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 36px rgba(0,0,0,.28);padding:6px;display:flex;flex-direction:column}
 .menu[hidden]{display:none}
+.menu{max-height:calc(100dvh - var(--barh,60px) - 20px);overflow-y:auto;overscroll-behavior:contain}
 .menu-h{display:flex;flex-direction:column;padding:10px 12px 8px;border-bottom:1px solid var(--line);margin-bottom:4px}
 .menu-h b{font-size:16px}.menu-h span{font-size:12px;color:var(--mute)}
 .menu-sec{display:flex;flex-direction:column;gap:6px;padding:8px 12px 10px;border-bottom:1px solid var(--line)}
 .menu-l{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+.menu-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.menu-stats div{display:flex;flex-direction:column;border:1px solid var(--line);background:var(--sunk);border-radius:10px;padding:8px 10px}
+.menu-stats b{font-family:var(--mono);font-size:20px;line-height:1.1}.menu-stats small{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.menu-stats div:nth-child(2) b{color:var(--ok)}
 .menu-big{display:flex;align-items:center;justify-content:space-between;width:100%;border:1px solid var(--line);background:var(--sunk);color:var(--ink);border-radius:10px;padding:10px 12px;font:inherit;font-weight:700;font-size:14px}
 .menu-big span{color:var(--mute);font-size:18px;line-height:1}
 .menu-big:hover{border-color:var(--led)}
@@ -894,7 +899,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793533205';
+const BUILD='1793533406';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1003,6 +1008,9 @@ function whoMenu(){const st=markStyle();
     <div class="menu-h"><b>${esc(S.me)}</b><span>${S.role==='admin'?'Admin':'Teacher'} · signed in</span></div>
     <div class="menu-sec"><span class="menu-l">Questions</span>
       <button class="menu-big" type="button" role="menuitem" data-go="questions">${S.role==='admin'?'Edit questions':'My questions'}<span aria-hidden="true">›</span></button></div>
+    <div class="menu-sec"><span class="menu-l" id="mDay"></span>
+      <div class="menu-stats"><div><b id="mN"></b><small>Students</small></div><div><b id="mDone"></b><small>Graded</small></div><div><b id="mLeft"></b><small>Remaining</small></div></div>
+      <button class="menu-big" type="button" role="menuitem" id="menuOverview">Overview<span aria-hidden="true">›</span></button></div>
     <div class="menu-sec"><span class="menu-l">Students</span>
       <button class="menu-big" type="button" role="menuitem" data-go="add">Add students<span aria-hidden="true">›</span></button></div>
     <div class="menu-sec">
@@ -1013,12 +1021,15 @@ function whoMenu(){const st=markStyle();
       <div class="seg" role="group" aria-label="How you mark"><button type="button" role="menuitemradio" data-style="buttons" aria-pressed="${st==='buttons'}">Buttons</button><button type="button" role="menuitemradio" data-style="swipe" aria-pressed="${st==='swipe'}">Scale</button></div></div>
     <button class="menu-i danger" type="button" role="menuitem" id="menuOut">Sign out</button>
   </div>`}
+function menuCounts(){const c=dayCounts(),set=(id,v)=>{const el=$(id);if(el)el.textContent=v};
+  set('#mDay',fmtDay(S.day)+(S.day===today()?' · today':''));set('#mN',c.n);set('#mDone',c.done);set('#mLeft',c.left)}
 function bindWhoMenu(){
   const b=$('#whoBtn'),m=$('#whoMenu');if(!b||!m)return;
-  const show=on=>{m.hidden=!on;b.setAttribute('aria-expanded',on);if(on){document.addEventListener('pointerdown',away,true);document.addEventListener('keydown',esc_)}else{document.removeEventListener('pointerdown',away,true);document.removeEventListener('keydown',esc_)}};
+  const show=on=>{m.hidden=!on;b.setAttribute('aria-expanded',on);if(on){menuCounts();document.addEventListener('pointerdown',away,true);document.addEventListener('keydown',esc_)}else{document.removeEventListener('pointerdown',away,true);document.removeEventListener('keydown',esc_)}};
   const away=e=>{if(!e.target.closest('.who'))show(false)},esc_=e=>{if(e.key==='Escape'){show(false);b.focus()}};
   b.onclick=()=>show(m.hidden);
-  m.onclick=e=>{if(e.target.closest('#menuSync')){syncNow();return}   // the menu stays open, so the sync is seen happening
+  m.onclick=e=>{if(e.target.closest('#menuSync')){syncNow();return}
+    if(e.target.closest('#menuOverview')){show(false);openGrades();return}   // the menu stays open, so the sync is seen happening
     const th=e.target.closest('[data-theme-pick]');
     if(th){setTheme(th.dataset.themePick);m.querySelectorAll('[data-theme-pick]').forEach(x=>x.setAttribute('aria-pressed',x===th));return}
     const st=e.target.closest('[data-style]');
@@ -1300,6 +1311,10 @@ function calendar(byDay){
   return `<div class="card cal"><div class="cal-h"><button class="step" data-mo="-1" aria-label="Previous month">‹</button><b>${first.toLocaleDateString('en-GB',{month:'long',year:'numeric'})}</b><button class="step" data-mo="1" aria-label="Next month">›</button></div>
     <div class="cal-grid">${['Mo','Tu','We','Th','Fr','Sa','Su'].map(x=>`<span class="cal-dow">${x}</span>`).join('')}${cells.join('')}</div></div>`;
 }
+// the students the list shows for the chosen day (an admin with own students: just theirs)
+function dayCounts(){const all=allTests(),day=all.filter(t=>t.day===S.day),mine=day.filter(isMine);
+  const list=(S.role==='admin'||S.demo)&&all.some(isMine)?mine:day,done=list.filter(t=>statusOf(t).k==='done').length;
+  return {n:list.length,done,left:list.length-done}}
 function renderRoster(){
   const all=allTests();
   const byDay={};all.forEach(t=>(byDay[t.day]=byDay[t.day]||[]).push(t));
@@ -1307,9 +1322,6 @@ function renderRoster(){
   const dayList=all.filter(t=>t.day===S.day).sort(byTime),myList=dayList.filter(isMine);
   // the back end sends a teacher only their own students; an admin gets everyone, with a switch to show just theirs
   const admin=S.role==='admin'||S.demo,mineView=admin&&all.some(isMine),list=mineView?myList:dayList;   // (everyone's students are in Overview)
-  const cnt={todo:0,live:0,done:0};list.forEach(t=>cnt[statusOf(t).k]++);
-  const marked=cnt.done;
-  const lastStudio=STUDIOS.includes(ls.get('ops.studio',''))?ls.get('ops.studio',''):STUDIOS[0];
   // the slot column only when the day has times; the slot happening right now is marked
   const timed=list.some(t=>t.time),nowM=S.day===today()?new Date().getHours()*60+new Date().getMinutes():-1;
   const toM=x=>{const p=String(x||'').split(':');return p.length===2?+p[0]*60+ +p[1]:NaN};
@@ -1317,14 +1329,9 @@ function renderRoster(){
   const slot=t=>!timed?'':t.time?`<span class="slot" aria-label="${t.time}${t.end?' to '+t.end:''}"><b>${t.time}</b>${t.end?`<span>${t.end}</span>`:''}</span>`:'<span class="slot none" aria-hidden="true"><b>––:––</b></span>';
   const row=t=>{const st=statusOf(t),ce=scoreOf(mine(t),t).inc.length,nt=Object.keys(entries(t)).length;
     return `<button class="row${isNow(t)?' now':''}" data-open="${t.id}">${slot(t)}${ring(t,timed?38:44)}<span class="who"><b><span class="nm">${esc(t.name)}</span>${capTag(t)}${timerOf(t.id)?` <span class="tm-mini" data-timer="${t.id}"><span class="tm-num">${timerOf(t.id).txt}</span></span>`:''}</b><span>${[esc(t.studio||''),mineView||!admin?'':t.teacher?esc(t.teacher):'<span class="unas">No teacher</span>',nt?nt+' marking':''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}${st.l==='Graded'?` · <span class="graded${S.pending[t.id]&&S.pending[t.id].by&&S.pending[t.id].by[S.me]?' wait':''}">${S.pending[t.id]&&S.pending[t.id].by&&S.pending[t.id].by[S.me]?'Graded · sending':'Graded ✓'}</span>`:''}</span></span><span class="sdot ${st.k}" role="img" aria-label="${st.l}" title="${st.l}"></span></button>`};
-  const stats=`<div class="stat"><div class="n">${list.length}</div><div class="l">Students</div></div>
-      <div class="stat"><div class="n">${marked}</div><div class="l">Graded</div></div>
-      <div class="stat"><div class="n" style="color:var(--mute)">${list.length-cnt.done}</div><div class="l">Remaining</div></div>
-      <button class="stat stat-res" id="gradesBtn" type="button" aria-label="Overview: every student's result"><div class="n"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="12" width="4" height="9" rx="1.5"/><rect x="10" y="7" width="4" height="14" rx="1.5"/><rect x="17" y="3" width="4" height="18" rx="1.5"/></svg></div><div class="l">Overview</div></button>`;
   $('#app').innerHTML=`
    ${S.all?calendar(byDay):''}
    ${S.demo?`<div class="banner"><b>Preview.</b> These students and the second teacher are examples and nothing here is saved.</div>`:''}
-   <div class="summary">${stats}</div>
    <div class="list">
      <div class="dayhead"><b>${fmtDay(S.day)}${S.day===today()?' · today':''}</b><span>${list.length} student${list.length===1?'':'s'}</span></div>
      ${list.length?list.map(row).join(''):dayList.length?`<div class="empty"><b>None of your students on ${fmtDay(S.day)}</b>${dayList.length} ${dayList.length===1?'student is':'students are'} booked with other teachers or have no teacher yet. Tap Everyone to see them.</div>`:!admin&&!all.length?`<div class="empty"><b>No students on your list yet</b>The organiser puts your name in the Teacher column of the Students tab. Your students then show up here.</div>`:`<div class="empty"><b>No tests for you on ${fmtDay(S.day)}</b>Pick another date, or add students from the menu.</div>`}
@@ -1337,7 +1344,6 @@ function renderRoster(){
   $('#app').querySelectorAll('[data-cal]').forEach(b=>b.onclick=()=>{S.day=b.dataset.cal;S.cal=S.day.slice(0,7);S.all=false;S.stripOpen=false;ls.set('ops.day',S.day);renderBar();render();scrollTo(0,0)});
   $('#app').querySelectorAll('[data-mo]').forEach(b=>b.onclick=()=>{const [y,m]=(S.cal||S.day.slice(0,7)).split('-').map(Number);const d=new Date(y,m-1+(+b.dataset.mo),1);S.cal=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');render()});
   $('#app').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>go('test',b.dataset.open));
-  $('#gradesBtn').onclick=openGrades;
 }
 
 const parseLine=l=>{const m=l.match(/^(\d{1,2})[:.](\d{2})\s+(.+)$/);return m&&+m[1]<24&&+m[2]<60?{time:m[1].padStart(2,'0')+':'+m[2],name:m[3].trim()}:{time:'',name:l}};
