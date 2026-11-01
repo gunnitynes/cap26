@@ -63,7 +63,7 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .bar-l{display:flex;align-items:center;gap:8px;min-width:0;padding-right:10px}
 .bar-r{display:flex;align-items:center;justify-content:flex-end;min-width:0}
 .brand{align-items:center;justify-content:center;text-align:center}
-.brand .ttl{font-size:18px;font-weight:800;line-height:1.1;letter-spacing:-.015em;white-space:nowrap}
+.brand .ttl{letter-spacing:.02em!important;font-size:18px;font-weight:800;line-height:1.1;letter-spacing:-.015em;white-space:nowrap}
 .who{position:relative;min-width:0}
 .whobtn{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 10px 0 4px;border:1px solid var(--line);background:var(--sunk);color:var(--ink);border-radius:999px;font:inherit;font-weight:700;font-size:14px;max-width:100%}
 .whobtn .av{flex:none;width:30px;height:30px;border-radius:50%;background:var(--led);color:#fff;display:grid;place-items:center;font-size:15px;font-weight:800}
@@ -911,7 +911,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793537012';
+const BUILD='1793537299';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -992,7 +992,7 @@ function renderBar(){
   const nm=S.view==='login'?'':S.me;
   $('#barInner').innerHTML=`<div class="barrow"><div class="bar-l">${S.view==='test'||S.view==='account'||S.view==='grades'||S.view==='questions'||S.view==='add'?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
    ${S.me&&nm?`<div class="who"><button class="whobtn" id="whoBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(nm)}: menu"><span class="av" aria-hidden="true">${esc(nm.trim().charAt(0).toUpperCase())}</span><span class="wn">${esc(nm)}</span><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>${whoMenu()}</div>`:''}</div>
-   <div class="brand">${S.view==='test'&&t?`<b class="sname" title="${esc(t.name)}"><span id="sName">${esc(firstName(t.name))}</span></b>`:'<svg class="clogo" viewBox="0 0 114 46" aria-hidden="true"><path d="M33.9 12.3A16 16 0 1 0 33.9 33.7" fill="none" stroke="currentColor" stroke-width="11.5"/><path d="M62 2h6.2L52.2 44H46zM84 2h6.2L74.2 44H68zM106 2h6.2L96.2 44H90z" fill="currentColor"/></svg><b class="ttl">Operations Test</b>'}</div><div class="bar-r">
+   <div class="brand">${S.view==='test'&&t?`<b class="sname" title="${esc(t.name)}"><span id="sName">${esc(firstName(t.name))}</span></b>`:'<svg class="clogo" viewBox="0 0 114 46" aria-hidden="true"><path d="M33.9 12.3A16 16 0 1 0 33.9 33.7" fill="none" stroke="currentColor" stroke-width="11.5"/><path d="M62 2h6.2L52.2 44H46zM84 2h6.2L74.2 44H68zM106 2h6.2L96.2 44H90z" fill="currentColor"/></svg><b class="ttl">OPERATION TEST</b>'}</div><div class="bar-r">
    ${S.view==='test'&&t&&timerOf(S.open)?`<button class="tm-pill" data-timer="${S.open}" id="tmPill" type="button" aria-label="Timer running. Tap twice to reset"><span class="tm-num">${timerOf(S.open).txt}</span></button>`:''}
    ${S.view==='test'&&t&&!timerOf(S.open)?`<button class="tm-start" id="tmStart" type="button" aria-label="Start the 10-minute timer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg><span class="tm-num">10:00</span></button>`:''}
    ${S.view==='roster'&&(S.ready||S.demo)?(()=>{const sd=new Date(S.day+'T12:00');return `<button class="datecard datebtn" id="dateBtn" type="button" aria-expanded="${!!S.stripOpen}" aria-label="Test date ${fmtDay(S.day)}. Change date"><small>${S.day===today()?'TODAY':sd.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase()}</small><b>${sd.getDate()}</b><span>${sd.toLocaleDateString('en-GB',{month:'short'})}</span></button>`})():''}</div></div>
