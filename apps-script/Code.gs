@@ -441,6 +441,7 @@ function styleMarks_(n) {
 
 /** Runs by itself on every edit: students typed in, the team password typed on Start here, new teachers. */
 function onEdit(e) {
+  bump_();   // any edit in the Sheet: the phones' next refresh reads it again
   try {
     const sh = e && e.range && e.range.getSheet(), name = sh && sh.getName(), r = e.range.getRow();
     if (name === SHEETS.STUDENTS.name && r >= 2) { studentsTyped_(sh, r, e.range.getNumRows()); gradesDirty_(); return; }
@@ -726,7 +727,8 @@ function route_(req) {
   const me = auth_(req.token);
   if (!me) return { ok: false, error: 'Please sign in again.', code: 'auth' };
   switch (a) {
-    case 'state':          return state_(me);   // only reads, so the page opens quickly
+    case 'state':          return stateCached_(me, req.h);   // only reads, so the page opens quickly
+    case 'batch':          return withLock_(() => batch_(me, req));   // a whole test (or several) in one call
     case 'tidy':           return withLock_(() => { ensureStudentIds_(); ensureTeacherQuestionTabs_(); ensureQuestionIds_(); syncMarks_(); maybeBuildGrades_(); return { ok: true }; });
     case 'addStudents':    return withLock_(() => addStudents_(me, req));
     case 'updateStudent':  return withLock_(() => updateStudent_(me, req));
@@ -895,6 +897,38 @@ function state_(me) {
     entries, teachers: teachers_().map(t => t.name), questions, qlive, qsets };
 }
 
+/* Every write (and every edit in the Sheet) bumps a version number. A teacher's state is kept for up to a minute and
+   reused while the version is the same, so most refreshes answer without reading the Sheet. The page sends the hash
+   of the copy it already has, and an unchanged state comes back as just {same: true}.
+   (Inserting or deleting rows does not fire onEdit; the one-minute limit covers that.) */
+const STATE_KEEP_MS = 60000;
+function bump_() { try { CacheService.getScriptCache().put('ver', String(Date.now()) + Math.random().toString(36).slice(2, 6), 21600); } catch (e) {} }
+function stateCached_(me, have) {
+  const c = CacheService.getScriptCache(), key = 'st_' + norm_(me.name).replace(/[^a-z0-9]/g, '_');
+  let ver = null, hit = null;
+  try { ver = c.get('ver'); hit = JSON.parse(c.get(key) || 'null'); } catch (e) {}
+  if (!(ver && hit && hit.v === ver && Date.now() - hit.at < STATE_KEEP_MS)) {
+    if (!ver) { bump_(); ver = c.get('ver'); }
+    const body = JSON.stringify(state_(me));
+    hit = { v: ver, at: Date.now(), h: Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, body, Utilities.Charset.UTF_8)).slice(0, 16), body };
+    try { if (body.length < 90000) c.put(key, JSON.stringify(hit), 120); } catch (e) {}
+  }
+  if (have && have === hit.h) return { ok: true, same: true, h: hit.h };
+  const out = JSON.parse(hit.body); out.h = hit.h; return out;
+}
+/** Several saves in one call and one lock: [['saveEntry', {sid, patch}], ['updateStudent', {id, ...}], ...]. */
+function batch_(me, req) {
+  const steps = Array.isArray(req.steps) ? req.steps.slice(0, 40) : [];
+  return { ok: true, results: steps.map(st => {
+    const a = st && st[0], b = (st && st[1]) || {};
+    try {
+      if (a === 'saveEntry') return saveEntry_(me, b);
+      if (a === 'updateStudent') return updateStudent_(me, b);
+    } catch (err) { return { ok: false, error: 'Something went wrong on the server: ' + (err && err.message || err) }; }
+    return { ok: false, error: 'Unknown action.' };
+  }) };
+}
+
 function addStudents_(me, req) {
   gradesDirty_();
   const day = checkDay_(req.day); if (!day) return { ok: false, error: 'Pick a test date first.' };
@@ -958,6 +992,7 @@ function saveEntry_(me, req) {
   if (p.notes) { clean.notes = {}; Object.keys(p.notes).slice(0, 200).forEach(k => { clean.notes[clean_(k, 40)] = p.notes[k] === null ? null : String(p.notes[k]).slice(0, 1000); }); }
   if (p.safety) { clean.safety = {}; Object.keys(p.safety).slice(0, 50).forEach(k => { const v = p.safety[k]; clean.safety[clean_(k, 40)] = v === null ? null : { t: Number(v.t) || Date.now(), text: clean_(v.text, 200) }; }); }
   if (p.summary !== undefined) clean.summary = String(p.summary || '').slice(0, 3000);
+  if (p.ended !== undefined) clean.ended = p.ended === null ? null : Number(p.ended) || Date.now();   // "End test and grade" was pressed
   if (clean.marks && Object.keys(clean.marks).some(k => clean.marks[k])) freezeSet_(s.day, s.teacher);   // the first mark fixes this date's questions for this teacher
   const ctx = syncMarks_();
   const mine = marksRows_().find(m => m.sid === sid && norm_(m.teacher) === norm_(me.name));
@@ -1473,7 +1508,7 @@ function rows_(def) { const sh = sheet_(def); if (sh.getLastRow() < 2) return []
 function withLock_(fn) {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(25000)) return { ok: false, error: 'The sheet is busy. Try again in a moment.', code: 'busy' };
-  try { return fn(); } finally { lock.releaseLock(); }
+  try { return fn(); } finally { bump_(); lock.releaseLock(); }
 }
 function merge_(a, b) {
   const o = Object.assign({}, a || {});

@@ -2,7 +2,9 @@
 import assert from 'node:assert/strict';
 import { loadScript } from './google-mock.mjs';
 
-const call = (g, body) => JSON.parse(g.doPost({ postData: { contents: JSON.stringify(body) } }).s);
+// the checks edit the mock sheet directly, which in the real Sheet fires onEdit (and so a new version); raw() does not
+const raw = (g, body) => JSON.parse(g.doPost({ postData: { contents: JSON.stringify(body) } }).s);
+const call = (g, body) => { if (body.action === 'state') g.bump_(); return raw(g, body); };
 const tab = (book, name) => book.sheets.find(s => s.name === name);
 let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
 
@@ -694,4 +696,40 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(g.questions_('Gunni').find(x => x.t === 'Labels every cable on the patch bay').label, 'Labels every cable on the…');
   ok('a question typed over another loses the old Column name (it shows its own words until named)');
 }
+// 23. Landmark saving: refreshes reuse a kept copy, a whole test is sent in one call, End test and grade is stored.
+{
+  const { g, book } = loadScript();
+  g.setup();
+  const ss = g.SpreadsheetApp.getActive(), te = ss.getSheetByName('Teachers');
+  te.getRange(2, 1, 2, 2).setValues([['Gunni', 'admin'], ['Isuru', 'teacher']]); g.onEdit({ range: te.getRange(2, 1, 2, 2) });
+  g.setTeamPassword_('team-pass-1');
+  const gt = raw(g, { action: 'login', name: 'Gunni', password: 'team-pass-1', pin: '' }).token;
+  const ids = raw(g, { action: 'addStudents', token: gt, names: ['Kim', 'Lou'], studio: 'K3', day: '2026-11-04' }).ids;
+  const s1 = raw(g, { action: 'state', token: gt });
+  assert.ok(s1.h && s1.students.length === 2);
+  assert.deepEqual(raw(g, { action: 'state', token: gt, h: s1.h }), { ok: true, same: true, h: s1.h });
+  ok('a refresh with nothing new answers just "same" (the page keeps its copy)');
+  const q = s1.questions.map(x => x.id);
+  const b = raw(g, { action: 'batch', token: gt, steps: [
+    ['saveEntry', { sid: ids[0], patch: { marks: Object.fromEntries(q.map(id => [id, 'y'])), summary: 'Clean run', ended: 1793444955000 } }],
+    ['saveEntry', { sid: ids[1], patch: { marks: { [q[0]]: 'h' } } }],
+    ['saveEntry', { sid: 'nobody', patch: { marks: { [q[0]]: 'y' } } }]] });
+  assert.deepEqual(b.results.map(r => r.ok), [true, true, false]);
+  ok('one batch call saves two students and refuses an unknown one on its own');
+  const s2 = raw(g, { action: 'state', token: gt, h: s1.h });
+  assert.ok(!s2.same && s2.h !== s1.h);
+  const e = s2.entries.find(x => x.sid === ids[0]).data;
+  assert.equal(e.ended, 1793444955000); assert.equal(e.summary, 'Clean run');
+  assert.equal(s2.entries.find(x => x.sid === ids[1]).data.ended, undefined);
+  ok('after a save the next refresh is new, and the ended test says so');
+  const m = tab(book, 'Marks').data, h = m[0];
+  const kim = m.find(r => r[1] === 'Kim');
+  assert.equal(kim[h.indexOf('Skills marked')], q.length + '/' + q.length);
+  assert.equal(kim[h.indexOf('Feedback')], 'Clean run');
+  ok('the ended test is in Marks with every skill and the feedback');
+  raw(g, { action: 'saveEntry', token: gt, sid: ids[0], patch: { ended: null } });
+  assert.equal(raw(g, { action: 'state', token: gt }).entries.find(x => x.sid === ids[0]).data.ended, undefined);
+  ok('Reset takes the ended mark off again');
+}
+
 console.log(`\n${n} checks passed`);

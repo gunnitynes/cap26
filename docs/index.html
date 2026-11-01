@@ -66,6 +66,7 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--mute);flex:none}
 .sync[data-s="ok"] .dot{background:var(--ok);box-shadow:0 0 6px var(--ok)}
 .sync[data-s="busy"] .dot{background:var(--hint);box-shadow:0 0 6px var(--hint)}
+.sync[data-s="local"] .dot{background:var(--led);box-shadow:0 0 6px var(--led)}
 .sync[data-s="err"] .dot{background:var(--no);box-shadow:0 0 6px var(--no)}
 .sync[data-s="err"]{color:var(--no)}
 .iconbtn{border:1px solid var(--line);background:var(--sunk);border-radius:10px;height:38px;min-width:38px;padding:0 12px;font-weight:600;font-size:14px}
@@ -419,6 +420,7 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 /* a student's state as a small dot: grey not started, yellow in progress, green marked */
 .sdot{flex:none;width:10px;height:10px;border-radius:50%;background:var(--mute);opacity:.55;margin-left:2px}
 .sdot.live,.sdot.done{opacity:1}
+.graded{color:var(--ok);font-weight:700} .graded.wait{color:var(--led)}
 .sdot.live{background:var(--hint);box-shadow:0 0 0 3px var(--hint-soft)}
 .sdot.done{background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft)}
 .row .who b .cap,.row .who b .tm-mini{flex:none}
@@ -582,8 +584,9 @@ function gradeOf(t){
 }
 // The app is for marking only. Grades are worked out later, by the teachers, in the Sheet's Grades tab.
 function statusOf(t){
-  const sc=scoreOf(mine(t),t);
-  if(sc.complete)return {k:'done',l:'Marked'};
+  const e=mine(t),sc=scoreOf(e,t);
+  if(e.ended)return {k:'done',l:'Graded'};   // the teacher pressed End test and grade
+  if(sc.complete)return {k:'live',l:'All marked, test not ended'};
   if(!sc.n)return {k:'todo',l:'Not started'};
   return {k:'live',l:'In progress'}}
 
@@ -600,13 +603,17 @@ async function api(action,body={}){
 }
 async function load(){
   if(S.demo||!S.token||S.loading)return;
-  S.loading=true;const j=await api('state');S.loading=false;
+  const seq=wseq;S.loading=true;const j=await api('state',{h:S.h||''});S.loading=false;
+  // a save finished while this was on its way: the answer may be older than the phone, so ask again
+  if(seq!==wseq){setTimeout(load,300);return}
   if(!j.ok){if(j.net&&myPending().length)setSync('err');   // "not saved" only when something is waiting to be saved
     // nothing is shown before the first answer: say what is happening and keep trying
     if(!S.ready&&S.token){S.loadErr=j.error||'The Sheet did not answer.';render();clearTimeout(load.retry);load.retry=setTimeout(load,4000)}
     else if(S.stale&&j.net&&!S.offline){S.offline=true;refresh()}
     return}
   S.stale=false;S.offline=false;
+  if(j.same){if(S.offline||S.stale)refresh();return}   // nothing changed in the Sheet since the last look
+  S.h=j.h||'';
   ls.set('ops.cache',{me:j.me.name,j});
   applyState(j);
   tidy();
@@ -614,7 +621,7 @@ async function load(){
 /* The script's slower housekeeping (IDs for pasted rows, Marks columns, the Grades tab) runs in its own call after
    the page has its data, so opening the app never waits for it. */
 let tidyAt=0;
-function tidy(){if(S.demo||!S.token||Date.now()-tidyAt<20000)return;tidyAt=Date.now();api('tidy')}
+function tidy(force){if(S.demo||!S.token||(!force&&tidyAt)||Date.now()-tidyAt<60000)return;tidyAt=Date.now();api('tidy')}   // once per opening, and after a test is ended
 function applyState(j){
   S.me=j.me.name;S.role=j.me.role;ls.set('ops.me',S.me);ls.set('ops.role',S.role);
   const tests={};
@@ -651,50 +658,60 @@ const isMine=t=>!!S.me&&(t.teacher||'').trim().toLowerCase()===S.me.trim().toLow
 // test date, then test time (students without one last), then name
 const byTime=(a,b)=>a.day<b.day?-1:a.day>b.day?1:(a.time||'99')<(b.time||'99')?-1:(a.time||'99')>(b.time||'99')?1:a.name.localeCompare(b.name);
 // keep every phone up to date: a quiet refresh every 10 seconds while the page is on screen
-setInterval(()=>{if(document.visibilityState==='visible'&&!flushing&&!myPending().length)load()},10000);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')load()});
+setInterval(()=>{if(document.visibilityState==='visible'&&!flushing)load()},10000);
+// back on screen: look for changes; going off screen (phone locked, app switched): send what is waiting
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')load();else flushSoon(0)});
 
-/* ------------------------------------------------------------------ write queue: taps save in the background */
+/* ------------------------------------------------------------------ write queue
+   Every tap is kept on this phone at once (it survives a reload or a flat battery). The Sheet hears about it at the
+   landmarks: End test and grade, leaving a student, the phone going off screen, or after 90 quiet seconds.
+   Everything waiting goes in one call. Date, time and teacher changes are sent straight away. */
 function view(id){return S.pending[id]?merge(S.tests[id],S.pending[id]):S.tests[id]}
 // changes this teacher still has to send (unsaved marks left on the phone by someone else are not theirs to send)
 const myPending=()=>Object.keys(S.pending).filter(id=>{const p=S.pending[id];return p&&(p.day||p.time!==undefined||p.teacher!==undefined||(p.by&&p.by[S.me]))});
 function allTests(){return Object.keys(S.tests).map(id=>({id,...view(id)})).filter(t=>t.name&&!t.deleted)}
 function patch(id,obj){
   S.pending[id]=merge(S.pending[id],obj);ls.set('ops.pending',S.pending);
-  refresh();flushSoon();
+  refresh();flushSoon(obj.by?QUIET_MS:400);if(!flushing&&S.sync!=='err')setSync('local');
 }
+const QUIET_MS=90000;
 const patchMine=(id,obj)=>{if(!canMark())return;patch(id,{by:{[S.me]:obj}})};
-let flushT=null,flushing=false,backoff=1000;
-function flushSoon(d=400){clearTimeout(flushT);flushT=setTimeout(flush,d)}
+let flushT=null,flushAt=0,flushing=false,backoff=1000,wseq=0;
+// never pushes a send that is already due sooner further away
+function flushSoon(d=400){const at=Date.now()+d;if(flushT&&flushAt<=at)return;clearTimeout(flushT);flushAt=at;flushT=setTimeout(()=>{flushT=null;flush()},d)}
 async function flush(){
   if(flushing)return;const ids=myPending();if(!ids.length){setSync('ok');return}
   if(S.demo){for(const id of ids){S.tests[id]=merge(S.tests[id],S.pending[id])}S.pending={};ls.set('ops.pending',{});setSync('ok');refresh();return}
   flushing=true;setSync('busy');
+  // everything waiting, in one call: [[action, body, student id], ...]
+  const sent={},steps=[];
   for(const id of ids){
-    const p=S.pending[id];if(!p)continue;
-    // send only this teacher's part; anything else in the queue stays for its owner
-    const other=p.by?Object.fromEntries(Object.entries(p.by).filter(([k])=>k!==S.me)):{};
-    const steps=[];
-    if(p.day||p.time!==undefined||p.teacher!==undefined)steps.push(['updateStudent',{id,day:p.day,time:p.time,teacher:p.teacher}]);
-    const m=p.by&&p.by[S.me];if(m)steps.push(['saveEntry',{sid:id,patch:m}]);
-    let failed=false;
-    for(const [a,b] of steps){
-      const j=await api(a,b);
-      if(!j.ok){
-        if(j.net||j.code==='busy'){failed=true;break}
-        // the back end refused it (e.g. the student was removed): drop it and say why
-        toast(j.error||'That change could not be saved.');break;
-      }
-    }
-    if(failed){flushing=false;setSync('err');flushSoon(backoff=Math.min(backoff*2,20000));return}
-    S.tests[id]=merge(S.tests[id],{...p,by:{[S.me]:m||{}}});
-    if(S.pending[id]===p){if(Object.keys(other).length)S.pending[id]={by:other};else delete S.pending[id]}
-    ls.set('ops.pending',S.pending);
+    const p=S.pending[id];if(!p)continue;sent[id]=p;
+    if(p.day||p.time!==undefined||p.teacher!==undefined)steps.push(['updateStudent',{id,day:p.day,time:p.time,teacher:p.teacher},id]);
+    const m=p.by&&p.by[S.me];if(m)steps.push(['saveEntry',{sid:id,patch:m},id]);   // only this teacher's part; the rest stays for its owner
   }
+  const j=await api('batch',{steps:steps.map(([a,b])=>[a,b])});
+  if(!j.ok){flushing=false;
+    if(j.net||j.code==='busy'){setSync('err');flushSoon(backoff=Math.min(backoff*2,20000));return}
+    toast(j.error||'Those changes could not be saved.');setSync('err');return}
+  const bad={};(j.results||[]).forEach((r,i)=>{if(r&&!r.ok){bad[steps[i][2]]=1;toast(r.error||'That change could not be saved.')}});   // refused (e.g. the student was removed): dropped, and said why
+  wseq++;
+  for(const [id,p] of Object.entries(sent)){
+    const m=p.by&&p.by[S.me],other=p.by?Object.fromEntries(Object.entries(p.by).filter(([k])=>k!==S.me)):{};
+    if(!bad[id])S.tests[id]=merge(S.tests[id],{...p,by:{[S.me]:m||{}}});
+    if(S.pending[id]===p){if(Object.keys(other).length)S.pending[id]={by:other};else delete S.pending[id]}
+    // tapped again while this was on its way: only the newer part is still waiting
+    else if(S.pending[id]&&m&&S.pending[id].by&&S.pending[id].by[S.me]){const d=diff(S.pending[id].by[S.me],m);if(Object.keys(d).length)S.pending[id].by[S.me]=d;else delete S.pending[id].by[S.me]}
+  }
+  ls.set('ops.pending',S.pending);
   backoff=1000;flushing=false;
-  if(myPending().length)flushSoon(50);else{setSync('ok');load()}
+  if(steps.some(st=>st[0]==='saveEntry'&&st[1].patch.ended))tidy(true);   // a test was ended: let the Sheet rebuild Marks and Grades
+  if(myPending().length){setSync('local');flushSoon(QUIET_MS)}else setSync('ok');
+  refresh();load();
 }
-function setSync(s){S.sync=s;const el=$('#sync');if(!el)return;el.dataset.s=s;el.querySelector('span').textContent=s==='ok'?(S.demo?'Preview only':'Saved'):s==='busy'?'Saving…':'Not saved yet, retrying'}
+// what is in a but not already in b (both are patches); a key whose value is the same is dropped
+function diff(a,b){const o={};for(const [k,v] of Object.entries(a||{})){if(v&&typeof v==='object'&&b&&b[k]&&typeof b[k]==='object'){const d=diff(v,b[k]);if(Object.keys(d).length)o[k]=d}else if(!b||JSON.stringify(b[k])!==JSON.stringify(v))o[k]=v}return o}
+function setSync(s){S.sync=s;const el=$('#sync');if(!el)return;el.dataset.s=s;el.querySelector('span').textContent=s==='ok'?(S.demo?'Preview only':'Saved in Sheet'):s==='busy'?'Sending…':s==='local'?'Kept on this phone':'Not sent yet, retrying'}
 addEventListener('online',()=>flushSoon(10));
 // a tab closed with marks still waiting gets a warning
 addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDefault();e.returnValue=''}});
@@ -704,7 +721,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793444955';
+const BUILD='1793493700';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -724,7 +741,7 @@ async function boot(){
   if(!S.token){S.view='login';renderBar();render();return}
   // open at once with what this phone saw last time, marked "Updating…" until the Sheet answers
   const c=ls.get('ops.cache',null);
-  if(c&&c.j&&c.me&&S.me&&c.me.toLowerCase()===S.me.toLowerCase()){S.stale=true;try{applyState(c.j)}catch(e){S.stale=false;S.ready=false}}
+  if(c&&c.j&&c.me&&S.me&&c.me.toLowerCase()===S.me.toLowerCase()){S.stale=true;try{applyState(c.j);S.h=c.j.h||''}catch(e){S.stale=false;S.ready=false}}
   renderBar();render();
   await load();
   flushSoon(10);
@@ -799,7 +816,8 @@ function renderBar(){
     const mon=st.children[14];st.style.scrollBehavior='auto';st.scrollLeft=mon.offsetLeft-st.offsetLeft;st.style.scrollBehavior=''}
   const h=document.querySelector('.bar').offsetHeight;document.documentElement.style.setProperty('--barh',h+'px');
 }
-function go(v,id){S.view=v;S.open=id||null;renderBar();render();scrollTo(0,0);wake(v==='test')}
+function go(v,id){if(S.view==='test'&&v!=='test')flushSoon(0);   // leaving a student is a landmark: send what is waiting
+  S.view=v;S.open=id||null;renderBar();render();scrollTo(0,0);wake(v==='test')}
 // the open sheet is rebuilt only when its questions changed (someone edited the Questions tab), otherwise synced in place
 const sheetSig=t=>JSON.stringify(skillsFor(t).map(c=>[c.id,c.t,c.ask,c.s,c.heading]));
 function refresh(){if(S.view==='test'){const raw=view(S.open);if(raw&&!raw.deleted&&sheetSig({id:S.open,...raw})!==S.sheetSig)renderSheet();else syncSheet()}else if(S.view==='roster')render();else if(S.view==='account')renderAccount(true);else if(S.view==='grades')loadGrades().then(()=>{if(S.view==='grades')renderGrades()})}
@@ -944,9 +962,9 @@ function renderRoster(){
   const isNow=t=>{const a=toM(t.time),b=t.end?toM(t.end):a+15;return nowM>=a&&nowM<b};
   const slot=t=>!timed?'':t.time?`<span class="slot" aria-label="${t.time}${t.end?' to '+t.end:''}"><b>${t.time}</b>${t.end?`<span>${t.end}</span>`:''}</span>`:'<span class="slot none" aria-hidden="true"><b>––:––</b></span>';
   const row=t=>{const st=statusOf(t),ce=scoreOf(mine(t),t).inc.length,nt=Object.keys(entries(t)).length;
-    return `<button class="row${isNow(t)?' now':''}" data-open="${t.id}">${slot(t)}${ring(t,timed?38:44)}<span class="who"><b><span class="nm">${esc(t.name)}</span>${capTag(t)}${timerOf(t.id)?` <span class="tm-mini" data-timer="${t.id}"><span class="tm-num">${timerOf(t.id).txt}</span></span>`:''}</b><span>${[esc(t.studio||''),mineView||!admin?'':t.teacher?esc(t.teacher):'<span class="unas">No teacher</span>',nt?nt+' marking':''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}</span></span><span class="sdot ${st.k}" role="img" aria-label="${st.l}" title="${st.l}"></span></button>`};
+    return `<button class="row${isNow(t)?' now':''}" data-open="${t.id}">${slot(t)}${ring(t,timed?38:44)}<span class="who"><b><span class="nm">${esc(t.name)}</span>${capTag(t)}${timerOf(t.id)?` <span class="tm-mini" data-timer="${t.id}"><span class="tm-num">${timerOf(t.id).txt}</span></span>`:''}</b><span>${[esc(t.studio||''),mineView||!admin?'':t.teacher?esc(t.teacher):'<span class="unas">No teacher</span>',nt?nt+' marking':''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}${st.l==='Graded'?` · <span class="graded${S.pending[t.id]&&S.pending[t.id].by&&S.pending[t.id].by[S.me]?' wait':''}">${S.pending[t.id]&&S.pending[t.id].by&&S.pending[t.id].by[S.me]?'Graded · sending':'Graded ✓'}</span>`:''}</span></span><span class="sdot ${st.k}" role="img" aria-label="${st.l}" title="${st.l}"></span></button>`};
   const stats=`<div class="stat"><div class="n">${list.length}</div><div class="l">Students</div></div>
-      <div class="stat"><div class="n">${marked}</div><div class="l">Marked by you</div></div>
+      <div class="stat"><div class="n">${marked}</div><div class="l">Graded by you</div></div>
       <div class="stat"><div class="n" style="color:var(--mute)">${cnt.todo}</div><div class="l">Not started</div></div>
       <button class="stat stat-res" id="gradesBtn" type="button" aria-label="Overview: every student's result"><div class="n"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="12" width="4" height="9" rx="1.5"/><rect x="10" y="7" width="4" height="14" rx="1.5"/><rect x="17" y="3" width="4" height="18" rx="1.5"/></svg></div><div class="l">Overview <span>›</span></div></button>`;
   $('#app').innerHTML=`
@@ -1086,7 +1104,7 @@ function renderSheet(){
        <div class="field"><label for="summary">Your feedback for the student</label><textarea id="summary" rows="3" placeholder="What went well, what to practise"></textarea></div>
        <div class="pair"><div class="field"><label for="moveDay">Test date</label><input type="date" id="moveDay"></div><div class="field"><label for="moveTime">Test time</label><input type="time" id="moveTime"></div></div>
        <div class="field"${S.role==='admin'||S.demo?'':' hidden'}><label for="moveTeacher">Teacher</label><select id="moveTeacher">${[...new Set(['',...Object.keys(S.teachers),t.teacher||''])].map(n=>`<option value="${esc(n)}">${n?esc(n):'No teacher yet'}</option>`).join('')}</select></div>
-       <div class="foot"><button class="primary" id="doneBtn" type="button">Save and back to students</button><button class="ghost danger" id="resetBtn" type="button">Reset</button></div>
+       <div class="foot"><button class="primary" id="doneBtn" type="button">${mine(t).ended?'Save changes':'End test and grade'}</button><button class="ghost danger" id="resetBtn" type="button">Reset</button></div>
        <div class="card confirm" id="resetAsk" hidden role="alertdialog" aria-labelledby="resetQ">
          <b id="resetQ">Reset this test?</b>
          <p>All your marks, notes, critical errors and feedback for this student are cleared. The student stays on the list.</p>
@@ -1111,17 +1129,29 @@ function renderSheet(){
   $('#moveTeacher').onchange=e=>{const v=e.target.value;patch(S.open,{teacher:v});toast(v?'Teacher: '+v:'No teacher')};
   $('#moveTime').onchange=e=>{const v=e.target.value||'';patch(S.open,{time:v});toast(v?'Test time '+v:'Test time cleared')};
   $('#incText').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();logInc($('#incText').value.trim())}};
-  /* Saving with a skill still unmarked: say so, jump to the first one and outline every one. A second tap saves anyway. */
+  /* End test and grade is the end of the test: the student shows as Graded and the whole test goes to the Sheet in one call
+     while the teacher is already back on the list. A skill still unmarked (or no feedback) is pointed out first: jump to
+     the first one and outline every one. A second tap ends the test anyway. A graded test can still be changed later. */
   let saveArm=0;
   $('#doneBtn').onclick=()=>{
-    const t={id:S.open,...view(S.open)},m=mine(t).marks||{},missing=skillsFor(t).filter(c=>!(m[c.id] in POINTS));
-    if(missing.length&&canMark()&&Date.now()-saveArm>8000){
+    const t={id:S.open,...view(S.open)},e=mine(t),m=e.marks||{},missing=skillsFor(t).filter(c=>!(m[c.id] in POINTS));
+    const label=e.ended?'Save changes':'End test and grade';
+    const noFeedback=!String($('#summary').value||e.summary||'').trim();
+    if((missing.length||noFeedback)&&canMark()&&Date.now()-saveArm>8000){
+      saveArm=Date.now();
+      if(!missing.length){$('#summary').focus();$('#summary').scrollIntoView({behavior:'smooth',block:'center'});toast('No feedback for the student yet');
+        const b=$('#doneBtn');b.textContent=e.ended?'Save anyway':'End test anyway';setTimeout(()=>{if($('#doneBtn')===b)b.textContent=label},8000);return}
       saveArm=Date.now();
       app.querySelectorAll('article.crit').forEach(a=>a.classList.toggle('missing',missing.some(c=>c.id===a.dataset.crit)));
       app.querySelector(`article.crit[data-crit="${missing[0].id}"]`)?.scrollIntoView({behavior:'smooth',block:'center'});
       toast(missing.length===1?'1 skill is not marked yet':missing.length+' skills are not marked yet');
-      const b=$('#doneBtn');b.textContent='Save anyway';setTimeout(()=>{if($('#doneBtn')===b)b.textContent='Save and back to students'},8000);
+      const b=$('#doneBtn');b.textContent=e.ended?'Save anyway':'End test anyway';setTimeout(()=>{if($('#doneBtn')===b)b.textContent=label},8000);
       return}
+    if(canMark()){
+      clearTimeout(debounced._s);const fb=$('#summary').value;
+      patchMine(S.open,{...(fb!==(e.summary||'')?{summary:fb}:{}),...(e.ended?{}:{ended:Date.now()})});
+      toast(e.ended?'Changes saved':t.name+' graded');
+    }
     flushSoon(0);go('roster')};
   /* Reset clears this teacher's own marks, notes, critical errors and feedback for the student, after a confirmation.
      (Students are removed in the Sheet, not here.) */
@@ -1129,7 +1159,7 @@ function renderSheet(){
   $('#resetNo').onclick=()=>{$('#resetAsk').hidden=true};
   $('#resetYes').onclick=()=>{
     const e=mine({id:S.open,...view(S.open)}),nul=o=>Object.fromEntries(Object.keys(o||{}).map(k=>[k,null]));
-    patchMine(S.open,{marks:nul(e.marks),notes:nul(e.notes),safety:nul(e.safety),summary:''});
+    patchMine(S.open,{marks:nul(e.marks),notes:nul(e.notes),safety:nul(e.safety),summary:'',ended:null});
     $('#resetAsk').hidden=true;app.querySelectorAll('article.crit.missing').forEach(a=>a.classList.remove('missing'));
     app.querySelectorAll('[data-note]').forEach(n=>{n.value='';n.hidden=true;const ab=app.querySelector(`[data-addnote="${n.dataset.note}"]`);if(ab)ab.hidden=false});
     toast('Test reset');scrollTo({top:0,behavior:'smooth'})};
@@ -1163,7 +1193,7 @@ function syncSheet(first){
   const cc=$('#critChips'),html=chips.map(q=>`<button type="button" data-q="${esc(q)}" aria-pressed="${on.has(q)}"><i></i>${esc(q)}</button>`).join('');
   if(cc.innerHTML!==html)cc.innerHTML=html;
   const others=Object.entries(entries(t)).filter(([uid])=>uid!==S.me);
-  $('#progTxt').textContent=`You have marked ${sc.n} of ${sc.total} skills.`+(others.length?' Also marking: '+others.map(([uid,x])=>teacherName(uid)+' ('+(x._progress??scoreOf(x,t).n)+'/'+sc.total+')').join(', ')+'.':'');
+  $('#progTxt').textContent=(mine(t).ended?'Test ended and graded. You can still change marks and feedback. ':'')+`You have marked ${sc.n} of ${sc.total} skills.`+(others.length?' Also marking: '+others.map(([uid,x])=>teacherName(uid)+' ('+(x._progress??scoreOf(x,t).n)+'/'+sc.total+')').join(', ')+'.':'');
   if(!canMark())app.querySelectorAll('.sheet button,.sheet textarea,.sheet input').forEach(x=>x.disabled=true);
 }
 
