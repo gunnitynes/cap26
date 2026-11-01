@@ -66,10 +66,15 @@ const DEFAULT_QUESTIONS = [
 ];
 // the standard column order of a questions tab; tabs are READ by their headings, so a moved or deleted column cannot scramble them
 const Q_ = { STAGE: 0, HEADING: 1, TEXT: 2, ASK: 3, STUDIO: 4, LABEL: 5, ID: 6 };
-const MARKS_HEAD = ['Test date', 'Student', 'Teacher', 'Skills marked', '%'];
-const MARKS_TAIL = ['Critical errors', 'Feedback', 'Updated', 'Student ID', 'Page data (do not edit)'];
+/* Marks, one row per student per teacher:
+     MARKS_HEAD | one % column per test stage | MARKS_MID | every skill (a folded column group) | MARKS_END
+   The stage columns are the same for every teacher, so the rows line up whoever asked which questions. */
+const MARKS_HEAD = ['Test date', 'Student', 'Teacher', 'Result', 'Score %', 'Marked'];
+const MARKS_MID = ['Critical errors', 'Notes', 'Test ended', 'Updated'];
+const MARKS_END = ['Student ID', 'Page data (do not edit)'];
 const NOT_ASKED = '–';   // in Marks: this question is not part of that student's test (another teacher's own question)
-// The score is the share of all the teacher's questions (each worth the same), as a percentage.
+// The score: each stage's marks averaged (a %), then the average of the stages, so every stage counts the same and a
+// teacher with 3 questions in a stage weighs the same as one with 5.
 // Grade A from 85 (needs Perfects), Pass from 40. Any critical error is a Resit whatever the score.
 const BANDS = [['Grade A', 85, '#0f7a57', '#d8f1e6'], ['Pass', 40, '#5a6276', '#eef0f4'], ['Resit', 0, '#bf2b2b', '#fbe0e0']];
 
@@ -162,10 +167,10 @@ function buildStart_() {
     ['Teachers', 'Who can sign in. Their names are the list on the sign-in page.'],
     ['Students', 'Everyone booked for a test: date, time, name, studio. Type or paste here, or add them on the page.'],
     ['Questions', 'The shared test: every question, its stage and which studio it is for. Each teacher\'s own tab starts as a copy of it.'],
-    ['Marks', 'One row per student per teacher, every skill readable. The last column is the page\'s own copy; leave it alone.'],
+    ['Marks', 'One row per student per teacher: result, score and a % per test stage, the same columns for every teacher. Every single skill is folded away on the right (press + above the columns). The last column is the page\'s own copy; leave it alone.'],
     ['Grades', 'The overview: every student\'s grade, progress, a colour per test stage and their critical errors. Kept up to date by itself.'],
     ['', ''],
-    ['How the grade works', 'Each question counts the same: Perfect 100 · Pass 80 · Hint 65 · Got there 50 · Failed 0. The score is the average over all of the teacher\'s questions, as a percentage (each skill averaged over every teacher who marked it). Grade A from 85%, Pass from 40%. Any critical error means Resit.'],
+    ['How the grade works', 'Each mark is worth: Perfect 100 · Pass 80 · Hint 65 · Got there 50 · Failed 0. Each test stage gets the average of its questions (each skill averaged over every teacher who marked it), and the score is the average of the stages, so every stage counts the same however many questions a teacher put in it. Grade A from 85%, Pass from 40%. Any critical error means Resit.'],
   ];
   sh.getRange(1, 1, rows.length, 2).setValues(rows);
   sh.setColumnWidth(1, 190); sh.setColumnWidth(2, 640);
@@ -240,7 +245,7 @@ function style_() {
   st.getRange(2, S_.REMOVED + 1, sr, 1).setFontColor(MUTE);
   st.hideColumns(S_.ID + 1);
   questionSheets_().forEach(styleQuestions_);
-  styleMarks_(markColumns_().length);
+  styleMarks_(marksCtx_());
   [t, st].forEach(s => s.setTabColor(INK));
 }
 
@@ -408,32 +413,56 @@ function styleQuestions_(q) {
   colourStages_(q);
 }
 
-/** Marks: dates, the skill columns in colour, the page's own copy hidden. Run again whenever the columns change. */
-function styleMarks_(n) {
-  const m = sheet_(SHEETS.MARKS), w = MARKS_HEAD.length + n + MARKS_TAIL.length, rows = m.getMaxRows() - 1;
+/** Marks: result and stage columns in colour, every skill in a folded group, the page's own copy hidden. Run again whenever the columns change. */
+function styleMarks_(ctx) {
+  const m = sheet_(SHEETS.MARKS), nS = ctx.stages.length, nD = ctx.cols.length, rows = m.getMaxRows() - 1;
+  const w = MARKS_HEAD.length + nS + MARKS_MID.length + nD + MARKS_END.length;
+  const S0 = MARKS_HEAD.length + 1, M0 = S0 + nS, D0 = M0 + MARKS_MID.length;   // first stage, first middle, first skill column
+  try { m.getRange(1, 1, 1, m.getMaxColumns()).shiftColumnGroupDepth(-8); } catch (e) {}   // drop the old fold
   try { m.showColumns(1, m.getMaxColumns()); } catch (e) {}
+  try { m.getRange(1, 1, m.getMaxRows(), m.getMaxColumns()).setBackground(null).setFontColor(null).setFontWeight(null).setBorder(false, false, false, false, false, false); } catch (e) {}
   const head = m.getRange(1, 1, 1, w);
-  head.setFontWeight('bold').setFontColor('#ffffff').setBackground(BLUE).setVerticalAlignment('middle').setWrap(true);
+  head.setFontWeight('bold').setFontColor('#ffffff').setBackground(BLUE).setVerticalAlignment('middle').setWrap(true).setHorizontalAlignment('center');
+  m.getRange(1, 1, 1, 3).setHorizontalAlignment('left');
   m.setRowHeight(1, 40); m.setFrozenRows(1); m.setFrozenColumns(3);
-  [100, 170, 120, 100, 70].concat(Array(n).fill(92)).concat([220, 260, 140, 110, 120]).forEach((x, i) => m.setColumnWidth(i + 1, x));
+  [100, 170, 110, 104, 70, 70].concat(Array(nS).fill(76)).concat([220, 300, 120, 120]).concat(Array(nD).fill(92)).concat([110, 120])
+    .forEach((x, i) => m.setColumnWidth(i + 1, x));
   m.getRange(2, 1, rows, w).setFontFamily('Arial').setFontSize(10).setVerticalAlignment('middle');
   try { m.getBandings().forEach(b => b.remove()); m.getRange(1, 1, m.getMaxRows(), w).applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY, true, false); } catch (e) {}
   head.setBackground(BLUE).setFontColor('#ffffff');
+  if (nD) m.getRange(1, D0, 1, nD).setBackground('#5a6276');                     // the skill columns read as detail
   m.getRange(2, 1, rows, 1).setNumberFormat(DATE_FMT).setHorizontalAlignment('left');
-  m.getRange(2, w - 2, rows, 1).setNumberFormat('dd.MM.yyyy HH:mm');
+  m.getRange(2, 2, rows, 1).setFontWeight('bold');
+  m.getRange(2, 4, rows, 3 + nS).setHorizontalAlignment('center');
+  m.getRange(2, 5, rows, 1 + nS).setNumberFormat('0');
+  m.getRange(2, 5, rows, 1).setFontWeight('bold').setFontSize(12);
+  m.getRange(2, M0, rows, 1).setFontColor(BANDS[2][2]).setWrap(true);
+  m.getRange(2, M0 + 1, rows, 1).setWrap(true);
+  m.getRange(2, M0 + 2, rows, 2).setNumberFormat('dd.MM.yyyy HH:mm').setFontColor(MUTE);
+  // a thick line after the stages and after the summary, so the three parts read apart
+  try {
+    m.getRange(1, 3, m.getMaxRows(), 1).setBorder(null, null, null, true, null, null, INK, SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+    m.getRange(1, M0 - 1, m.getMaxRows(), 1).setBorder(null, null, null, true, null, null, INK, SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+  } catch (e) {}
   m.hideColumns(w - 1, 2);
-  if (!n) { m.setConditionalFormatRules([]); m.setTabColor(INK); return; }
-  const first = MARKS_HEAD.length + 1;
-  m.getRange(1, first, 1, n).setTextRotation(0).setHorizontalAlignment('center');
-  const markRange = m.getRange(2, first, rows, n);
-  markRange.setHorizontalAlignment('center');
-  const rule = (range, text, bg, fg) => SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(text).setBackground(bg).setFontColor(fg).setBold(true).setRanges([range]).build();
-  m.setConditionalFormatRules([
-    rule(markRange, 'Perfect', '#d8f1e6', '#0f7a57'),
-    rule(markRange, 'Pass', '#dbe6ff', '#0b43e0'), rule(markRange, 'Hint', '#fbeccf', '#a35f00'),
-    rule(markRange, 'Got there', '#fde2d3', '#c2410c'), rule(markRange, 'Failed', '#fbe0e0', '#bf2b2b'),
-    SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(NOT_ASKED).setBackground('#f1f2f5').setFontColor('#b4bac6').setRanges([markRange]).build(),
-  ]);
+  try { m.getRange(1, M0 - nS, 1, 1).setNote('Each stage: the average of its questions (Perfect 100 · Pass 80 · Hint 65 · Got there 50 · Failed 0). Score %: the average of the stages, so every stage counts the same however many questions a teacher asks in it.'); } catch (e) {}
+  const result = m.getRange(2, 4, rows, 1), text = (t, bg, fg) => SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(t).setBackground(bg).setFontColor(fg).setBold(true).setRanges([result]).build();
+  const heat = SpreadsheetApp.newConditionalFormatRule()
+    .setGradientMinpointWithValue('#f4c7c3', SpreadsheetApp.InterpolationType.NUMBER, '0')
+    .setGradientMidpointWithValue('#fce8b2', SpreadsheetApp.InterpolationType.NUMBER, '60')
+    .setGradientMaxpointWithValue('#b7e1cd', SpreadsheetApp.InterpolationType.NUMBER, '100').setRanges([m.getRange(2, 5, rows, 1 + nS)]).build();
+  const rules = [heat, text('Grade A', BANDS[0][3], BANDS[0][2]), text('Pass', BANDS[1][3], INK), text('Resit', BANDS[2][3], BANDS[2][2]),
+    text('In progress', PAPER, MUTE), text('Not started', '#ffffff', '#9aa3b5')];
+  if (nD) {
+    const det = m.getRange(2, D0, rows, nD), r = (t, bg, fg) => SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(t).setBackground(bg).setFontColor(fg).setRanges([det]).build();
+    det.setHorizontalAlignment('center').setFontSize(9);
+    rules.push(r('Perfect', '#d8f1e6', '#0f7a57'), r('Pass', '#dbe6ff', '#0b43e0'), r('Hint', '#fbeccf', '#a35f00'), r('Got there', '#fde2d3', '#c2410c'), r('Failed', '#fbe0e0', '#bf2b2b'),
+      r(NOT_ASKED, '#ffffff', '#d5d9e1'));
+    // every skill in one fold, closed: press + above the columns to open it
+    try { m.getRange(1, D0, 1, nD).shiftColumnGroupDepth(1); m.getColumnGroup(D0, 1).collapse(); } catch (e) {}
+    try { m.getRange(1, D0).setNote('Every skill, one column each, as each teacher marked it. A dash: not part of that student\'s test. Press − above the columns to fold them away again.'); } catch (e) {}
+  }
+  m.setConditionalFormatRules(rules);
   m.setTabColor(INK);
 }
 
@@ -634,7 +663,7 @@ function resetStudent_(text) {
 /** Ops Test ▸ Reset ALL test results: every mark is removed and every test date takes the current questions again. */
 function menuResetAll() {
   const ui = SpreadsheetApp.getUi();
-  const p = ui.prompt('Reset ALL test results', 'This removes every mark, note, critical error and feedback for every student. Students, teachers and questions stay. Type RESET to go ahead:', ui.ButtonSet.OK_CANCEL);
+  const p = ui.prompt('Reset ALL test results', 'This removes every mark, note and critical error for every student. Students, teachers and questions stay. Type RESET to go ahead:', ui.ButtonSet.OK_CANCEL);
   if (p.getSelectedButton() !== ui.Button.OK) return;
   if (p.getResponseText().trim() !== 'RESET') { ui.alert('Nothing was reset (type RESET in capitals to go ahead).'); return; }
   const n = withLock_(() => resetAll_());
@@ -723,7 +752,12 @@ function route_(req) {
   const a = String(req.action || '');
   if (a === 'ping') return { ok: true };
   if (a === 'teachers') return { ok: true, teachers: teachers_().map(t => t.name) };   // the names on the sign-in page
-  if (a === 'login') return withLock_(() => login_(req.name, req.password, req.pin));
+  if (a === 'login') {
+    // the students and questions come back with the sign-in, so the page needs no second trip before it shows them
+    const r = withLock_(() => login_(req.name, req.password, req.pin));
+    if (r.ok && req.withState) try { r.state = stateCached_({ name: r.name, role: r.role }, ''); } catch (e) {}
+    return r;
+  }
   const me = auth_(req.token);
   if (!me) return { ok: false, error: 'Please sign in again.', code: 'auth' };
   switch (a) {
@@ -888,7 +922,8 @@ function state_(me) {
     else entries.push({ sid: m.sid, teacher: m.teacher, progress: Object.keys(m.data.marks || {}).filter(k => m.data.marks[k] in POINTS).length });
   });
   // the questions: each teacher's current set (by teacher, '' = shared), and the fixed set of every marked date and teacher
-  const sets = liveSets_(), qlive = { '': sets[''] }, qsets = {};
+  // only the question tabs this teacher's students use (an admin: everyone's)
+  const sets = liveSets_(me.role === 'admin' ? null : [me.name].concat(students.map(s => s.teacher))), qlive = { '': sets[''] }, qsets = {};
   [me.name].concat(students.map(s => s.teacher)).forEach(t => { const k = norm_(t); if (k && sets[k]) qlive[k] = sets[k]; });
   students.forEach(s => { const k = s.day + '|' + norm_(s.teacher); if (!(k in qsets) && frozenFor_(s.day, s.teacher)) qsets[k] = questionsFor_(s.day, s.teacher, sets); });
   const questions = sets[norm_(me.name)] || sets[''];
@@ -1003,22 +1038,43 @@ function saveEntry_(me, req) {
   return { ok: true };
 }
 
-/** The readable row in Marks: every skill spelled out, plus the page's own copy in the last column. */
+/** The readable row in Marks: result, score and a % per stage first, every skill spelled out further right, plus the page's own copy. */
 function marksRow_(s, teacher, data, ctx, updated) {
   ctx = ctx || marksCtx_();
   const qs = forStudio_(questionsFor_(s.day, s.teacher, ctx.sets), s.studio), m = data.marks || {}, ids = qs.map(q => q.id);
   const byName = {}; colNames_(qs).forEach((c, i) => byName[c.key] = ids[i]);
   const marked = ids.filter(id => m[id] in POINTS);
-  const score = marked.length ? Math.round(marked.reduce((a, id) => a + POINTS[m[id]], 0) / marked.length * 100) : '';
+  const sc = stageScores_(qs, q => m[q.id] in POINTS ? POINTS[m[q.id]] : null);
   const errors = Object.keys(data.safety || {}).map(k => data.safety[k]).filter(Boolean).map(x => x.text);
-  return [s.day ? toDate_(s.day) : '', s.name, teacher, marked.length + '/' + ids.length, score]
+  const result = resultOf_(sc.score, errors, marked.length, ids.length, !!data.ended);
+  // the notes: the teacher's own, then any note on a single skill
+  const notes = [data.summary || ''].concat(qs.filter(q => data.notes && data.notes[q.id]).map(q => q.label + ': ' + data.notes[q.id])).filter(x => String(x).trim()).join('\n');
+  return [s.day ? toDate_(s.day) : '', s.name, teacher, result, sc.score === null ? '' : Math.round(sc.score), marked.length + '/' + ids.length]
+    .concat(ctx.stages.map(st => st in sc.stages ? Math.round(sc.stages[st]) : ''))
+    .concat([errors.join('; '), notes, data.ended ? new Date(Number(data.ended)) : '', updated || new Date()])
     .concat(ctx.cols.map(c => !(c.key in byName) ? NOT_ASKED : MARK_LABEL[m[byName[c.key]]] || ''))   // a dash: not part of this student's test
-    .concat([errors.join('; '), data.summary || '', updated || new Date(), s.id, JSON.stringify(data)]);
+    .concat([s.id, JSON.stringify(data)]);
+}
+/** One stage list for every teacher's scoring. val(q) is a question's points 0..1, or null when it is not marked.
+ *  Each stage: the average of its marked questions, as a %. Score: the average of those stages. */
+function stageScores_(qs, val) {
+  const by = {};
+  qs.forEach(q => { const v = val(q); if (v !== null && v !== undefined) (by[q.stage] = by[q.stage] || []).push(v); });
+  const stages = {}; Object.keys(by).forEach(k => stages[k] = by[k].reduce((a, b) => a + b, 0) / by[k].length * 100);
+  const ks = Object.keys(stages);
+  return { stages, score: ks.length ? ks.reduce((a, k) => a + stages[k], 0) / ks.length : null };
+}
+/** In words: Grade A / Pass / Resit once every skill is marked or the test was ended; before that In progress or Not started. */
+function resultOf_(score, errors, marked, total, ended) {
+  if (!marked && !errors.length) return ended ? 'Not marked' : 'Not started';
+  if (errors.length) return 'Resit';
+  if (!ended && marked < total) return 'In progress';
+  return BANDS.find(b => score >= b[1] - 1e-9)[0];
 }
 
 /** Keeps the Marks columns in step with the questions. When they change, every row is rewritten from its own page copy. */
 function syncMarks_() {
-  const ctx = marksCtx_(), head = marksHeader_(ctx.cols), sh = sheet_(SHEETS.MARKS), w = sh.getLastColumn();
+  const ctx = marksCtx_(), head = marksHeader_(ctx), sh = sheet_(SHEETS.MARKS), w = sh.getLastColumn();
   const now = w ? sh.getRange(1, 1, 1, w).getValues()[0].map(String) : [];
   if (now.join('\u0001') === head.join('\u0001')) return ctx;
   const studs = {}; students_().forEach(s => studs[s.id] = s);
@@ -1027,11 +1083,17 @@ function syncMarks_() {
   sh.clearContents();
   sh.getRange(1, 1, 1, head.length).setValues([head]);
   if (rows.length) sh.getRange(2, 1, rows.length, head.length).setValues(rows);
-  styleMarks_(ctx.cols.length);
+  styleMarks_(ctx);
   return ctx;
 }
-function marksCtx_() { const sets = liveSets_(); return { sets, live: sets[''], cols: markColumns_(sets) }; }
-function marksHeader_(cols) { return MARKS_HEAD.concat(cols.map(c => c.label)).concat(MARKS_TAIL); }
+function marksCtx_() { const sets = liveSets_(); return { sets, live: sets[''], cols: markColumns_(sets), stages: stageColumns_(sets) }; }
+/** The stage columns: the shared list on Start here, then any other stage a question set still uses. */
+function stageColumns_(sets) {
+  const out = stages_().slice();
+  Object.keys(sets).forEach(k => sets[k].forEach(q => { if (out.indexOf(q.stage) < 0) out.push(q.stage); }));
+  return out;
+}
+function marksHeader_(ctx) { return MARKS_HEAD.concat(ctx.stages).concat(MARKS_MID).concat(ctx.cols.map(c => c.label)).concat(MARKS_END); }
 /* The skill columns in Marks go by NAME (the Column name, or the question shortened), not by question:
    questions with the same name in different teachers' tabs share one column, and renaming a Column name renames it.
    Every teacher's questions in the Teachers order; the shared tab only while a student has no teacher. */
@@ -1076,9 +1138,10 @@ function questions_(teacher) {
   return readQuestions_(SpreadsheetApp.getActive().getSheetByName(SHEETS.QUESTIONS.name));
 }
 /** Every current set, by teacher ('' = shared), read once per request. */
-function liveSets_() {
+function liveSets_(only) {
   const sets = { '': questions_() };
-  teachers_().forEach(t => { sets[norm_(t.name)] = questions_(t.name); });
+  const names = only ? only.filter(Boolean) : teachers_().map(t => t.name);
+  names.forEach(n => { if (!(norm_(n) in sets)) sets[norm_(n)] = questions_(n); });
   return sets;
 }
 /** Gives every teacher in the Teachers tab their own questions tab, starting as a copy of the shared one. */
@@ -1264,8 +1327,8 @@ function maybeBuildGrades_() {
   buildGrades_();
 }
 
-/** The same sum the page uses: each skill averaged over every teacher who marked it, the average of the skills,
- *  minus 10 per different critical error, a core skill under 50% means Resit. */
+/** The combined grade: each skill averaged over every teacher who marked it, each stage the average of its skills,
+ *  the score the average of the stages. Any critical error means Resit. */
 function gradeOf_(byTeacher, qs) {
   const teachers = Object.keys(byTeacher).filter(u => Object.keys(byTeacher[u].marks || {}).some(k => byTeacher[u].marks[k] in POINTS));
   const per = qs.map(q => {
@@ -1273,15 +1336,14 @@ function gradeOf_(byTeacher, qs) {
     return { q, avg: v.length ? v.reduce((a, b) => a + b, 0) / v.length : null };
   });
   const marked = per.filter(x => x.avg !== null);
-  const score = marked.length ? marked.reduce((a, x) => a + x.avg, 0) / marked.length * 100 : null;
+  const sc = stageScores_(qs, q => per.find(x => x.q === q).avg), score = sc.score;   // every stage counts the same
   const errors = [];
   Object.keys(byTeacher).forEach(u => Object.keys(byTeacher[u].safety || {}).forEach(k => { const e = byTeacher[u].safety[k]; if (e && errors.indexOf(e.text) < 0) errors.push(e.text); }));
   const final = score;   // no points off: a critical error decides the grade on its own (below)
   const coreFails = [];   // (Core skills are no longer used: every question counts the same)
   const complete = qs.length > 0 && marked.length === qs.length;
   const band = final === null ? null : errors.length ? BANDS[BANDS.length - 1] : BANDS.find(b => final >= b[1] - 1e-9);
-  const by = {}; marked.forEach(x => (by[x.q.stage] = by[x.q.stage] || []).push(x.avg));
-  const stages = {}; Object.keys(by).forEach(k => stages[k] = Math.round(by[k].reduce((a, b) => a + b, 0) / by[k].length * 100));
+  const stages = {}; Object.keys(sc.stages).forEach(k => stages[k] = Math.round(sc.stages[k]));
   return { teachers, marked: marked.length, score, errors, final, coreFails, complete, band, stages };
 }
 
@@ -1485,7 +1547,7 @@ function migrateMarks_() {
     let data = {}; try { data = JSON.parse(r[2] || '{}'); } catch (e) {}
     return marksRow_(studs[String(r[0])], String(r[1]), data, ctx);
   });
-  o.sh.clear(); const h = marksHeader_(ctx.cols);
+  o.sh.clear(); const h = marksHeader_(ctx);
   o.sh.getRange(1, 1, 1, h.length).setValues([h]);
   if (rows.length) o.sh.getRange(2, 1, rows.length, h.length).setValues(rows);
 }

@@ -80,9 +80,12 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const head = m[0], row = m[1];
   assert.equal(row[head.indexOf('Student')], 'Polina'); assert.equal(row[head.indexOf('Teacher')], 'Gunni');
   assert.equal(row[head.indexOf('Phantom power')], 'Hint'); assert.equal(row[head.indexOf('Pre vs post fader')], 'Failed');
-  assert.equal(row[head.indexOf('Skills marked')], '3/18');
+  assert.equal(row[head.indexOf('Marked')], '3/18');
   assert.equal(row[head.indexOf('Critical errors')], 'Speakers switched with level up');
-  assert.equal(head.indexOf('Critical errors'), head.indexOf('Feedback') - 1);   // last before Feedback
+  assert.equal(head.indexOf('Critical errors'), head.indexOf('Notes') - 1);   // last before Notes
+  assert.deepEqual(head.slice(0, 12), ['Test date', 'Student', 'Teacher', 'Result', 'Score %', 'Marked', 'Power', 'Mic', 'Route', 'Record', 'Cue', 'Shut down']);
+  assert.deepEqual(row.slice(3, 12), ['Resit', 48, '3/18', 80, 65, '', '', 0, '']);   // (80 + 65 + 0) / 3 stages: each stage counts the same
+  ok('Marks leads with result, score and one % per stage, the same columns for every teacher');
   assert.deepEqual(JSON.parse(row[head.length - 1]).marks, { p1: 'y', m4: 'h', c2: 'n' });
   ok('Marks shows every skill in words; unknown values are dropped');
   const st = call(g, { action: 'state', token: gt });
@@ -287,7 +290,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(head.at(-1), 'Page data (do not edit)');
   call(g, { action: 'saveEntry', token: tok, sid: tal, patch: { marks: { [newId]: 'n', p1: 'y' } } });
   const mk = tab(book, 'Marks').data, mh = mk[0], trow = mk.find(r => r[1] === 'Tales'), prow = mk.find(r => r[1] === 'Polina');
-  assert.equal(trow[mh.indexOf('Skills marked')], '2/19'); assert.equal(prow[mh.indexOf('Skills marked')], '1/18');
+  assert.equal(trow[mh.indexOf('Marked')], '2/19'); assert.equal(prow[mh.indexOf('Marked')], '1/18');
   assert.equal(JSON.parse(prow.at(-1)).marks.p1, 'y');
   ok('Marks gains a column for it, and every row is rewritten without losing a mark');
 
@@ -515,8 +518,8 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const three = nonCore.slice(0, 3), five = nonCore.slice(0, 5);
   const a = g.gradeOf_(marks(q => three.includes(q.id) ? 'n' : 'g'), qs), b = g.gradeOf_(marks(q => five.includes(q.id) ? 'n' : 'g'), qs);
   assert.equal(Math.round(a.score), 42); assert.equal(a.band[0], 'Pass');
-  assert.equal(Math.round(b.score), 36); assert.equal(b.band[0], 'Resit');
-  ok('Pass from 40: "got there" with three failed skills passes (42), with five it is a Resit (36)');
+  assert.equal(Math.round(b.score), 38); assert.equal(b.band[0], 'Resit');   // stages: Power 0, Mic 25, four at 50
+  ok('Pass from 40: "got there" with three failed skills passes (42), with five it is a Resit (38)');
 }
 // 16. A Marks row whose Teacher cell was cleared by hand does not count towards a grade.
 {
@@ -639,7 +642,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(mh.filter(h => h === 'Leaves the studio').length, 1);
   assert.ok(!mh.some(h => /·/.test(h)));
   assert.ok(!mh.includes('Shared only name'));
-  assert.ok(mh.includes('%') && !mh.includes('Teacher score %'));
+  assert.ok(mh.includes('Score %') && !mh.includes('Teacher score %'));
   ok('Marks: one column per name across teachers, no teacher tags, no column for a question nobody asks, "%" header');
 }
 // 22. Teachers editing their tab: moving, renaming and adding stages; Column names stay with their question.
@@ -724,12 +727,19 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   ok('after a save the next refresh is new, and the ended test says so');
   const m = tab(book, 'Marks').data, h = m[0];
   const kim = m.find(r => r[1] === 'Kim');
-  assert.equal(kim[h.indexOf('Skills marked')], q.length + '/' + q.length);
-  assert.equal(kim[h.indexOf('Feedback')], 'Clean run');
+  assert.equal(kim[h.indexOf('Marked')], q.length + '/' + q.length);
+  assert.equal(kim[h.indexOf('Notes')], 'Clean run');
+  assert.equal(kim[h.indexOf('Result')], 'Pass'); assert.equal(kim[h.indexOf('Score %')], 80);
+  const lou = m.find(r => r[1] === 'Lou');
+  assert.equal(lou[h.indexOf('Result')], 'In progress');
   ok('the ended test is in Marks with every skill and the feedback');
   raw(g, { action: 'saveEntry', token: gt, sid: ids[0], patch: { ended: null } });
   assert.equal(raw(g, { action: 'state', token: gt }).entries.find(x => x.sid === ids[0]).data.ended, undefined);
   ok('Reset takes the ended mark off again');
+  const li = raw(g, { action: 'login', name: 'Isuru', password: 'team-pass-1', withState: true });
+  assert.ok(li.ok && li.state && li.state.ok && Array.isArray(li.state.students) && li.state.me.name === 'Isuru');
+  assert.equal(raw(g, { action: 'login', name: 'Isuru', password: 'team-pass-1' }).state, undefined);
+  ok('signing in can bring the students and questions with it, so the list shows without a second call');
 }
 
 console.log(`\n${n} checks passed`);

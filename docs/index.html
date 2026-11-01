@@ -144,6 +144,13 @@ textarea{resize:vertical;min-height:44px}
 .danger{color:var(--no)}
 .tools{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 details.guide{margin-top:20px}
+details.notes{margin:14px 0 4px;border-top:1px solid var(--line);padding-top:10px}
+details.notes summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;padding:4px 0}
+details.notes summary::-webkit-details-marker{display:none}
+details.notes summary::before{content:"+";font-family:var(--mono);color:var(--mute);width:12px}
+details.notes[open] summary::before{content:"–"}
+details.notes summary span{font-weight:400;font-size:12px;color:var(--mute)}
+details.notes textarea{margin-top:8px;width:100%}
 details.guide summary{cursor:pointer;font-weight:700;list-style:none;display:flex;justify-content:space-between}
 details.guide summary::after{content:"+";font-family:var(--mono);color:var(--mute)}
 details.guide[open] summary::after{content:"–"}
@@ -721,7 +728,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793493700';
+const BUILD='1793495485';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -876,7 +883,7 @@ function renderLogin(){
     if(S.demo){go('roster');return}
     btn.disabled=true;btn.textContent='Signing in…';
     const pin=$('#lPinWrap').hidden?'':$('#lPin').value.trim();
-    const j=await api('login',{name:picked,password,pin});
+    const j=await api('login',{name:picked,password,pin,withState:true});
     btn.disabled=false;btn.textContent='Sign in';
     // an admin: the team password was right, now the admin PIN
     if(!j.ok&&j.needPin){const first=$('#lPinWrap').hidden;$('#lPinWrap').hidden=false;
@@ -884,7 +891,10 @@ function renderLogin(){
     if(!j.ok){err.textContent=j.error;err.hidden=false;return}
     S.token=j.token;S.me=j.name;S.role=j.role;ls.set('ops.token',S.token);ls.set('ops.me',S.me);ls.set('ops.role',S.role);ls.set('ops.lastName',j.name);
     ls.set('ops.until',Date.now()+(j.days||400)*864e5);
-    S.ready=false;S.dayPicked=false;S.loadErr='';S.view='roster';renderBar();render();await load();
+    S.ready=false;S.dayPicked=false;S.loadErr='';S.view='roster';
+    // the students came back with the sign-in: show them at once; the slower tidying runs afterwards in the background
+    if(j.state&&j.state.ok){S.h=j.state.h||'';ls.set('ops.cache',{me:j.state.me.name,j:j.state});applyState(j.state);renderBar();render();tidy()}
+    else{renderBar();render();await load()}
     toast('Welcome, '+j.name+'.');
   };
 }
@@ -1101,13 +1111,13 @@ function renderSheet(){
      <section class="card verdict" id="st-result">
        <span class="eyebrow">Finish</span>
        <p class="readout" id="progTxt" style="margin:0;font-size:14px"></p>
-       <div class="field"><label for="summary">Your feedback for the student</label><textarea id="summary" rows="3" placeholder="What went well, what to practise"></textarea></div>
+       <details class="notes" id="notesBox"${mine(t).summary?' open':''}><summary>Notes<span id="notesHint">${mine(t).summary?'':'optional'}</span></summary><textarea id="summary" rows="3" placeholder="Anything worth remembering about this test"></textarea></details>
        <div class="pair"><div class="field"><label for="moveDay">Test date</label><input type="date" id="moveDay"></div><div class="field"><label for="moveTime">Test time</label><input type="time" id="moveTime"></div></div>
        <div class="field"${S.role==='admin'||S.demo?'':' hidden'}><label for="moveTeacher">Teacher</label><select id="moveTeacher">${[...new Set(['',...Object.keys(S.teachers),t.teacher||''])].map(n=>`<option value="${esc(n)}">${n?esc(n):'No teacher yet'}</option>`).join('')}</select></div>
        <div class="foot"><button class="primary" id="doneBtn" type="button">${mine(t).ended?'Save changes':'End test and grade'}</button><button class="ghost danger" id="resetBtn" type="button">Reset</button></div>
        <div class="card confirm" id="resetAsk" hidden role="alertdialog" aria-labelledby="resetQ">
          <b id="resetQ">Reset this test?</b>
-         <p>All your marks, notes, critical errors and feedback for this student are cleared. The student stays on the list.</p>
+         <p>All your marks, notes and critical errors for this student are cleared. The student stays on the list.</p>
          <div class="foot"><button class="primary danger-fill" id="resetYes" type="button">Yes, reset</button><button class="ghost" id="resetNo" type="button">Cancel</button></div>
        </div>
      </section>
@@ -1120,6 +1130,7 @@ function renderSheet(){
   app.querySelectorAll('[data-addnote]').forEach(b=>b.onclick=()=>{const n=app.querySelector(`[data-note="${b.dataset.addnote}"]`);n.hidden=false;autosize(n);n.focus();b.hidden=true});
   const debounced={};
   app.querySelectorAll('[data-note]').forEach(n=>{n.oninput=()=>{autosize(n);clearTimeout(debounced[n.dataset.note]);debounced[n.dataset.note]=setTimeout(()=>patchMine(S.open,{notes:{[n.dataset.note]:n.value}}),700)}});
+  $('#notesBox').ontoggle=()=>{if($('#notesBox').open&&!$('#summary').value)$('#summary').focus()};
   $('#summary').oninput=()=>{clearTimeout(debounced._s);debounced._s=setTimeout(()=>patchMine(S.open,{summary:$('#summary').value}),700)};
   const activeKeys=text=>Object.entries(mine(view(S.open)).safety||{}).filter(([,v])=>v&&v.text===text).map(([k])=>k);
   const logInc=text=>{if(!text||!canMark())return;if(activeKeys(text).length){$('#incText').value='';return}patchMine(S.open,{safety:{[rid()]:{t:Date.now(),text}}});$('#incText').value='';$('#incText').blur()};
@@ -1130,17 +1141,14 @@ function renderSheet(){
   $('#moveTime').onchange=e=>{const v=e.target.value||'';patch(S.open,{time:v});toast(v?'Test time '+v:'Test time cleared')};
   $('#incText').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();logInc($('#incText').value.trim())}};
   /* End test and grade is the end of the test: the student shows as Graded and the whole test goes to the Sheet in one call
-     while the teacher is already back on the list. A skill still unmarked (or no feedback) is pointed out first: jump to
+     while the teacher is already back on the list. A skill still unmarked is pointed out first: jump to
      the first one and outline every one. A second tap ends the test anyway. A graded test can still be changed later. */
   let saveArm=0;
   $('#doneBtn').onclick=()=>{
     const t={id:S.open,...view(S.open)},e=mine(t),m=e.marks||{},missing=skillsFor(t).filter(c=>!(m[c.id] in POINTS));
     const label=e.ended?'Save changes':'End test and grade';
-    const noFeedback=!String($('#summary').value||e.summary||'').trim();
-    if((missing.length||noFeedback)&&canMark()&&Date.now()-saveArm>8000){
+    if(missing.length&&canMark()&&Date.now()-saveArm>8000){
       saveArm=Date.now();
-      if(!missing.length){$('#summary').focus();$('#summary').scrollIntoView({behavior:'smooth',block:'center'});toast('No feedback for the student yet');
-        const b=$('#doneBtn');b.textContent=e.ended?'Save anyway':'End test anyway';setTimeout(()=>{if($('#doneBtn')===b)b.textContent=label},8000);return}
       saveArm=Date.now();
       app.querySelectorAll('article.crit').forEach(a=>a.classList.toggle('missing',missing.some(c=>c.id===a.dataset.crit)));
       app.querySelector(`article.crit[data-crit="${missing[0].id}"]`)?.scrollIntoView({behavior:'smooth',block:'center'});
@@ -1153,7 +1161,7 @@ function renderSheet(){
       toast(e.ended?'Changes saved':t.name+' graded');
     }
     flushSoon(0);go('roster')};
-  /* Reset clears this teacher's own marks, notes, critical errors and feedback for the student, after a confirmation.
+  /* Reset clears this teacher's own marks, notes and critical errors for the student, after a confirmation.
      (Students are removed in the Sheet, not here.) */
   $('#resetBtn').onclick=()=>{if(!canMark())return;$('#resetAsk').hidden=false;$('#resetAsk').scrollIntoView({behavior:'smooth',block:'center'})};
   $('#resetNo').onclick=()=>{$('#resetAsk').hidden=true};
@@ -1183,6 +1191,7 @@ function syncSheet(first){
   app.querySelectorAll('.marks').forEach(g=>{const v=e.marks?.[g.dataset.crit];g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===v));const a=g.closest('.crit');a.dataset.m=v||'';if(v)a.classList.remove('missing')});
   app.querySelectorAll('[data-note]').forEach(n=>{const v=e.notes?.[n.dataset.note]||'';if(document.activeElement!==n&&n.value!==v){n.value=v}if(v){n.hidden=false;const ab=app.querySelector(`[data-addnote="${n.dataset.note}"]`);if(ab)ab.hidden=true}if(!n.hidden)autosize(n)});
   const sm=$('#summary');if(document.activeElement!==sm&&sm.value!==(e.summary||''))sm.value=e.summary||'';
+  const nh=$('#notesHint');if(nh)nh.textContent=(e.summary||'').trim()?'':'optional';
   stagesFor(t).forEach(s=>{const cs=skillsFor(t).filter(c=>c.s===s.id);if(!cs.length||!app.querySelector(`[data-count="${s.id}"]`))return;
     const vals=cs.map(c=>e.marks?.[c.id]);const done=vals.filter(Boolean).length;
     app.querySelector(`[data-count="${s.id}"]`).textContent=`${done}/${vals.length}`;
@@ -1193,7 +1202,7 @@ function syncSheet(first){
   const cc=$('#critChips'),html=chips.map(q=>`<button type="button" data-q="${esc(q)}" aria-pressed="${on.has(q)}"><i></i>${esc(q)}</button>`).join('');
   if(cc.innerHTML!==html)cc.innerHTML=html;
   const others=Object.entries(entries(t)).filter(([uid])=>uid!==S.me);
-  $('#progTxt').textContent=(mine(t).ended?'Test ended and graded. You can still change marks and feedback. ':'')+`You have marked ${sc.n} of ${sc.total} skills.`+(others.length?' Also marking: '+others.map(([uid,x])=>teacherName(uid)+' ('+(x._progress??scoreOf(x,t).n)+'/'+sc.total+')').join(', ')+'.':'');
+  $('#progTxt').textContent=(mine(t).ended?'Test ended and graded. You can still change marks and notes. ':'')+`You have marked ${sc.n} of ${sc.total} skills.`+(others.length?' Also marking: '+others.map(([uid,x])=>teacherName(uid)+' ('+(x._progress??scoreOf(x,t).n)+'/'+sc.total+')').join(', ')+'.':'');
   if(!canMark())app.querySelectorAll('.sheet button,.sheet textarea,.sheet input').forEach(x=>x.disabled=true);
 }
 
