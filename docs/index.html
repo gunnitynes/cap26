@@ -908,7 +908,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793535496';
+const BUILD='1793535923';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -988,7 +988,7 @@ function renderBar(){
   const t=S.view==='test'&&view(S.open);
   const nm=S.view==='login'?'':S.me;
   $('#barInner').innerHTML=`<div class="barrow"><div class="bar-l">${S.view==='test'||S.view==='account'||S.view==='grades'||S.view==='questions'||S.view==='add'?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
-   ${S.me&&nm&&S.view!=='test'?`<div class="who"><button class="whobtn" id="whoBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(nm)}: menu"><span class="av" aria-hidden="true">${esc(nm.trim().charAt(0).toUpperCase())}</span><span class="wn">${esc(nm)}</span><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>${whoMenu()}</div>`:''}</div>
+   ${S.me&&nm?`<div class="who"><button class="whobtn" id="whoBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(nm)}: menu"><span class="av" aria-hidden="true">${esc(nm.trim().charAt(0).toUpperCase())}</span><span class="wn">${esc(nm)}</span><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>${whoMenu()}</div>`:''}</div>
    <div class="brand">${S.view==='test'&&t?`<b class="sname" title="${esc(t.name)}"><span id="sName">${esc(firstName(t.name))}</span></b>`:'<b class="ttl">Operations Test</b>'}</div><div class="bar-r">
    ${S.view==='test'&&t&&timerOf(S.open)?`<button class="tm-pill" data-timer="${S.open}" id="tmPill" type="button" aria-label="Timer running. Tap twice to reset"><span class="tm-num">${timerOf(S.open).txt}</span></button>`:''}
    ${S.view==='test'&&t&&!timerOf(S.open)?`<button class="tm-start" id="tmStart" type="button" aria-label="Start the 10-minute timer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg><span class="tm-num">10:00</span></button>`:''}
