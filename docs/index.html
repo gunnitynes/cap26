@@ -488,7 +488,8 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .timer.over .tm-num,.timer.over .tm-label{color:var(--no)}
 .tm-btns{display:flex;gap:8px}.tm-btns button{min-width:84px}
 .tm-pill{flex:none;border:1px solid var(--led);background:var(--led-soft);color:var(--led);border-radius:12px;height:40px;min-width:76px;padding:0 10px;font-family:var(--mono);font-weight:700;font-size:18px;font-variant-numeric:tabular-nums}
-.tm-start{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 14px 0 10px;border:1px solid var(--led);background:var(--led-soft);color:var(--led);border-radius:999px;font:inherit;font-weight:700;white-space:nowrap}
+.brand .sname{max-width:min(36vw,260px);overflow:hidden;text-overflow:ellipsis}
+.tm-start{flex:none;display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 10px 0 8px;border:1px solid var(--led);background:var(--led-soft);color:var(--led);border-radius:12px;font:inherit;font-weight:700;white-space:nowrap}
 .tm-start svg{width:16px;height:16px;fill:currentColor}
 .tm-start .tm-num{font-family:var(--mono);font-size:16px;color:var(--ink)}
 .tm-start .tm-go{font-size:14px}
@@ -904,7 +905,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793533765';
+const BUILD='1793534351';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -975,12 +976,11 @@ let tmArmT=0;
 function renderBar(){
   const t=S.view==='test'&&view(S.open);
   const nm=S.view==='login'?'':S.me;
-  const td=t&&new Date(t.day+'T12:00');
   $('#barInner').innerHTML=`<div class="barrow"><div class="bar-l">${S.view==='test'||S.view==='account'||S.view==='grades'||S.view==='questions'||S.view==='add'?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
    ${S.me&&nm?`<div class="who"><button class="whobtn" id="whoBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(nm)}: menu"><span class="av" aria-hidden="true">${esc(nm.trim().charAt(0).toUpperCase())}</span><span class="wn">${esc(nm)}</span><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>${whoMenu()}</div>`:''}</div>
-   <div class="brand">${S.view==='test'&&t&&!timerOf(S.open)?`<button class="tm-start" id="tmStart" type="button" aria-label="Start the 10-minute timer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg><span class="tm-num">10:00</span><span class="tm-go">Start</span></button>`:'<b class="ttl">Operations Test</b>'}</div><div class="bar-r">
+   <div class="brand">${S.view==='test'&&t?`<b class="ttl sname" id="sName">${esc(t.name)}</b>`:'<b class="ttl">Operations Test</b>'}</div><div class="bar-r">
    ${S.view==='test'&&t&&timerOf(S.open)?`<button class="tm-pill" data-timer="${S.open}" id="tmPill" type="button" aria-label="Timer running. Tap twice to reset"><span class="tm-num">${timerOf(S.open).txt}</span></button>`:''}
-   ${S.view==='test'&&t&&!timerOf(S.open)?`<span class="datecard" title="Test date"><small>${td.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase()}</small><b>${td.getDate()}</b><span>${td.toLocaleDateString('en-GB',{month:'short'})}</span></span>`:''}
+   ${S.view==='test'&&t&&!timerOf(S.open)?`<button class="tm-start" id="tmStart" type="button" aria-label="Start the 10-minute timer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg><span class="tm-num">10:00</span></button>`:''}
    ${S.view==='roster'&&(S.ready||S.demo)?(()=>{const sd=new Date(S.day+'T12:00');return `<button class="datecard datebtn" id="dateBtn" type="button" aria-expanded="${!!S.stripOpen}" aria-label="Test date ${fmtDay(S.day)}. Change date"><small>${S.day===today()?'TODAY':sd.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase()}</small><b>${sd.getDate()}</b><span>${sd.toLocaleDateString('en-GB',{month:'short'})}</span></button>`})():''}</div></div>
    ${S.view==='roster'&&(S.ready||S.demo)&&S.stripOpen?`<div class="stripwrap">${dateStrip()}</div>`:''}`;
   document.querySelector('.bar').hidden=S.view==='login';
@@ -1476,7 +1476,6 @@ function bindSwipe(app,commit){
 function renderSheet(){
   const t={id:S.open,...view(S.open)};
   $('#app').innerHTML=`
-   <div class="strip"><span class="scribble" id="sName">${esc(t.name)}</span></div>
    <nav class="stagenav" id="stageNav">${stagesFor(t).map((s,i)=>`<a href="#st-${s.id}" data-st="${s.id}"><span class="mono">${i+1}</span>${esc(s.short)}<i class="dot"></i></a>`).join('')}<a href="#st-errors" data-st="errors"><span class="mono">!</span>Errors</a><a href="#st-result" data-st="result"><span class="mono">✓</span>Finish</a></nav>
    <div class="sheet">
      ${skillsFor(t).length?'':'<section class="card"><p class="readout" style="margin:0">No questions yet. Add them in the Questions tab of the Sheet.</p></section>'}
@@ -1577,7 +1576,7 @@ function autosize(n){n.style.height='auto';n.style.height=Math.min(n.scrollHeigh
 function syncSheet(first){
   if(S.view!=='test')return;const raw=view(S.open);if(!raw||raw.deleted){go('roster');return}
   const t={id:S.open,...raw},e=mine(t),sc=scoreOf(e,t),app=$('#app');
-  $('#sName').textContent=t.name;
+  const sn=$('#sName');if(sn&&sn.textContent!==t.name)sn.textContent=t.name;
   app.querySelectorAll('.marks').forEach(g=>{const v=e.marks?.[g.dataset.crit];g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===v));swipeShow(g,v);const a=g.closest('.crit');a.dataset.m=v||'';if(v)a.classList.remove('missing')});
   app.querySelectorAll('[data-note]').forEach(n=>{const v=e.notes?.[n.dataset.note]||'';if(document.activeElement!==n&&n.value!==v){n.value=v}if(v){n.hidden=false;const ab=app.querySelector(`[data-addnote="${n.dataset.note}"]`);if(ab)ab.hidden=true}if(!n.hidden)autosize(n)});
   const sm=$('#summary');if(document.activeElement!==sm&&sm.value!==(e.summary||''))sm.value=e.summary||'';
