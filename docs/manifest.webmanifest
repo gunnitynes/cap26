@@ -1,10 +1,10 @@
 {
-  "name": "Catalyst Operations Test",
+  "name": "Operation Test",
   "short_name": "Ops Test",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#eceff5",
+  "background_color": "#10131c",
   "theme_color": "#0b43e0",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>Catalyst Operations Test</title>
+<title>Operation Test</title>
 <meta name="robots" content="noindex">
 <meta name="description" content="Marking sheet for the Catalyst music studio operations test.">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -912,7 +912,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793537545';
+const BUILD='1793537886';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1269,7 +1269,7 @@ function renderQuestions(){
   app.innerHTML=`<div class="qed">
     <section class="card qintro"><span class="eyebrow">${admin?'Edit questions':'My questions'}</span>
       ${admin?`<div class="field"><label for="qWho">Whose questions</label><select id="qWho">${(Q.teachers||[]).map(n=>`<option value="${esc(n)}"${n.toLowerCase()===String(Q.who||'').toLowerCase()?' selected':''}>${esc(n)}</option>`).join('')}<option value=""${Q.who?'':' selected'}>Shared (students without a teacher)</option></select></div>`:''}
-      <p class="readout" style="margin:0">Saved to the “${esc(Q.tab)}” tab in the Sheet. Phones pick up changes within a minute. Test dates that are already marked keep the questions they had.</p></section>
+      <p class="readout" style="margin:0">Saved to the “${esc(Q.tab)}” tab in the Sheet. Phones pick up changes within a minute.</p></section>
     ${Q.stages.map((st,si)=>{const qs=Q.list.filter(q=>q.stage===st);return `<section class="card qstage" data-stage="${esc(st)}">
       <div class="qst-h"><span class="mono">${String(si+1).padStart(2,'0')}</span><b>${esc(st)}</b><span class="qn">${qs.length} question${qs.length===1?'':'s'}</span></div>
       <input type="text" class="qhead" value="${esc(Q.head[st]||'')}" placeholder="Heading on the page (optional), e.g. ${esc(st)}">
