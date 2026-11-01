@@ -10,6 +10,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Ops Test">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<script>try{var t=JSON.parse(localStorage.getItem('ops.theme'));if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#141824" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
@@ -36,6 +37,7 @@
   --led:#5c8dff; --led-soft:#5c8dff22; --tape:#d8cda4; --tape-ink:#1b1a16;
   --ok:#36c98f; --hint:#f0a43a; --no:#ff6b6b; --ok-soft:#36c98f22; --hint-soft:#f0a43a22; --no-soft:#ff6b6b22; --late:#fb8a4c; --late-soft:#fb8a4c22;
   color-scheme:dark}}
+:root[data-theme="light"]{color-scheme:light}
 :root[data-theme="dark"]{
   --bg:#0b0d13; --panel:#141824; --sunk:#10131c; --ink:#e7eaf2; --mute:#8b93a8; --line:#262c3b;
   --led:#5c8dff; --led-soft:#5c8dff22; --tape:#d8cda4; --tape-ink:#1b1a16;
@@ -58,8 +60,10 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--panel);border-bottom:1px solid var(--line)}
 .bar .wrap{padding-block:10px 0}
 .barrow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:10px;min-height:58px;padding-bottom:10px}
-.bar-l{display:flex;align-items:center;gap:8px;min-width:0}
-.bar-r{display:flex;justify-content:flex-end;min-width:0}
+.barrow{column-gap:0}
+.bar-l{display:flex;align-items:center;gap:8px;min-width:0;padding-right:10px}
+.bar-r{display:flex;align-items:center;justify-content:flex-end;min-width:0}
+.sync-slot{flex:1;display:flex;justify-content:center;min-width:0}
 .brand{align-items:center;justify-content:center;text-align:center}
 .brand .ttl{display:flex;flex-direction:column;align-items:flex-end;text-align:right;font-size:21px;font-weight:800;line-height:1.02;letter-spacing:-.015em;white-space:nowrap}
 .who{position:relative;min-width:0}
@@ -883,7 +887,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793507328';
+const BUILD='1793507622';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -956,7 +960,7 @@ function renderBar(){
   const td=t&&new Date(t.day+'T12:00');
   $('#barInner').innerHTML=`<div class="barrow"><div class="bar-l">${S.view==='test'||S.view==='account'||S.view==='grades'||S.view==='questions'?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
    ${S.me&&nm?`<div class="who"><button class="whobtn" id="whoBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(nm)}: menu"><span class="av" aria-hidden="true">${esc(nm.trim().charAt(0).toUpperCase())}</span><span class="wn">${esc(nm)}</span><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>${whoMenu()}</div>`:''}</div>
-   <div class="brand"><b class="ttl"><span>Operations</span><span>Test</span></b><button class="sync" id="sync" type="button" data-c="ok"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 0 1-13.2 4.9M4.5 12a7.5 7.5 0 0 1 13.2-4.9"/><path d="M18.4 3.6v3.7h-3.7M5.6 20.4v-3.7h3.7"/></svg></button></div><div class="bar-r">
+   <div class="brand"><b class="ttl"><span>Operations</span><span>Test</span></b></div><div class="bar-r"><div class="sync-slot"><button class="sync" id="sync" type="button" data-c="ok"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 0 1-13.2 4.9M4.5 12a7.5 7.5 0 0 1 13.2-4.9"/><path d="M18.4 3.6v3.7h-3.7M5.6 20.4v-3.7h3.7"/></svg></button></div>
    ${S.view==='test'&&t&&timerOf(S.open)?`<button class="tm-pill" data-timer="${S.open}" id="tmPill" type="button" aria-label="Timer"><span class="tm-num">${timerOf(S.open).txt}</span></button>`:''}
    ${S.view==='test'&&t&&!timerOf(S.open)?`<span class="datecard" title="Test date"><small>${td.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase()}</small><b>${td.getDate()}</b><span>${td.toLocaleDateString('en-GB',{month:'short'})}</span></span>`:''}
    ${S.view==='roster'&&(S.ready||S.demo)?(()=>{const sd=new Date(S.day+'T12:00');return `<button class="datecard datebtn" id="dateBtn" type="button" aria-expanded="${!!S.stripOpen}" aria-label="Test date ${fmtDay(S.day)}. Change date"><small>${S.day===today()?'TODAY':sd.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase()}</small><b>${sd.getDate()}</b><span>${sd.toLocaleDateString('en-GB',{month:'short'})}</span></button>`})():''}</div></div>
@@ -982,11 +986,18 @@ function renderBar(){
 /* The teacher menu (the name button, top left): marking style, the account page (teachers, for an admin), sign out last. */
 // buttons every time the app opens; Swipe lasts only until the page is closed or reloaded
 const markStyle=()=>S.style==='swipe'?'swipe':'buttons';
+const themeNow=()=>{const t=ls.get('ops.theme','auto');return t==='light'||t==='dark'?t:'auto'};
+function setTheme(t){ls.set('ops.theme',t);const r=document.documentElement;if(t==='auto')delete r.dataset.theme;else r.dataset.theme=t;
+  // the phone's own bar colour follows too
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m=>{if(!m.dataset.orig)m.dataset.orig=m.content;m.content=t==='auto'?m.dataset.orig:t==='dark'?'#141824':'#ffffff'})}
+if(themeNow()!=='auto')setTheme(themeNow());
 function whoMenu(){const st=markStyle();
   return `<div class="menu" id="whoMenu" role="menu" hidden>
     <div class="menu-h"><b>${esc(S.me)}</b><span>${S.role==='admin'?'Admin':'Teacher'} · signed in</span></div>
     <div class="menu-sec"><span class="menu-l">Questions</span>
       <button class="menu-big" type="button" role="menuitem" data-go="questions">${S.role==='admin'?'Edit questions':'My questions'}<span aria-hidden="true">›</span></button></div>
+    <div class="menu-sec"><span class="menu-l">Appearance</span>
+      <div class="seg" role="group" aria-label="Appearance">${[['auto','Auto'],['light','Light'],['dark','Dark']].map(([k,l])=>`<button type="button" role="menuitemradio" data-theme-pick="${k}" aria-pressed="${themeNow()===k}">${l}</button>`).join('')}</div></div>
     <div class="menu-sec"><span class="menu-l">How you mark</span>
       <div class="seg" role="group" aria-label="How you mark"><button type="button" role="menuitemradio" data-style="buttons" aria-pressed="${st==='buttons'}">Buttons</button><button type="button" role="menuitemradio" data-style="swipe" aria-pressed="${st==='swipe'}">Scale</button></div></div>
     <button class="menu-i danger" type="button" role="menuitem" id="menuOut">Sign out</button>
@@ -996,7 +1007,9 @@ function bindWhoMenu(){
   const show=on=>{m.hidden=!on;b.setAttribute('aria-expanded',on);if(on){document.addEventListener('pointerdown',away,true);document.addEventListener('keydown',esc_)}else{document.removeEventListener('pointerdown',away,true);document.removeEventListener('keydown',esc_)}};
   const away=e=>{if(!e.target.closest('.who'))show(false)},esc_=e=>{if(e.key==='Escape'){show(false);b.focus()}};
   b.onclick=()=>show(m.hidden);
-  m.onclick=e=>{const st=e.target.closest('[data-style]');
+  m.onclick=e=>{const th=e.target.closest('[data-theme-pick]');
+    if(th){setTheme(th.dataset.themePick);m.querySelectorAll('[data-theme-pick]').forEach(x=>x.setAttribute('aria-pressed',x===th));return}
+    const st=e.target.closest('[data-style]');
     if(st){S.style=st.dataset.style;m.querySelectorAll('[data-style]').forEach(x=>x.setAttribute('aria-pressed',x===st));
       if(S.view==='test')renderSheet();toast(st.dataset.style==='swipe'?'Scale marking on':'Button marking on');return}
     const gv=e.target.closest('[data-go]');if(gv){show(false);go(gv.dataset.go);return}
