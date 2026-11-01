@@ -244,11 +244,16 @@ details.guide[open] summary::after{content:"–"}
 .sw-scale i{position:absolute;bottom:7px;transform:translateX(-50%);font-style:normal;font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:.08em;color:#757b87;text-transform:uppercase;white-space:nowrap;transition:color .12s}
 .sw-scale i[data-v="p"]{--k:var(--p)} .sw-scale i[data-v="y"]{--k:var(--y)} .sw-scale i[data-v="h"]{--k:var(--h)} .sw-scale i[data-v="g"]{--k:var(--g)} .sw-scale i[data-v="n"]{--k:var(--n)}
 .sw-scale i.on{color:var(--k)}
-.sw-cap{position:absolute;top:47px;left:calc(var(--x) * 1%);width:30px;height:38px;transform:translate(-50%,-50%);border-radius:4px;pointer-events:none;border:1px solid #0b0c0f;
+.sw-car{position:absolute;inset:0;pointer-events:none;transform:translate3d(calc(var(--x) * 1%),0,0);transition:transform .24s cubic-bezier(.2,.8,.3,1);will-change:transform}
+.sw.drag .sw-car{transition:none}
+.sw.drag.glide .sw-car{transition:transform .12s cubic-bezier(.2,.8,.3,1)}
+.sw-land{position:absolute;top:56px;left:calc(var(--z,50) * 1%);width:15%;height:3px;border-radius:2px;transform:translateX(-50%);background:var(--c);box-shadow:0 0 8px var(--c);opacity:0;pointer-events:none;transition:left .18s cubic-bezier(.2,.8,.3,1),opacity .15s,background .12s}
+.sw:not([data-z=""]) .sw-land{opacity:1}
+.sw-cap{position:absolute;top:47px;left:0;width:30px;height:38px;transform:translate(-50%,-50%);border-radius:4px;pointer-events:none;border:1px solid #0b0c0f;
   background:repeating-linear-gradient(0deg,rgba(0,0,0,.13) 0 1px,transparent 1px 4px),linear-gradient(90deg,#8f959e,#e8eaee 28%,#fbfbfc 50%,#d6d9de 72%,#878d96);
-  box-shadow:0 5px 10px rgba(0,0,0,.55),inset 0 1px 0 #fff;transition:left .2s cubic-bezier(.2,.8,.3,1),opacity .18s,filter .18s;will-change:left}
+  box-shadow:0 5px 10px rgba(0,0,0,.55),inset 0 1px 0 #fff;transition:opacity .18s,filter .18s,box-shadow .15s}
 .sw-cap::before{content:"";position:absolute;left:50%;top:3px;bottom:3px;width:3px;transform:translateX(-50%);border-radius:2px;background:var(--c);box-shadow:0 0 4px var(--c);transition:background .12s}
-.sw.drag .sw-cap{transition:left .03s linear;box-shadow:0 8px 14px rgba(0,0,0,.6),inset 0 1px 0 #fff}
+.sw.drag .sw-cap{box-shadow:0 9px 16px rgba(0,0,0,.6),inset 0 1px 0 #fff}
 .sw[data-v=""]:not(.drag) .sw-cap{opacity:.42;filter:grayscale(1)}
 @media (max-width:380px){.sw-scale i{font-size:7.5px;letter-spacing:.03em}.sw-tip{display:none}}
 .marks button{border:1px solid var(--line);background:var(--sunk);border-radius:9px;padding:10px 2px 9px;font-size:12.5px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:5px;transition:background .12s,border-color .12s}
@@ -843,7 +848,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793502767';
+const BUILD='1793503180';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1329,9 +1334,10 @@ function markBtns(kind,id,opts){
 const SWIPE=['p','y','h','g','n'],SW_AT=[10,30,50,70,90];   // left (green) to right (red), as % along the panel
 function swipeBar(){return `<div class="sw" role="slider" tabindex="0" aria-label="Mark. Double-tap clears" aria-valuemin="0" aria-valuemax="4" aria-valuetext="Not marked" data-v="" data-z="" style="--x:50">
   <span class="sw-lcd" aria-hidden="true"><i></i><b>NOT MARKED</b><em></em></span><span class="sw-tip" aria-hidden="true">double-tap to clear</span>
-  <span class="sw-slot"></span><span class="sw-scale" aria-hidden="true">${SWIPE.map((v,i)=>`<i data-v="${v}" style="left:${SW_AT[i]}%">${MARK[v]}</i>`).join('')}</span><span class="sw-cap"></span></div>`}
+  <span class="sw-slot"></span><span class="sw-scale" aria-hidden="true">${SWIPE.map((v,i)=>`<i data-v="${v}" style="left:${SW_AT[i]}%">${MARK[v]}</i>`).join('')}</span><span class="sw-land"></span><span class="sw-car"><span class="sw-cap"></span></span></div>`}
 // draws the cap at x (0-100) and the mark zone z it is in ('' = none)
 function swipePaint(bar,z,x){bar.style.setProperty('--x',x.toFixed(2));if(bar.dataset.z===z)return;bar.dataset.z=z;
+  if(z)bar.style.setProperty('--z',SW_AT[SWIPE.indexOf(z)]);   // the marker under the scale: where it will land
   bar.querySelector('.sw-lcd b').textContent=z?MARK[z].toUpperCase():'NOT MARKED';bar.querySelector('.sw-lcd em').textContent=z?Math.round(POINTS[z]*100):'';
   bar.querySelectorAll('.sw-scale i').forEach(i=>i.classList.toggle('on',i.dataset.v===z))}
 /* The knob stays exactly where it was let go; the mark is the zone it rests in (five equal zones).
@@ -1347,24 +1353,35 @@ function bindSwipe(app,commit){
   app.querySelectorAll('.marks.swipe').forEach(g=>{
     const bar=g.querySelector('.sw'),id=g.dataset.crit;let d=null,lastTap=0,lastTapX=-1e3;
     const zoneOf=zoneAt;
-    const xOf=e=>Math.max(6,Math.min(94,(e.clientX-d.left)/d.w*100-d.off));
     const keep=x=>{if(x==null)delete swPos[swKey(id)];else swPos[swKey(id)]=Math.round(x*10)/10;ls.set('ops.swpos',swPos)};
     const set=(v,x)=>{keep(v?x:null);bar.dataset.v=v||'';swipeShow(g,v);commit(id,v)};
+    /* While a finger is on it the cap follows exactly, once per frame, with no easing. A touch only becomes a drag
+       once it moves sideways; a mostly vertical move is left to the page, which scrolls. */
+    let raf=0,gt=0;
+    const paint=cx=>{const x=Math.max(6,Math.min(94,(cx-d.left)/d.w*100-d.off)),z=zoneOf(x);if(z!==bar.dataset.z)navigator.vibrate?.(4);swipePaint(bar,z,x)};
+    const start=()=>{d.live=true;bar.classList.add('drag');
+      if(!d.off){bar.classList.add('glide');clearTimeout(gt);gt=setTimeout(()=>bar.classList.remove('glide'),130)}   // a short glide to where the finger landed
+      paint(d.cx)};
     bar.onpointerdown=e=>{if(!canMark()||e.button>0)return;
       const r=bar.getBoundingClientRect(),cur=parseFloat(bar.style.getPropertyValue('--x'))||50,px=(e.clientX-r.left)/r.width*100;
       // on the cap: it moves with the finger from where it was held; anywhere else: it comes to the finger
-      d={left:r.left,w:r.width,from:bar.dataset.v,x0:e.clientX,moved:false,off:Math.abs(px-cur)<6&&bar.dataset.v?px-cur:0};
+      d={left:r.left,w:r.width,from:bar.dataset.v,x0:e.clientX,y0:e.clientY,cx:e.clientX,moved:false,live:false,off:Math.abs(px-cur)<7&&bar.dataset.v?px-cur:0};
       try{bar.setPointerCapture(e.pointerId)}catch(err){}
-      bar.classList.add('drag');const x=xOf(e);swipePaint(bar,zoneOf(x),x)};
-    bar.onpointermove=e=>{if(!d)return;if(Math.abs(e.clientX-d.x0)>5)d.moved=true;
-      const x=xOf(e),z=zoneOf(x);if(z!==bar.dataset.z)navigator.vibrate?.(4);swipePaint(bar,z,x)};
-    bar.onpointerup=e=>{if(!d)return;const z=bar.dataset.z,from=d.from,tap=!d.moved,now=Date.now();d=null;bar.classList.remove('drag');
+      if(e.pointerType==='mouse')start()};
+    bar.onpointermove=e=>{if(!d)return;d.cx=e.clientX;const dx=e.clientX-d.x0,dy=e.clientY-d.y0;
+      if(!d.live){if(Math.abs(dx)<4&&Math.abs(dy)<4)return;
+        if(Math.abs(dy)>Math.abs(dx)){d=null;try{bar.releasePointerCapture(e.pointerId)}catch(err){}return}   // scrolling
+        start()}
+      if(Math.abs(dx)>5)d.moved=true;
+      if(!raf)raf=requestAnimationFrame(()=>{raf=0;if(d&&d.live)paint(d.cx)})};
+    bar.onpointerup=e=>{if(!d)return;d.cx=e.clientX;if(!d.live)start();cancelAnimationFrame(raf);raf=0;paint(e.clientX);
+      const z=bar.dataset.z,from=d.from,tap=!d.moved,now=Date.now();d=null;bar.classList.remove('drag','glide');
       // a second tap in the same place within a moment: back to not marked
       if(tap&&now-lastTap<350&&Math.abs(e.clientX-lastTapX)<40){lastTap=0;if(bar.dataset.v||from)set(null);else swipeShow(g,null);navigator.vibrate?.([6,40,6]);return}
       lastTap=tap?now:0;lastTapX=e.clientX;
       const x=parseFloat(bar.style.getPropertyValue('--x'));
       if(z!==from)set(z,x);else{keep(x);swipeShow(g,z)}};   // stays where it was let go
-    bar.onpointercancel=()=>{if(!d)return;const from=d.from;d=null;bar.classList.remove('drag');swipeShow(g,from)};   // the page scrolled instead
+    bar.onpointercancel=()=>{if(!d)return;const from=d.from;d=null;cancelAnimationFrame(raf);raf=0;bar.classList.remove('drag','glide');swipeShow(g,from)};   // the page scrolled instead
     bar.onkeydown=e=>{const i=SWIPE.indexOf(bar.dataset.v);
       if(e.key==='Backspace'||e.key==='Delete'){e.preventDefault();if(i>=0)set(null);return}
       const k=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;if(!k)return;e.preventDefault();
