@@ -60,8 +60,8 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .barrow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:10px;min-height:46px;padding-bottom:10px}
 .bar-l{display:flex;align-items:center;gap:8px;min-width:0}
 .bar-r{display:flex;justify-content:flex-end;min-width:0}
-.brand{align-items:center;text-align:center}
-.brand b{max-width:min(46vw,340px)}
+.brand{align-items:center;justify-content:center;text-align:center}
+.brand b{max-width:min(42vw,320px)}
 .who{position:relative;min-width:0}
 .whobtn{display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 10px 0 4px;border:1px solid var(--line);background:var(--sunk);color:var(--ink);border-radius:999px;font:inherit;font-weight:700;font-size:14px;max-width:100%}
 .whobtn .av{flex:none;width:34px;height:34px;border-radius:50%;background:var(--led);color:#fff;display:grid;place-items:center;font-size:15px;font-weight:800}
@@ -76,12 +76,14 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .menu-h b{font-size:16px}.menu-h span{font-size:12px;color:var(--mute)}
 .menu-sec{display:flex;flex-direction:column;gap:6px;padding:8px 12px 10px;border-bottom:1px solid var(--line)}
 .menu-l{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
-.menu-note{font-size:12px;color:var(--mute);line-height:1.35}
+.menu-big{display:flex;align-items:center;justify-content:space-between;width:100%;border:1px solid var(--line);background:var(--sunk);color:var(--ink);border-radius:10px;padding:10px 12px;font:inherit;font-weight:700;font-size:14px}
+.menu-big span{color:var(--mute);font-size:18px;line-height:1}
+.menu-big:hover{border-color:var(--led)}
 .menu-i{border:0;background:transparent;text-align:left;padding:12px;border-radius:9px;font:inherit;font-weight:600;font-size:15px;color:var(--ink)}
 .menu-i:hover{background:var(--sunk)}
 .menu-i.danger{color:var(--no);border-top:1px solid var(--line);border-radius:0 0 9px 9px;margin-top:4px}
 .brand b{text-wrap:balance}
-.brand{display:flex;flex-direction:column;min-width:0;flex:1}
+.brand{display:flex;flex-direction:row;gap:8px;min-width:0;flex:1}
 .brand .eyebrow{display:flex;gap:8px;align-items:center;white-space:nowrap;overflow:hidden}
 .brand b{font-weight:800;font-size:16px;letter-spacing:-.01em;line-height:1.2}
 .sync{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;color:var(--mute);white-space:nowrap}
@@ -565,7 +567,7 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;font-weight:600;z-index:20;max-width:calc(100% - 32px)}
 .export{margin-top:10px;font-family:var(--mono);font-size:11px;min-height:120px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
-@media (max-width:520px){.sync:not([data-s="err"]) span{display:none}}
+.sync:not([data-s="err"]) span{display:none}
 @media (max-width:380px){.summary{grid-template-columns:repeat(2,1fr)}.marks button{font-size:11px;letter-spacing:-.01em}}
 *,::before,::after{box-sizing:border-box}
 body{margin:0;font-size:15px}
@@ -838,7 +840,7 @@ function showDone(t,wasEnded){
 }
 function doneSync(){const d=$('#doneSync');if(!d)return;d.dataset.s=S.sync;
   d.textContent=S.sync==='ok'?'✓ Saved in the Google Sheet':S.sync==='err'?'Kept on this phone. It goes to the Sheet as soon as there is internet.':'Sending to the Google Sheet…'}
-function setSync(s){S.sync=s;doneSync();const el=$('#sync');if(!el)return;el.dataset.s=s;el.querySelector('span').textContent=s==='ok'?(S.demo?'Preview only':'Saved in Sheet'):s==='busy'?'Sending…':s==='local'?'Kept on this phone':'Not sent yet, retrying'}
+function setSync(s){S.sync=s;doneSync();const el=$('#sync');if(!el)return;el.dataset.s=s;el.title={ok:S.demo?'Preview only':'Saved in the Sheet',busy:'Sending to the Sheet',local:'Kept on this phone',err:'Not sent yet, retrying'}[s]||'';el.querySelector('span').textContent=s==='ok'?(S.demo?'Preview only':'Saved in Sheet'):s==='busy'?'Sending…':s==='local'?'Kept on this phone':'Not sent yet, retrying'}
 addEventListener('online',()=>flushSoon(10));
 // a tab closed with marks still waiting gets a warning
 addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDefault();e.returnValue=''}});
@@ -848,7 +850,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793503180';
+const BUILD='1793503361';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -950,11 +952,10 @@ const markStyle=()=>S.style==='swipe'?'swipe':'buttons';
 function whoMenu(){const st=markStyle();
   return `<div class="menu" id="whoMenu" role="menu" hidden>
     <div class="menu-h"><b>${esc(S.me)}</b><span>${S.role==='admin'?'Admin':'Teacher'} · signed in</span></div>
+    <div class="menu-sec"><span class="menu-l">Questions</span>
+      <button class="menu-big" type="button" role="menuitem" data-go="questions">${S.role==='admin'?'Edit questions':'My questions'}<span aria-hidden="true">›</span></button></div>
     <div class="menu-sec"><span class="menu-l">How you mark</span>
-      <div class="seg" role="group" aria-label="How you mark"><button type="button" role="menuitemradio" data-style="buttons" aria-pressed="${st==='buttons'}">Buttons</button><button type="button" role="menuitemradio" data-style="swipe" aria-pressed="${st==='swipe'}">Scale</button></div>
-      <span class="menu-note">Scale: one fader per question. Slide anywhere; the zone it rests in is the mark. Double-tap clears. Same five marks. Back to buttons next time the app opens.</span></div>
-    <button class="menu-i" type="button" role="menuitem" data-go="questions">${S.role==='admin'?'Edit questions':'My questions'}</button>
-    <button class="menu-i" type="button" role="menuitem" data-go="account">${S.role==='admin'?'Teachers & account':'Account'}</button>
+      <div class="seg" role="group" aria-label="How you mark"><button type="button" role="menuitemradio" data-style="buttons" aria-pressed="${st==='buttons'}">Buttons</button><button type="button" role="menuitemradio" data-style="swipe" aria-pressed="${st==='swipe'}">Scale</button></div></div>
     <button class="menu-i danger" type="button" role="menuitem" id="menuOut">Sign out</button>
   </div>`}
 function bindWhoMenu(){
