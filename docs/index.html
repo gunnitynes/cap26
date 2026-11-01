@@ -60,7 +60,7 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--panel);border-bottom:1px solid var(--line)}
 .bar .wrap{padding-block:10px 0}
 .barrow{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:10px;min-height:58px;padding-bottom:10px}
-.barrow{column-gap:0}
+.barrow{column-gap:0;grid-template-columns:minmax(max-content,1fr) auto minmax(0,1.4fr)}   /* more room right of the title for the sync button */
 .bar-l{display:flex;align-items:center;gap:8px;min-width:0;padding-right:10px}
 .bar-r{display:flex;align-items:center;justify-content:flex-end;min-width:0}
 .sync-slot{flex:1;display:flex;justify-content:center;min-width:0}
@@ -887,7 +887,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793507622';
+const BUILD='1793507833';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
