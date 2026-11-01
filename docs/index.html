@@ -488,7 +488,9 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .timer.over .tm-num,.timer.over .tm-label{color:var(--no)}
 .tm-btns{display:flex;gap:8px}.tm-btns button{min-width:84px}
 .tm-pill{flex:none;border:1px solid var(--led);background:var(--led-soft);color:var(--led);border-radius:12px;height:40px;min-width:76px;padding:0 10px;font-family:var(--mono);font-weight:700;font-size:18px;font-variant-numeric:tabular-nums}
-.brand .sname{max-width:min(36vw,260px);overflow:hidden;text-overflow:ellipsis}
+/* the student's name in the header: the yellow tape label, small, up to two lines for long names */
+.brand .sname{display:block;max-width:min(34vw,240px);background:var(--tape);color:var(--tape-ink);font-family:var(--mono);font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:12px;line-height:1.2;padding:5px 9px;border-radius:2px;transform:rotate(-1deg);box-shadow:0 1px 0 #0000001f;text-align:center}
+.brand .sname span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
 .tm-start{flex:none;display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 10px 0 8px;border:1px solid var(--led);background:var(--led-soft);color:var(--led);border-radius:12px;font:inherit;font-weight:700;white-space:nowrap}
 .tm-start svg{width:16px;height:16px;fill:currentColor}
 .tm-start .tm-num{font-family:var(--mono);font-size:16px;color:var(--ink)}
@@ -905,7 +907,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793534351';
+const BUILD='1793534956';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -978,7 +980,7 @@ function renderBar(){
   const nm=S.view==='login'?'':S.me;
   $('#barInner').innerHTML=`<div class="barrow"><div class="bar-l">${S.view==='test'||S.view==='account'||S.view==='grades'||S.view==='questions'||S.view==='add'?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
    ${S.me&&nm?`<div class="who"><button class="whobtn" id="whoBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(nm)}: menu"><span class="av" aria-hidden="true">${esc(nm.trim().charAt(0).toUpperCase())}</span><span class="wn">${esc(nm)}</span><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>${whoMenu()}</div>`:''}</div>
-   <div class="brand">${S.view==='test'&&t?`<b class="ttl sname" id="sName">${esc(t.name)}</b>`:'<b class="ttl">Operations Test</b>'}</div><div class="bar-r">
+   <div class="brand">${S.view==='test'&&t?`<b class="sname"><span id="sName">${esc(t.name)}</span></b>`:'<b class="ttl">Operations Test</b>'}</div><div class="bar-r">
    ${S.view==='test'&&t&&timerOf(S.open)?`<button class="tm-pill" data-timer="${S.open}" id="tmPill" type="button" aria-label="Timer running. Tap twice to reset"><span class="tm-num">${timerOf(S.open).txt}</span></button>`:''}
    ${S.view==='test'&&t&&!timerOf(S.open)?`<button class="tm-start" id="tmStart" type="button" aria-label="Start the 10-minute timer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg><span class="tm-num">10:00</span></button>`:''}
    ${S.view==='roster'&&(S.ready||S.demo)?(()=>{const sd=new Date(S.day+'T12:00');return `<button class="datecard datebtn" id="dateBtn" type="button" aria-expanded="${!!S.stripOpen}" aria-label="Test date ${fmtDay(S.day)}. Change date"><small>${S.day===today()?'TODAY':sd.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase()}</small><b>${sd.getDate()}</b><span>${sd.toLocaleDateString('en-GB',{month:'short'})}</span></button>`})():''}</div></div>
