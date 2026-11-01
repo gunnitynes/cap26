@@ -246,9 +246,9 @@ details.guide[open] summary::after{content:"–"}
 .sw-scale i.on{color:var(--k)}
 .sw-cap{position:absolute;top:47px;left:calc(var(--x) * 1%);width:30px;height:38px;transform:translate(-50%,-50%);border-radius:4px;pointer-events:none;border:1px solid #0b0c0f;
   background:repeating-linear-gradient(0deg,rgba(0,0,0,.13) 0 1px,transparent 1px 4px),linear-gradient(90deg,#8f959e,#e8eaee 28%,#fbfbfc 50%,#d6d9de 72%,#878d96);
-  box-shadow:0 5px 10px rgba(0,0,0,.55),inset 0 1px 0 #fff;transition:left .26s cubic-bezier(.25,1.4,.5,1),opacity .18s,filter .18s;will-change:left}
+  box-shadow:0 5px 10px rgba(0,0,0,.55),inset 0 1px 0 #fff;transition:left .2s cubic-bezier(.2,.8,.3,1),opacity .18s,filter .18s;will-change:left}
 .sw-cap::before{content:"";position:absolute;left:50%;top:3px;bottom:3px;width:3px;transform:translateX(-50%);border-radius:2px;background:var(--c);box-shadow:0 0 4px var(--c);transition:background .12s}
-.sw.drag .sw-cap{transition:left .05s linear;box-shadow:0 8px 14px rgba(0,0,0,.6),inset 0 1px 0 #fff}
+.sw.drag .sw-cap{transition:left .03s linear;box-shadow:0 8px 14px rgba(0,0,0,.6),inset 0 1px 0 #fff}
 .sw[data-v=""]:not(.drag) .sw-cap{opacity:.42;filter:grayscale(1)}
 @media (max-width:380px){.sw-scale i{font-size:7.5px;letter-spacing:.03em}.sw-tip{display:none}}
 .marks button{border:1px solid var(--line);background:var(--sunk);border-radius:9px;padding:10px 2px 9px;font-size:12.5px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:5px;transition:background .12s,border-color .12s}
@@ -828,7 +828,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793502093';
+const BUILD='1793502455';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -932,7 +932,7 @@ function whoMenu(){const st=markStyle();
     <div class="menu-h"><b>${esc(S.me)}</b><span>${S.role==='admin'?'Admin':'Teacher'} · signed in</span></div>
     <div class="menu-sec"><span class="menu-l">How you mark</span>
       <div class="seg" role="group" aria-label="How you mark"><button type="button" role="menuitemradio" data-style="buttons" aria-pressed="${st==='buttons'}">Buttons</button><button type="button" role="menuitemradio" data-style="swipe" aria-pressed="${st==='swipe'}">Scale</button></div>
-      <span class="menu-note">Scale: one fader per question; double-tap a fader to clear it. Same five marks. Back to buttons next time the app opens.</span></div>
+      <span class="menu-note">Scale: one fader per question. Slide anywhere; the zone it rests in is the mark. Double-tap clears. Same five marks. Back to buttons next time the app opens.</span></div>
     <button class="menu-i" type="button" role="menuitem" data-go="account">${S.role==='admin'?'Teachers & account':'Account'}</button>
     <button class="menu-i danger" type="button" role="menuitem" id="menuOut">Sign out</button>
   </div>`}
@@ -1235,16 +1235,22 @@ function swipeBar(){return `<div class="sw" role="slider" tabindex="0" aria-labe
 function swipePaint(bar,z,x){bar.style.setProperty('--x',x.toFixed(2));if(bar.dataset.z===z)return;bar.dataset.z=z;
   bar.querySelector('.sw-lcd b').textContent=z?MARK[z].toUpperCase():'NOT MARKED';bar.querySelector('.sw-lcd em').textContent=z?Math.round(POINTS[z]*100):'';
   bar.querySelectorAll('.sw-scale i').forEach(i=>i.classList.toggle('on',i.dataset.v===z))}
+/* The knob stays exactly where it was let go; the mark is the zone it rests in (five equal zones).
+   That spot is remembered on this phone only, so the saved mark stays one of the same five. */
+const swPos=ls.get('ops.swpos',{}),swKey=(id)=>S.open+'|'+id;
+const zoneAt=x=>SWIPE[Math.max(0,Math.min(4,Math.round((x-10)/20)))];
 // shows a saved mark (or none: the cap rests dim in the middle); left alone while a finger is on it
 function swipeShow(g,v){const bar=g.querySelector('.sw');if(!bar||bar.classList.contains('drag'))return;const i=SWIPE.indexOf(v);
-  bar.dataset.v=i<0?'':v;swipePaint(bar,i<0?'':v,i<0?50:SW_AT[i]);
+  const kept=swPos[swKey(g.dataset.crit)],x=i<0?50:kept!=null&&zoneAt(kept)===v?kept:SW_AT[i];
+  bar.dataset.v=i<0?'':v;swipePaint(bar,i<0?'':v,x);
   bar.setAttribute('aria-valuenow',i<0?'':i);bar.setAttribute('aria-valuetext',i<0?'Not marked':MARK[v])}
 function bindSwipe(app,commit){
   app.querySelectorAll('.marks.swipe').forEach(g=>{
     const bar=g.querySelector('.sw'),id=g.dataset.crit;let d=null,lastTap=0,lastTapX=-1e3;
-    const zoneOf=x=>SWIPE[Math.max(0,Math.min(4,Math.round((x-10)/20)))];
+    const zoneOf=zoneAt;
     const xOf=e=>Math.max(6,Math.min(94,(e.clientX-d.left)/d.w*100-d.off));
-    const set=v=>{bar.dataset.v=v||'';swipeShow(g,v);commit(id,v)};
+    const keep=x=>{if(x==null)delete swPos[swKey(id)];else swPos[swKey(id)]=Math.round(x*10)/10;ls.set('ops.swpos',swPos)};
+    const set=(v,x)=>{keep(v?x:null);bar.dataset.v=v||'';swipeShow(g,v);commit(id,v)};
     bar.onpointerdown=e=>{if(!canMark()||e.button>0)return;
       const r=bar.getBoundingClientRect(),cur=parseFloat(bar.style.getPropertyValue('--x'))||50,px=(e.clientX-r.left)/r.width*100;
       // on the cap: it moves with the finger from where it was held; anywhere else: it comes to the finger
@@ -1257,12 +1263,13 @@ function bindSwipe(app,commit){
       // a second tap in the same place within a moment: back to not marked
       if(tap&&now-lastTap<350&&Math.abs(e.clientX-lastTapX)<40){lastTap=0;if(bar.dataset.v||from)set(null);else swipeShow(g,null);navigator.vibrate?.([6,40,6]);return}
       lastTap=tap?now:0;lastTapX=e.clientX;
-      if(z!==from)set(z);else swipeShow(g,z)};   // glides to the mark's own spot
+      const x=parseFloat(bar.style.getPropertyValue('--x'));
+      if(z!==from)set(z,x);else{keep(x);swipeShow(g,z)}};   // stays where it was let go
     bar.onpointercancel=()=>{if(!d)return;const from=d.from;d=null;bar.classList.remove('drag');swipeShow(g,from)};   // the page scrolled instead
     bar.onkeydown=e=>{const i=SWIPE.indexOf(bar.dataset.v);
       if(e.key==='Backspace'||e.key==='Delete'){e.preventDefault();if(i>=0)set(null);return}
       const k=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;if(!k)return;e.preventDefault();
-      set(SWIPE[i<0?2:Math.max(0,Math.min(4,i+k))])};
+      const v=SWIPE[i<0?2:Math.max(0,Math.min(4,i+k))];set(v,SW_AT[SWIPE.indexOf(v)])};
   })}
 function renderSheet(){
   const t={id:S.open,...view(S.open)};
