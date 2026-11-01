@@ -487,7 +487,12 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .timer.over{border-color:var(--no);background:linear-gradient(135deg,var(--no-soft),transparent 70%),var(--panel)}
 .timer.over .tm-num,.timer.over .tm-label{color:var(--no)}
 .tm-btns{display:flex;gap:8px}.tm-btns button{min-width:84px}
-.tm-pill{flex:none;border:1px solid var(--led);background:var(--led-soft);color:var(--led);border-radius:12px;height:46px;min-width:76px;padding:0 10px;font-family:var(--mono);font-weight:700;font-size:18px;font-variant-numeric:tabular-nums}
+.tm-pill{flex:none;border:1px solid var(--led);background:var(--led-soft);color:var(--led);border-radius:12px;height:40px;min-width:76px;padding:0 10px;font-family:var(--mono);font-weight:700;font-size:18px;font-variant-numeric:tabular-nums}
+.tm-start{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 14px 0 10px;border:1px solid var(--led);background:var(--led-soft);color:var(--led);border-radius:999px;font:inherit;font-weight:700;white-space:nowrap}
+.tm-start svg{width:16px;height:16px;fill:currentColor}
+.tm-start .tm-num{font-family:var(--mono);font-size:16px;color:var(--ink)}
+.tm-start .tm-go{font-size:14px}
+.tm-pill[data-arm="1"]{border-color:var(--hint);background:var(--hint-soft);color:var(--hint)}
 .tm-pill.over{border-color:var(--no);background:var(--no-soft);color:var(--no)}
 .tm-mini{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--led);background:var(--led-soft);border-radius:5px;padding:1px 5px;margin-left:4px;vertical-align:2px}
 .tm-mini.over{color:var(--no);background:var(--no-soft)}
@@ -899,7 +904,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793533406';
+const BUILD='1793533765';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -966,21 +971,26 @@ function bindDhead(setDay){
   $('#monthBtn')?.addEventListener('click',()=>{S.all=!S.all;S.cal=null;$('#dhead').innerHTML=dhead();bindDhead(setDay);render();if(S.all)scrollTo({top:0,behavior:'smooth'})});
 }
 function stripCounts(byDay){document.querySelectorAll('.dcell').forEach(c=>{const n=(byDay[c.dataset.d]||[]).length;if(n){c.dataset.n=n;c.querySelector('.c').textContent=n}else{delete c.dataset.n;c.querySelector('.c').textContent=''}})}
+let tmArmT=0;
 function renderBar(){
   const t=S.view==='test'&&view(S.open);
   const nm=S.view==='login'?'':S.me;
   const td=t&&new Date(t.day+'T12:00');
   $('#barInner').innerHTML=`<div class="barrow"><div class="bar-l">${S.view==='test'||S.view==='account'||S.view==='grades'||S.view==='questions'||S.view==='add'?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
    ${S.me&&nm?`<div class="who"><button class="whobtn" id="whoBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(nm)}: menu"><span class="av" aria-hidden="true">${esc(nm.trim().charAt(0).toUpperCase())}</span><span class="wn">${esc(nm)}</span><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>${whoMenu()}</div>`:''}</div>
-   <div class="brand"><b class="ttl">Operations Test</b></div><div class="bar-r">
-   ${S.view==='test'&&t&&timerOf(S.open)?`<button class="tm-pill" data-timer="${S.open}" id="tmPill" type="button" aria-label="Timer"><span class="tm-num">${timerOf(S.open).txt}</span></button>`:''}
+   <div class="brand">${S.view==='test'&&t&&!timerOf(S.open)?`<button class="tm-start" id="tmStart" type="button" aria-label="Start the 10-minute timer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg><span class="tm-num">10:00</span><span class="tm-go">Start</span></button>`:'<b class="ttl">Operations Test</b>'}</div><div class="bar-r">
+   ${S.view==='test'&&t&&timerOf(S.open)?`<button class="tm-pill" data-timer="${S.open}" id="tmPill" type="button" aria-label="Timer running. Tap twice to reset"><span class="tm-num">${timerOf(S.open).txt}</span></button>`:''}
    ${S.view==='test'&&t&&!timerOf(S.open)?`<span class="datecard" title="Test date"><small>${td.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase()}</small><b>${td.getDate()}</b><span>${td.toLocaleDateString('en-GB',{month:'short'})}</span></span>`:''}
    ${S.view==='roster'&&(S.ready||S.demo)?(()=>{const sd=new Date(S.day+'T12:00');return `<button class="datecard datebtn" id="dateBtn" type="button" aria-expanded="${!!S.stripOpen}" aria-label="Test date ${fmtDay(S.day)}. Change date"><small>${S.day===today()?'TODAY':sd.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase()}</small><b>${sd.getDate()}</b><span>${sd.toLocaleDateString('en-GB',{month:'short'})}</span></button>`})():''}</div></div>
    ${S.view==='roster'&&(S.ready||S.demo)&&S.stripOpen?`<div class="stripwrap">${dateStrip()}</div>`:''}`;
   document.querySelector('.bar').hidden=S.view==='login';
   setSync(S.sync);
   $('#back')?.addEventListener('click',()=>go('roster'));
-  $('#tmPill')?.addEventListener('click',()=>scrollTo({top:0,behavior:'smooth'}));
+  // the timer lives in the header: Start where the title is; running, it sits where the date is; two taps on it reset it
+  $('#tmStart')?.addEventListener('click',()=>{audioOn();setTimer(S.open,true);buzzed.delete(S.open);renderBar();tick();navigator.vibrate?.(15)});
+  $('#tmPill')?.addEventListener('click',e=>{const p=e.currentTarget;
+    if(p.dataset.arm!=='1'){p.dataset.arm='1';p.querySelector('.tm-num').textContent='Reset?';clearTimeout(tmArmT);tmArmT=setTimeout(()=>{if(p.isConnected){p.dataset.arm='';tick()}},3000);return}
+    setTimer(S.open,false);renderBar();toast('Timer reset')});
   bindWhoMenu();
   // picking a day closes the week strip again
   const setDay=d=>{if(!d)return;S.day=d;S.cal=null;S.all=false;S.stripOpen=false;ls.set('ops.day',d);renderBar();render()};
@@ -1467,10 +1477,6 @@ function renderSheet(){
   const t={id:S.open,...view(S.open)};
   $('#app').innerHTML=`
    <div class="strip"><span class="scribble" id="sName">${esc(t.name)}</span></div>
-   <section class="timer" data-timer="${t.id}" aria-label="Timer">
-     <div class="tm-read"><span class="tm-label eyebrow">Timer</span><span class="tm-num">10:00</span></div>
-     <div class="tm-btns"><button class="primary" id="tmStart" type="button">Start</button><button class="ghost" id="tmReset" type="button">Reset</button></div>
-   </section>
    <nav class="stagenav" id="stageNav">${stagesFor(t).map((s,i)=>`<a href="#st-${s.id}" data-st="${s.id}"><span class="mono">${i+1}</span>${esc(s.short)}<i class="dot"></i></a>`).join('')}<a href="#st-errors" data-st="errors"><span class="mono">!</span>Errors</a><a href="#st-result" data-st="result"><span class="mono">✓</span>Finish</a></nav>
    <div class="sheet">
      ${skillsFor(t).length?'':'<section class="card"><p class="readout" style="margin:0">No questions yet. Add them in the Questions tab of the Sheet.</p></section>'}
@@ -1560,11 +1566,7 @@ function renderSheet(){
     app.querySelectorAll('[data-note]').forEach(n=>{n.value='';n.hidden=true;const ab=app.querySelector(`[data-addnote="${n.dataset.note}"]`);if(ab)ab.hidden=false});
     toast('Test reset');scrollTo({top:0,behavior:'smooth'})};
   app.querySelectorAll('.stagenav a').forEach(a=>a.onclick=e=>{e.preventDefault();if(a.dataset.st==='errors')$('#errBox').open=true;document.getElementById(a.getAttribute('href').slice(1))?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'})});
-  const syncTimer=()=>{const on=!!timerOf(S.open);$('#tmStart').hidden=on;$('#tmReset').hidden=!on;$('#tmReset').textContent='Reset';tick()};
-  $('#tmStart').onclick=()=>{audioOn();setTimer(S.open,true);buzzed.delete(S.open);syncTimer();renderBar();navigator.vibrate?.(15)};
-  let tmArm=0;$('#tmReset').onclick=()=>{if(Date.now()-tmArm>3000){tmArm=Date.now();$('#tmReset').textContent='Tap again to reset';return}
-    setTimer(S.open,false);syncTimer();renderBar()};
-  syncTimer();
+  tick();
   S.sheetSig=sheetSig(t);
   syncSheet(true);
 }
@@ -1609,7 +1611,7 @@ const buzzed=new Set();
 function tick(){
   document.querySelectorAll('[data-timer]').forEach(el=>{const v=timerOf(el.dataset.timer);
     el.classList.toggle('run',!!v);el.classList.toggle('over',!!(v&&v.over));
-    const n=el.querySelector('.tm-num');if(n)n.textContent=v?v.txt:'10:00';
+    const n=el.querySelector('.tm-num');if(n&&el.dataset.arm!=='1')n.textContent=v?v.txt:'10:00';
     const l=el.querySelector('.tm-label');if(l)l.textContent=!v?'Timer':v.over?'Over time':'Time left'});
   // a soft chime and a buzz when a running timer reaches zero
   for(const [sid] of Object.entries(timers())){const v=timerOf(sid);if(v&&v.left<=0&&v.left>-3&&!buzzed.has(sid)){buzzed.add(sid);chime();navigator.vibrate?.([220,120,220]);
