@@ -743,4 +743,42 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   ok('signing in can bring the students and questions with it, so the list shows without a second call');
 }
 
+// 24. Editing questions on the page: own tab only, IDs kept through rewording and moving, conflicts refused.
+{
+  const { g, book } = loadScript();
+  g.setup();
+  const ss = g.SpreadsheetApp.getActive(), te = ss.getSheetByName('Teachers');
+  te.getRange(2, 1, 2, 2).setValues([['Gunni', 'admin'], ['Isuru', 'teacher']]); g.onEdit({ range: te.getRange(2, 1, 2, 2) });
+  g.setTeamPassword_('team-pass-1');
+  const it = raw(g, { action: 'login', name: 'Isuru', password: 'team-pass-1' }).token, gt = raw(g, { action: 'login', name: 'Gunni', password: 'team-pass-1', pin: '' }).token;
+  const mq = raw(g, { action: 'myQuestions', token: it });
+  assert.equal(mq.tab, 'Questions · Isuru'); assert.equal(mq.questions.length, 18); assert.ok(mq.v && mq.stages.includes('Cue'));
+  assert.equal(raw(g, { action: 'myQuestions', token: it, teacher: 'Gunni' }).tab, 'Questions · Isuru');   // a teacher only ever gets their own
+  ok('a teacher loads their own questions tab (asking for someone else\'s still gives their own)');
+  const qs = mq.questions.map(q => Object.assign({}, q));
+  const p1 = qs.find(q => q.id === 'p1'), c4 = qs.find(q => q.id === 'c4');
+  p1.t = 'Switches the studio on in a completely safe and sensible sequence';   // reworded beyond recognition
+  qs.splice(qs.indexOf(c4), 1);                                                 // deleted
+  const m4 = qs.splice(qs.findIndex(q => q.id === 'm4'), 1)[0]; qs.splice(qs.findIndex(q => q.id === 'm1'), 0, m4);   // moved up
+  qs.push({ id: '', stage: 'Cue', heading: '', t: 'Sets a talkback level', ask: '', studio: 'K3', label: 'Talkback' });
+  const sv = raw(g, { action: 'saveQuestions', token: it, v: mq.v, questions: qs });
+  assert.ok(sv.ok, sv.error);
+  const ids = sv.questions.map(q => q.id);
+  assert.ok(ids.includes('p1') && !ids.includes('c4') && ids.indexOf('m4') < ids.indexOf('m1'));
+  assert.equal(sv.questions.find(q => q.id === 'p1').t, 'Switches the studio on in a completely safe and sensible sequence');
+  const tb = sv.questions.find(q => q.t === 'Sets a talkback level');
+  assert.ok(tb && tb.id && tb.id !== '' && tb.studio === 'K3' && tb.label === 'Talkback');
+  ok('saving keeps IDs through rewording and moving, drops a deleted question and gives a new one its own ID');
+  const st = call(g, { action: 'state', token: it });
+  assert.ok(st.questions.some(q => q.id === 'p1' && /completely safe/.test(q.t)) && !st.questions.some(q => q.id === 'c4'));
+  ok('phones get the edited questions on their next refresh');
+  assert.equal(raw(g, { action: 'saveQuestions', token: it, v: mq.v, questions: qs }).code, 'changed');
+  ok('a save based on an older version is refused instead of overwriting');
+  const gq = raw(g, { action: 'myQuestions', token: gt, teacher: 'Isuru' });
+  assert.equal(gq.tab, 'Questions · Isuru'); assert.ok(Array.isArray(gq.teachers));
+  assert.equal(raw(g, { action: 'myQuestions', token: gt, teacher: '' }).tab, 'Questions');
+  assert.equal(g.questions_('Gunni').find(q => q.id === 'p1').t, 'Powers up in the right order');
+  ok('an admin can open any teacher\'s tab or the shared one; other tabs are untouched');
+}
+
 console.log(`\n${n} checks passed`);

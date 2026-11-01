@@ -771,6 +771,8 @@ function route_(req) {
   switch (a) {
     case 'state':          return stateCached_(me, req.h);   // only reads, so the page opens quickly
     case 'batch':          return withLock_(() => batch_(me, req));   // a whole test (or several) in one call
+    case 'myQuestions':    return myQuestions_(me, req);
+    case 'saveQuestions':  return withLock_(() => saveQuestions_(me, req));
     case 'tidy':           return withLock_(() => { ensureStudentIds_(); ensureTeacherQuestionTabs_(); ensureQuestionIds_(); syncMarks_(); maybeBuildGrades_(); return { ok: true }; });
     case 'addStudents':    return withLock_(() => addStudents_(me, req));
     case 'updateStudent':  return withLock_(() => updateStudent_(me, req));
@@ -959,6 +961,64 @@ function stateCached_(me, have) {
   if (have && have === hit.h) return { ok: true, same: true, h: hit.h };
   const out = JSON.parse(hit.body); out.h = hit.h; return out;
 }
+/* Editing questions on the page: a teacher edits their own tab ("Questions · name"); an admin any teacher's, or the
+   shared tab (teacher ''). The page gets the rows in tab order plus a version, and saving sends the whole list back.
+   A save is refused if the tab changed in the Sheet in between, so nobody overwrites someone else's edit unseen.
+   Questions keep their IDs (the registry is told the new wording first), so marks stay attached however much they change. */
+function questionTabFor_(me, req) {
+  const who = me.role === 'admin' && req.teacher !== undefined ? String(req.teacher || '') : me.name;
+  if (who && !teachers_().some(t => norm_(t.name) === norm_(who))) return { error: 'That teacher is not in the Teachers tab.' };
+  if (who) ensureTeacherQuestionTabs_();
+  const sh = SpreadsheetApp.getActive().getSheetByName(who ? teacherTabName_(teachers_().find(t => norm_(t.name) === norm_(who)).name) : SHEETS.QUESTIONS.name);
+  return sh ? { sh, who } : { error: 'That questions tab is missing. Run setup once.' };
+}
+function questionRows_(sh) {
+  let stage = '';
+  return rowsStd_(sh).map(r => {
+    if (clean_(r[Q_.STAGE], 40)) stage = stageName_(clean_(r[Q_.STAGE], 40));
+    return { id: clean_(r[Q_.ID], 40), stage, heading: clean_(r[Q_.HEADING], 80), t: String(r[Q_.TEXT] || '').trim().slice(0, 300),
+      ask: String(r[Q_.ASK] || '').trim().slice(0, 300), studio: studioWord_(r[Q_.STUDIO]), label: clean_(r[Q_.LABEL], 40) };
+  }).filter(q => q.t);
+}
+function studioWord_(v) { const s = studios_(v); return s ? s.join(', ') : 'Both'; }
+function questionsVersion_(rows) { return Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify(rows), Utilities.Charset.UTF_8)).slice(0, 16); }
+function myQuestions_(me, req) {
+  const o = questionTabFor_(me, req); if (o.error) return { ok: false, error: o.error };
+  const rows = questionRows_(o.sh);
+  return { ok: true, teacher: o.who, tab: o.sh.getName(), stages: stages_(), questions: rows, v: questionsVersion_(rows),
+    teachers: me.role === 'admin' ? teachers_().map(t => t.name) : null };
+}
+function saveQuestions_(me, req) {
+  const o = questionTabFor_(me, req); if (o.error) return { ok: false, error: o.error };
+  const sh = o.sh;
+  normalizeQuestionTab_(sh);
+  if (req.v && req.v !== questionsVersion_(questionRows_(sh)))
+    return { ok: false, code: 'changed', error: 'These questions were changed in the Sheet while you were editing. Your edits are not saved yet: load the new version first.' };
+  const list = (Array.isArray(req.questions) ? req.questions : []).slice(0, 120).map(q => ({
+    id: clean_(q.id, 40), stage: stageName_(clean_(q.stage, 40)), heading: clean_(q.heading, 80), t: String(q.t || '').replace(/\s+/g, ' ').trim().slice(0, 300),
+    ask: String(q.ask || '').replace(/\s+/g, ' ').trim().slice(0, 300), studio: studioWord_(q.studio), label: clean_(q.label, 40) })).filter(q => q.t);
+  if (!list.length) return { ok: false, error: 'Keep at least one question.' };
+  if (list.some(q => !q.stage)) return { ok: false, error: 'Every question needs a stage.' };
+  // the registry learns each kept question's new wording, so the ID check below keeps every ID where the page put it
+  const props = PropertiesService.getScriptProperties(), key = 'qreg_' + sh.getName(), lkey = 'qlab_' + sh.getName();
+  let reg = {}, labs = {}; try { reg = JSON.parse(props.getProperty(key) || '{}'); labs = JSON.parse(props.getProperty(lkey) || '{}'); } catch (e) {}
+  const seen = {};
+  list.forEach(q => { if (!q.id || seen[q.id]) { q.id = ''; return; } seen[q.id] = 1; reg[q.id] = q.t.slice(0, 160); labs[q.id] = q.label; });
+  props.setProperty(key, JSON.stringify(reg)); props.setProperty(lkey, JSON.stringify(labs));
+  // one heading per stage, on its first row (as typed in the Sheet)
+  const headed = {};
+  const rows = list.map(q => { const h = !headed[q.stage] && q.heading ? q.heading : ''; if (h) headed[q.stage] = 1;
+    return [q.stage, h, q.t, q.ask, q.studio, q.label, q.id]; });
+  const W = SHEETS.QUESTIONS.header.length, last = sh.getLastRow();
+  if (last > 1) sh.getRange(2, 1, last - 1, W).clearContent();
+  if (sh.getMaxRows() < rows.length + 1) sh.insertRowsAfter(sh.getMaxRows(), rows.length + 1 - sh.getMaxRows());
+  sh.getRange(2, 1, rows.length, W).setValues(rows);
+  ensureQuestionIdsIn_(sh);
+  try { fillStages_(sh); applyStageList_(sh); colourStages_(sh); } catch (e) {}
+  gradesDirty_();
+  return myQuestions_(me, req);
+}
+
 /** Several saves in one call and one lock: [['saveEntry', {sid, patch}], ['updateStudent', {id, ...}], ...]. */
 function batch_(me, req) {
   const steps = Array.isArray(req.steps) ? req.steps.slice(0, 40) : [];

@@ -48,7 +48,9 @@ Saving the script is not enough. Use **Deploy ▸ Manage deployments ▸ ✎ Edi
 
 ## Changing the questions
 
-Edit the **Questions** tab in the Sheet. Each row is one question, in test order:
+Teachers can do this on the page: **teacher menu ▸ My questions** edits their own tab (an admin gets **Edit questions** for any teacher's tab or the shared one). Reword, move, add or delete questions, set the Ask-out-loud line, Column name, Studio and stage, then **Save**. A save is refused if the same tab was changed in the Sheet in the meantime.
+
+Or edit the **Questions** tab in the Sheet. Each row is one question, in test order:
 
 | Column | What it does |
 | --- | --- |

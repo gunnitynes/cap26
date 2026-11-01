@@ -353,6 +353,21 @@ details.errfold[open]>summary::after{content:"–"}
 .sum-row.warn span,.sum-row.warn b{color:var(--no)}
 .per-h{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);margin-top:14px}
 .landing{display:flex;flex-direction:column;gap:18px;padding-block:18px 40px}
+.qed{display:flex;flex-direction:column;gap:14px;padding-block:16px 0}
+.qintro{display:flex;flex-direction:column;gap:10px}
+.qstage{display:flex;flex-direction:column;gap:10px}
+.qst-h{display:flex;align-items:baseline;gap:10px}.qst-h .mono{color:var(--led);font-size:12px}.qst-h b{font-size:18px;font-weight:800}.qst-h .qn{margin-left:auto;font-size:12px;color:var(--mute)}
+.qhead{font-size:14px!important}
+.qcard{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--sunk);display:flex;flex-direction:column;gap:8px}
+.qcard .qt{background:var(--panel);font-weight:600;font-size:15px;resize:vertical}
+.qtools{display:flex;gap:6px}
+.qb{border:1px solid var(--line);background:var(--panel);border-radius:8px;min-width:40px;height:36px;padding:0 10px;font-weight:700;font-size:14px;color:var(--ink)}
+.qb:disabled{opacity:.35}.qb.wide{margin-left:auto}.qb.del{color:var(--no)}.qb.del[data-arm="1"]{background:var(--no);color:#fff;border-color:var(--no)}
+.qmore{display:flex;flex-direction:column;gap:10px;padding-top:4px}.qmore[hidden]{display:none}
+.qadd{align-self:flex-start}
+.qbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:19;width:min(600px,calc(100% - 24px));display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.3);padding:8px 8px 8px 14px}
+.qbar #qState{flex:1;font-size:13px;color:var(--mute);font-weight:600}.qbar #qState[data-d]{color:var(--hint)}
+.qbar .primary{padding:10px 18px}.qbar .primary:disabled{opacity:.45}
 .door{min-height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;justify-content:center;gap:28px;padding-block:28px;max-width:420px;margin:0 auto;position:relative}
 .door::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
   background:repeating-linear-gradient(90deg,transparent 0 47px,color-mix(in srgb,var(--line) 55%,transparent) 47px 48px);
@@ -828,7 +843,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793502455';
+const BUILD='1793502767';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -899,7 +914,7 @@ function renderBar(){
   const t=S.view==='test'&&view(S.open);
   const nm=S.view==='login'?'':S.me;
   const td=t&&new Date(t.day+'T12:00');
-  $('#barInner').innerHTML=`<div class="barrow"><div class="bar-l">${S.view==='test'||S.view==='account'||S.view==='grades'?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
+  $('#barInner').innerHTML=`<div class="barrow"><div class="bar-l">${S.view==='test'||S.view==='account'||S.view==='grades'||S.view==='questions'?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
    ${S.me&&nm?`<div class="who"><button class="whobtn" id="whoBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(nm)}: menu"><span class="av" aria-hidden="true">${esc(nm.trim().charAt(0).toUpperCase())}</span><span class="wn">${esc(nm)}</span><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>${whoMenu()}</div>`:''}</div>
    <div class="brand"><b>Catalyst Operations Test</b><span class="sync" id="sync" data-s="${S.sync}"><i class="dot"></i><span></span></span></div><div class="bar-r">
    ${S.view==='test'&&t&&timerOf(S.open)?`<button class="tm-pill" data-timer="${S.open}" id="tmPill" type="button" aria-label="Timer"><span class="tm-num">${timerOf(S.open).txt}</span></button>`:''}
@@ -933,6 +948,7 @@ function whoMenu(){const st=markStyle();
     <div class="menu-sec"><span class="menu-l">How you mark</span>
       <div class="seg" role="group" aria-label="How you mark"><button type="button" role="menuitemradio" data-style="buttons" aria-pressed="${st==='buttons'}">Buttons</button><button type="button" role="menuitemradio" data-style="swipe" aria-pressed="${st==='swipe'}">Scale</button></div>
       <span class="menu-note">Scale: one fader per question. Slide anywhere; the zone it rests in is the mark. Double-tap clears. Same five marks. Back to buttons next time the app opens.</span></div>
+    <button class="menu-i" type="button" role="menuitem" data-go="questions">${S.role==='admin'?'Edit questions':'My questions'}</button>
     <button class="menu-i" type="button" role="menuitem" data-go="account">${S.role==='admin'?'Teachers & account':'Account'}</button>
     <button class="menu-i danger" type="button" role="menuitem" id="menuOut">Sign out</button>
   </div>`}
@@ -944,17 +960,19 @@ function bindWhoMenu(){
   m.onclick=e=>{const st=e.target.closest('[data-style]');
     if(st){S.style=st.dataset.style;m.querySelectorAll('[data-style]').forEach(x=>x.setAttribute('aria-pressed',x===st));
       if(S.view==='test')renderSheet();toast(st.dataset.style==='swipe'?'Scale marking on':'Button marking on');return}
-    if(e.target.closest('[data-go]')){show(false);go('account');return}
+    const gv=e.target.closest('[data-go]');if(gv){show(false);go(gv.dataset.go);return}
     if(e.target.closest('#menuOut')){show(false);signOut()}};
 }
 function go(v,id){if(S.view==='test'&&v!=='test')flushSoon(0);   // leaving a student is a landmark: send what is waiting
+  if(S.view==='questions'&&v!=='questions'&&Q.dirty&&!confirm('Leave without saving your question changes?'))return;
+  if(v==='questions'&&S.view!=='questions'){Q.dirty=false;Q.list=null}
   S.view=v;S.open=id||null;renderBar();render();scrollTo(0,0);wake(v==='test')}
 // the open sheet is rebuilt only when its questions changed (someone edited the Questions tab), otherwise synced in place
 const sheetSig=t=>JSON.stringify(skillsFor(t).map(c=>[c.id,c.t,c.ask,c.s,c.heading]));
-function refresh(){if(S.view==='test'){const raw=view(S.open);if(raw&&!raw.deleted&&sheetSig({id:S.open,...raw})!==S.sheetSig)renderSheet();else syncSheet()}else if(S.view==='roster')render();else if(S.view==='account')renderAccount(true);else if(S.view==='grades')loadGrades().then(()=>{if(S.view==='grades')renderGrades()})}
+function refresh(){if(S.view==='test'){const raw=view(S.open);if(raw&&!raw.deleted&&sheetSig({id:S.open,...raw})!==S.sheetSig)renderSheet();else syncSheet()}else if(S.view==='roster')render();else if(S.view==='account')renderAccount(true);else if(S.view==='questions'){}else if(S.view==='grades')loadGrades().then(()=>{if(S.view==='grades')renderGrades()})}
 function render(){
   if(!S.demo&&S.view!=='login'&&!S.ready){renderLoading();return}
-  S.view==='login'?renderLogin():S.view==='grades'?renderGrades():S.view==='account'?renderAccount():S.view==='test'&&view(S.open)?renderSheet():renderRoster()}
+  S.view==='login'?renderLogin():S.view==='grades'?renderGrades():S.view==='account'?renderAccount():S.view==='questions'?renderQuestions():S.view==='test'&&view(S.open)?renderSheet():renderRoster()}
 
 function renderLogin(){
   const last=ls.get('ops.lastName','');
@@ -1064,8 +1082,9 @@ function renderAccount(quiet){
 /* A progress bar that never claims more than it knows: it creeps towards 92 % and the words change with the wait,
    so a slow Google Sheet reads as "working", never as "stuck". stop(true) fills it. */
 function progress(el,signIn){
+  const q=signIn==='q';if(q)signIn=false;
   const steps=(signIn?[[0,'Signing you in','Checking the team password with the Google Sheet.']]:[])
-    .concat([[signIn?2.5:0,'Getting your students','Students, questions and your marks, straight from the Sheet.'],
+    .concat([[signIn?2.5:0,q?'Getting your questions':'Getting your students',q?'Straight from your questions tab in the Sheet.':'Students, questions and your marks, straight from the Sheet.'],
       [7,'Almost there','Google Sheets can take a few seconds to wake up. Nothing is lost.'],
       [15,'Still working','A slow connection or a sleepy Sheet. It is safe to wait: keep this page open.'],
       [35,'Taking longer than usual','Still trying. Marks already on this phone stay on this phone.']]);
@@ -1078,6 +1097,86 @@ function progress(el,signIn){
     el.querySelector('.prog-n').textContent=t>=3?Math.floor(t)+' s':''};
   tick();const h=setInterval(tick,250);
   return ok=>{clearInterval(h);if(ok){bar.style.width='100%';el.querySelector('.prog-t').textContent='Ready';el.querySelector('.prog-s').textContent='';el.querySelector('.prog-n').textContent=''}};
+}
+/* ------------------------------------------------------------------ questions editor
+   A teacher edits their own questions tab here (an admin: anyone's, or the shared tab). Nothing is sent until Save;
+   Save sends the whole list in stage order. The Sheet refuses it if the tab was changed there in the meantime. */
+const Q={who:null,list:null,dirty:false,busy:false,err:'',seq:0};
+async function loadQuestions(who){
+  Q.loading=true;Q.list=null;Q.err='';renderQuestions();
+  const j=S.demo?{ok:false,error:'Not in the preview.'}:await api('myQuestions',who==null?{}:{teacher:who});
+  Q.loading=false;if(S.view!=='questions')return;
+  if(!j.ok){Q.err=j.error||'Could not load the questions.';renderQuestions();return}
+  takeQuestions(j);renderQuestions();
+}
+function takeQuestions(j){
+  Q.who=j.teacher;Q.tab=j.tab;Q.v=j.v;Q.teachers=j.teachers;Q.stages=j.stages.slice();Q.dirty=false;Q.err='';
+  j.questions.forEach(q=>{if(!Q.stages.includes(q.stage))Q.stages.push(q.stage)});
+  Q.head={};j.questions.forEach(q=>{if(q.heading&&!Q.head[q.stage])Q.head[q.stage]=q.heading});
+  Q.list=j.questions.map(q=>({...q,k:++Q.seq}));
+}
+function qDirty(){Q.dirty=true;const st=$('#qState');if(st){st.textContent='Unsaved changes';st.dataset.d='1'}const b=$('#qSave');if(b)b.disabled=false}
+function renderQuestions(){
+  const app=$('#app');
+  if(!Q.list){app.innerHTML=Q.err?`<div class="loader"><b>Can’t open the questions</b><span>${esc(Q.err)}</span><button class="ghost" id="qRetry" type="button">Try again</button></div>`:`<div class="loader"><div id="qProg" style="width:min(420px,100%)"></div></div>`;
+    if(Q.err)$('#qRetry').onclick=()=>loadQuestions(Q.who);else{progress($('#qProg'),'q');if(!Q.loading)loadQuestions(Q.who)}
+    return}
+  const y=scrollY,admin=S.role==='admin',SB=['Both','K3','K4'];
+  const qcard=(q,i,arr)=>`<article class="qcard" data-k="${q.k}">
+      <textarea class="qt" rows="2" aria-label="Question" placeholder="What the teacher marks">${esc(q.t)}</textarea>
+      <div class="qtools"><button type="button" class="qb" data-act="up" aria-label="Move up"${i?'':' disabled'}>↑</button><button type="button" class="qb" data-act="down" aria-label="Move down"${i<arr.length-1?'':' disabled'}>↓</button>
+        <button type="button" class="qb wide" data-act="more" aria-expanded="${!!q.open}">${q.open?'Less':'Details'}</button><button type="button" class="qb del" data-act="del">Delete</button></div>
+      <div class="qmore"${q.open?'':' hidden'}>
+        <div class="field"><label>Ask out loud (optional)</label><input type="text" class="qa" value="${esc(q.ask||'')}" placeholder="A question the teacher reads to the student"></div>
+        <div class="field"><label>Column name in Marks</label><input type="text" class="ql" value="${esc(q.label||'')}" placeholder="Short name (made from the question if left empty)"></div>
+        <div class="pair"><div class="field"><label>Studio</label><div class="seg qstudio">${SB.map(x=>`<button type="button" data-studio="${x}" aria-pressed="${(q.studio||'Both')===x}">${x}</button>`).join('')}</div></div>
+          <div class="field"><label>Stage</label><select class="qs">${Q.stages.map(st=>`<option${st===q.stage?' selected':''}>${esc(st)}</option>`).join('')}</select></div></div>
+      </div></article>`;
+  app.innerHTML=`<div class="qed">
+    <section class="card qintro"><span class="eyebrow">${admin?'Edit questions':'My questions'}</span>
+      ${admin?`<div class="field"><label for="qWho">Whose questions</label><select id="qWho">${(Q.teachers||[]).map(n=>`<option value="${esc(n)}"${n.toLowerCase()===String(Q.who||'').toLowerCase()?' selected':''}>${esc(n)}</option>`).join('')}<option value=""${Q.who?'':' selected'}>Shared (students without a teacher)</option></select></div>`:''}
+      <p class="readout" style="margin:0">Saved to the “${esc(Q.tab)}” tab in the Sheet. Phones pick up changes within a minute. Test dates that are already marked keep the questions they had.</p></section>
+    ${Q.stages.map((st,si)=>{const qs=Q.list.filter(q=>q.stage===st);return `<section class="card qstage" data-stage="${esc(st)}">
+      <div class="qst-h"><span class="mono">${String(si+1).padStart(2,'0')}</span><b>${esc(st)}</b><span class="qn">${qs.length} question${qs.length===1?'':'s'}</span></div>
+      <input type="text" class="qhead" value="${esc(Q.head[st]||'')}" placeholder="Heading on the page (optional), e.g. ${esc(st)}">
+      ${qs.map(qcard).join('')}
+      <button type="button" class="ghost qadd" data-add="${esc(st)}">+ Add a question</button></section>`}).join('')}
+    <div style="height:84px"></div></div>
+    <div class="qbar"><span id="qState"${Q.dirty?' data-d="1"':''}>${Q.dirty?'Unsaved changes':'All saved'}</span><button class="ghost" id="qUndo" type="button">Undo all</button><button class="primary" id="qSave" type="button"${Q.dirty?'':' disabled'}>Save</button></div>`;
+  scrollTo(0,y);
+  const byK=k=>Q.list.find(q=>q.k===+k),cardOf=el=>el.closest('.qcard');
+  $('#qWho')?.addEventListener('change',e=>{if(Q.dirty&&!confirm('Switch without saving your changes?')){e.target.value=Q.who;return}Q.who=e.target.value;loadQuestions(Q.who)});
+  // typing changes the list in place; moving, adding and deleting redraw it
+  app.oninput=e=>{const c=cardOf(e.target);
+    if(e.target.classList.contains('qhead')){Q.head[e.target.closest('.qstage').dataset.stage]=e.target.value;qDirty();return}
+    if(!c)return;const q=byK(c.dataset.k);
+    if(e.target.classList.contains('qt'))q.t=e.target.value;else if(e.target.classList.contains('qa'))q.ask=e.target.value;else if(e.target.classList.contains('ql'))q.label=e.target.value;else return;
+    qDirty()};
+  app.onchange=e=>{if(!e.target.classList.contains('qs'))return;const q=byK(cardOf(e.target).dataset.k);
+    Q.list.splice(Q.list.indexOf(q),1);q.stage=e.target.value;Q.list.push(q);qDirty();renderQuestions();toast('Moved to '+q.stage)};
+  app.onclick=e=>{
+    const add=e.target.closest('[data-add]');
+    if(add){const q={k:++Q.seq,id:'',stage:add.dataset.add,heading:'',t:'',ask:'',studio:'Both',label:'',open:false};Q.list.push(q);qDirty();renderQuestions();
+      const ta=app.querySelector(`.qcard[data-k="${q.k}"] .qt`);ta?.scrollIntoView({block:'center'});ta?.focus();return}
+    const sb=e.target.closest('[data-studio]');
+    if(sb){const q=byK(cardOf(sb).dataset.k);q.studio=sb.dataset.studio;sb.parentElement.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b===sb));qDirty();return}
+    const b=e.target.closest('[data-act]');if(!b)return;const q=byK(cardOf(b).dataset.k),same=Q.list.filter(x=>x.stage===q.stage),i=same.indexOf(q);
+    if(b.dataset.act==='more'){q.open=!q.open;renderQuestions();return}
+    if(b.dataset.act==='del'){if(b.dataset.arm!=='1'){b.dataset.arm='1';b.textContent='Tap to delete';setTimeout(()=>{if(b.isConnected){b.dataset.arm='';b.textContent='Delete'}},4000);return}
+      Q.list.splice(Q.list.indexOf(q),1);qDirty();renderQuestions();toast('Question removed (not saved yet)');return}
+    const j=b.dataset.act==='up'?i-1:i+1;if(j<0||j>=same.length)return;
+    const a=Q.list.indexOf(q),o=Q.list.indexOf(same[j]);[Q.list[a],Q.list[o]]=[Q.list[o],Q.list[a]];qDirty();renderQuestions()};
+  $('#qUndo').onclick=()=>{if(!Q.dirty)return;if(confirm('Undo all changes since the last save?'))loadQuestions(Q.who)};
+  $('#qSave').onclick=async()=>{
+    if(Q.busy)return;const list=[];Q.stages.forEach(st=>Q.list.filter(q=>q.stage===st&&q.t.trim()).forEach((q,i)=>list.push({id:q.id,stage:st,heading:i?'':(Q.head[st]||''),t:q.t,ask:q.ask,studio:q.studio,label:q.label})));
+    if(!list.length){toast('Keep at least one question');return}
+    Q.busy=true;const btn=$('#qSave');btn.disabled=true;btn.textContent='Saving…';
+    const j=await api('saveQuestions',{v:Q.v,questions:list,...(admin?{teacher:Q.who}:{})});
+    Q.busy=false;if(S.view!=='questions')return;
+    if(!j.ok){btn.disabled=false;btn.textContent='Save';
+      if(j.code==='changed'){if(confirm(j.error+'\n\nLoad the new version now? (Your unsaved edits will be lost.)'))loadQuestions(Q.who);return}
+      toast(j.error||'Not saved. Try again.');return}
+    takeQuestions(j);renderQuestions();toast('Questions saved');S.h='';load()};
 }
 function renderLoading(){
   if(S.loadErr){$('#app').innerHTML=`<div class="loader" role="status" aria-live="polite">
