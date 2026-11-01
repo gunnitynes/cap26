@@ -116,9 +116,8 @@ function onOpen() {
 function setup() {
   const ss = SpreadsheetApp.getActive();
   migrateTeachers_(); migrateStudents_(); seedQuestions_(); questionSheets_().forEach(normalizeQuestionTab_); ensureTeacherQuestionTabs_(); ensureQuestionIds_(); migrateMarks_(); migrateDates_();
-  splitDayFreezes_();
+  migrateFreezes_();
   Object.keys(SHEETS).forEach(k => { if (k !== 'START' && k !== 'GRADES') sheet_(SHEETS[k]); });
-  freezeMarkedDays_();
   syncMarks_();
   ['Results', 'Days'].forEach(n => { const old = ss.getSheetByName(n); if (old) ss.deleteSheet(old); });   // no longer used: grading happens in Grades
   buildStart_();
@@ -161,7 +160,7 @@ function buildStart_() {
     ['Remove a teacher', 'Delete their row in Teachers. Their marks stay in Marks.'],
     ['Change the questions', 'Each teacher has their own tab, "Questions · their name". Edit yours: one row per question, in test order. Drag rows to reorder, type a new question over an old one, add or delete rows, or set a studio. Marks stay with their question when it moves. Every row shows its stage (repeats are faint), picked from a dropdown of the Test stages above: a moved row keeps its stage, a new row takes the stage above. Your students are asked your questions; the page picks it up within a few seconds.'],
     ['', 'The Questions tab is the shared starting point: a new teacher\'s tab starts as a copy of it, and students without a teacher are asked it.'],
-    ['', 'A test date keeps the questions it was first marked with, so grades already given never move (rewording still shows). To give a marked date the new questions anyway: Ops Test ▸ Use the current questions for a test date.'],
+    ['', 'A graded student keeps the questions they were graded on, so grades already given never move (rewording still shows); everyone not graded yet gets the current questions straight away. To give a marked date the new questions anyway: Ops Test ▸ Use the current questions for a test date.'],
     ['', ''],
     ['What the tabs hold', ''],
     ['Teachers', 'Who can sign in. Their names are the list on the sign-in page.'],
@@ -642,7 +641,7 @@ function menuTeamPassword() {
 function menuUseCurrentQuestions() {
   const ui = SpreadsheetApp.getUi();
   const p = ui.prompt('Use the current questions for a test date',
-    'A marked test date keeps the questions it was first marked with. Type a date (like 04.11.2026) to give it the questions in the Questions tab now. Marks on removed questions stop counting; new questions start unmarked.', ui.ButtonSet.OK_CANCEL);
+    'Graded students keep the questions they were graded on. Type a date (like 04.11.2026) to give it the questions in the Questions tab now. Marks on removed questions stop counting; new questions start unmarked.', ui.ButtonSet.OK_CANCEL);
   if (p.getSelectedButton() !== ui.Button.OK) return;
   const day = day_(p.getResponseText());
   if (!day) { ui.alert('That is not a date. Type it like 04.11.2026.'); return; }
@@ -681,7 +680,7 @@ function resetAll_(quick) {
   const sh = sheet_(SHEETS.MARKS), n = Math.max(0, sh.getLastRow() - 1);
   if (n) sh.deleteRows(2, n);
   const props = PropertiesService.getScriptProperties();
-  frozenKeys_().forEach(k => props.deleteProperty(k));
+  frozenKeys_().concat(studentFreezeKeys_()).forEach(k => props.deleteProperty(k));
   gradesDirty_();
   if (!quick) syncMarks_();   // from a cell edit (30 s limit) the page's next tidy does this
   buildGrades_();
@@ -773,7 +772,7 @@ function route_(req) {
     case 'batch':          return withLock_(() => batch_(me, req));   // a whole test (or several) in one call
     case 'myQuestions':    return myQuestions_(me, req);
     case 'saveQuestions':  return withLock_(() => saveQuestions_(me, req));
-    case 'tidy':           return withLock_(() => { ensureStudentIds_(); ensureTeacherQuestionTabs_(); ensureQuestionIds_(); syncMarks_(); maybeBuildGrades_(); return { ok: true }; });
+    case 'tidy':           return withLock_(() => { migrateFreezes_(); ensureStudentIds_(); ensureTeacherQuestionTabs_(); ensureQuestionIds_(); syncMarks_(); maybeBuildGrades_(); return { ok: true }; });
     case 'addStudents':    return withLock_(() => addStudents_(me, req));
     case 'updateStudent':  return withLock_(() => updateStudent_(me, req));
     case 'saveEntry':      return withLock_(() => saveEntry_(me, req));
@@ -935,7 +934,7 @@ function state_(me) {
   // only the question tabs this teacher's students use (an admin: everyone's)
   const sets = liveSets_(me.role === 'admin' ? null : [me.name].concat(students.map(s => s.teacher))), qlive = { '': sets[''] }, qsets = {};
   [me.name].concat(students.map(s => s.teacher)).forEach(t => { const k = norm_(t); if (k && sets[k]) qlive[k] = sets[k]; });
-  students.forEach(s => { const k = s.day + '|' + norm_(s.teacher); if (!(k in qsets) && frozenFor_(s.day, s.teacher)) qsets[k] = questionsFor_(s.day, s.teacher, sets); });
+  students.forEach(s => { if (studentFrozen_(s.id)) qsets[s.id] = questionsFor_(s.day, s.teacher, sets, s.id); });   // graded students: the questions they were graded on
   const questions = sets[norm_(me.name)] || sets[''];
   return { ok: true, me: { name: me.name, role: me.role },
     students: students.map(s => ({ id: s.id, day: s.day, time: s.time, end: s.end, name: s.name, cap: s.cap, studio: s.studio, teacher: s.teacher })),
@@ -1066,7 +1065,6 @@ function updateStudent_(me, req) {
   if (req.day !== undefined) {
     const day = checkDay_(req.day); if (!day) return { ok: false, error: 'That date is not valid.' };
     sh.getRange(s.row, S_.DAY + 1).setValue(toDate_(day));
-    if (marksRows_().some(m => m.sid === s.id && Object.keys(m.data.marks || {}).length)) freezeSet_(day, s.teacher);
     marksRows_().filter(m => m.sid === s.id).forEach(m => sheet_(SHEETS.MARKS).getRange(m.row, 1).setValue(toDate_(day)));
   }
   if (req.studio !== undefined) sh.getRange(s.row, S_.STUDIO + 1).setValue(clean_(req.studio, 40));
@@ -1078,7 +1076,6 @@ function updateStudent_(me, req) {
   if (req.teacher !== undefined) {
     const t = teacherName_(req.teacher);
     sh.getRange(s.row, S_.TEACHER + 1).setValue(t);
-    if (marksRows_().some(m => m.sid === s.id && Object.keys(m.data.marks || {}).length)) freezeSet_(s.day, t);   // marked: the new teacher's set is fixed too
   }
   return { ok: true };
 }
@@ -1096,20 +1093,21 @@ function saveEntry_(me, req) {
   if (p.safety) { clean.safety = {}; Object.keys(p.safety).slice(0, 50).forEach(k => { const v = p.safety[k]; clean.safety[clean_(k, 40)] = v === null ? null : { t: Number(v.t) || Date.now(), text: clean_(v.text, 200) }; }); }
   if (p.summary !== undefined) clean.summary = String(p.summary || '').slice(0, 3000);
   if (p.ended !== undefined) clean.ended = p.ended === null ? null : Number(p.ended) || Date.now();   // "End test and grade" was pressed
-  if (clean.marks && Object.keys(clean.marks).some(k => clean.marks[k])) freezeSet_(s.day, s.teacher);   // the first mark fixes this date's questions for this teacher
+  if (clean.ended) freezeStudent_(s.id, questions_(s.teacher));   // End test and grade: this student keeps these questions
   const ctx = syncMarks_();
   const mine = marksRows_().find(m => m.sid === sid && norm_(m.teacher) === norm_(me.name));
   const data = merge_(mine ? mine.data : {}, clean);
   const sh = sheet_(SHEETS.MARKS), row = marksRow_(s, me.name, data, ctx);
   const r = mine ? mine.row : sh.getLastRow() + 1;
   sh.getRange(r, 1, 1, row.length).setValues([row]);
+  if (clean.ended === null && !marksRows_().some(m => m.sid === sid && m.data.ended)) unfreezeStudent_(sid);   // reset: back to the current questions
   return { ok: true };
 }
 
 /** The readable row in Marks: result, score and a % per stage first, every skill spelled out further right, plus the page's own copy. */
 function marksRow_(s, teacher, data, ctx, updated) {
   ctx = ctx || marksCtx_();
-  const qs = forStudio_(questionsFor_(s.day, s.teacher, ctx.sets), s.studio), m = data.marks || {}, ids = qs.map(q => q.id);
+  const qs = forStudio_(questionsFor_(s.day, s.teacher, ctx.sets, s.id), s.studio), m = data.marks || {}, ids = qs.map(q => q.id);
   const byName = {}; colNames_(qs).forEach((c, i) => byName[c.key] = ids[i]);
   const marked = ids.filter(id => m[id] in POINTS);
   const sc = stageScores_(qs, q => m[q.id] in POINTS ? POINTS[m[q.id]] : null);
@@ -1171,7 +1169,8 @@ function markColumns_(sets) {
   const keys = teachers_().map(t => norm_(t.name)).filter(k => sets[k]);
   if (!keys.length || students_().some(s => !s.removed && !s.teacher)) keys.unshift('');
   const all = keys.map(k => sets[k] || []);
-  frozenKeys_().forEach(k => all.push(questionsFor_(k.slice(2, 12), k.slice(13), sets)));   // a fixed date: its questions, named as now
+  const of = {}; students_().forEach(x => of[x.id] = x);
+  studentFreezeKeys_().forEach(k => { const st = of[k.slice(3)]; if (st) all.push(questionsFor_(st.day, st.teacher, sets, st.id)); });   // a graded student: their questions, named as now
   all.forEach(qs => {
     let prev = -1;
     colNames_(qs).forEach(c => {
@@ -1318,27 +1317,25 @@ function seedQuestions_() {
   try { const at = ss.getSheets().map(s => s.getName()).indexOf(SHEETS.STUDENTS.name); if (at >= 0) { ss.setActiveSheet(sh); ss.moveActiveSheet(at + 2); } } catch (e) {}
 }
 
-/* A test date keeps the questions it was first marked with, per teacher, so changing the test never moves a grade already given.
-   Rewording a question still shows on that date; adding, removing, Core and Studio changes do not.
-   Stored as script property q_<date>|<teacher> (older dates: q_<date>, for every teacher that day);
-   Ops Test ▸ Use the current questions for a test date removes them. */
+/* A graded student keeps the questions they were graded on, so changing the questions never moves a grade already given
+   (rewording still shows). The lock is per student and starts when a teacher presses End test and grade; Reset lifts it.
+   Everyone not graded yet gets their teacher's current questions, so an added question reaches them at once.
+   Stored as script property qs_<student id>. (Older versions locked whole dates: q_<date>|<teacher>, converted below.) */
 function frozenRaw_(key) { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty(key) || 'null'); } catch (e) { return null; } }
-function frozenFor_(day, teacher) { return frozenRaw_('q_' + day + '|' + norm_(teacher)) || frozenRaw_('q_' + day); }
-function frozenKeys_() { return Object.keys(PropertiesService.getScriptProperties().getProperties()).filter(k => /^q_\d{4}-\d{2}-\d{2}(\|.*)?$/.test(k)).sort(); }
-function frozenDays_() { const d = {}; frozenKeys_().forEach(k => d[k.slice(2, 12)] = 1); return Object.keys(d).sort(); }
-function freezeSet_(day, teacher, qs) {
-  if (!day || frozenFor_(day, teacher)) return;
-  qs = qs || questions_(teacher);
-  if (!qs.length) return;
+function studentFrozen_(sid) { return sid ? frozenRaw_('qs_' + sid) : null; }
+function studentFreezeKeys_() { return Object.keys(PropertiesService.getScriptProperties().getProperties()).filter(k => /^qs_/.test(k)); }
+function freezeStudent_(sid, qs) {
+  if (!sid || studentFrozen_(sid) || !qs || !qs.length) return;
   let s = JSON.stringify(qs);   // a script property holds 9 KB: drop the long text first, it comes from the tab anyway
   if (s.length > 8500) s = JSON.stringify(qs.map(q => ({ id: q.id, stage: q.stage, t: q.t.slice(0, 60), core: q.core, studios: q.studios, label: q.label })));
   if (s.length > 8500) s = JSON.stringify(qs.map(q => ({ id: q.id, core: q.core, studios: q.studios })));
-  PropertiesService.getScriptProperties().setProperty('q_' + day + '|' + norm_(teacher), s);
+  PropertiesService.getScriptProperties().setProperty('qs_' + sid, s);
 }
-/** A student's questions: the set fixed for their date and teacher (with today's wording), or their teacher's current set. */
-function questionsFor_(day, teacher, sets) {
+function unfreezeStudent_(sid) { PropertiesService.getScriptProperties().deleteProperty('qs_' + sid); }
+/** A student's questions: the set they were graded on (with today's wording), or their teacher's current set. */
+function questionsFor_(day, teacher, sets, sid) {
   const live = sets ? (sets[norm_(teacher)] && sets[norm_(teacher)].length ? sets[norm_(teacher)] : sets['']) : questions_(teacher);
-  const f = frozenFor_(day, teacher);
+  const f = studentFrozen_(sid);
   if (!f) return live;
   const byId = {}; live.forEach(q => byId[q.id] = q);
   return f.map(q => {
@@ -1348,33 +1345,18 @@ function questionsFor_(day, teacher, sets) {
     return o;
   });
 }
-/** Dates fixed before teachers had their own tabs (q_<date>, one set for everyone) become one fixed set per teacher.
- *  A teacher whose tab still holds the same questions keeps that set exactly; a teacher who has since changed which
- *  questions are in their tab gets their current tab, since the old shared set was never theirs to choose. */
-function splitDayFreezes_() {
-  const props = PropertiesService.getScriptProperties(), studs = students_().filter(s => !s.removed);
-  Object.keys(props.getProperties()).filter(k => /^q_\d{4}-\d{2}-\d{2}$/.test(k)).forEach(k => {
-    const day = k.slice(2), old = frozenRaw_(k) || [], oldIds = old.map(q => q.id).sort().join('|');
-    const teachersThatDay = {};
-    studs.filter(x => x.day === day).forEach(x => teachersThatDay[norm_(x.teacher)] = x.teacher);
-    Object.keys(teachersThatDay).forEach(t => {
-      const key = 'q_' + day + '|' + t;
-      if (props.getProperty(key)) return;
-      const live = questions_(teachersThatDay[t]);
-      const same = live.map(q => q.id).sort().join('|') === oldIds;
-      props.setProperty(key, same ? JSON.stringify(old) : JSON.stringify(live));
-    });
-    props.deleteProperty(k);
-  });
+/** Once: the old whole-date locks become locks on the students actually graded on them; the rest are lifted. */
+function frozenKeys_() { return Object.keys(PropertiesService.getScriptProperties().getProperties()).filter(k => /^q_\d{4}-\d{2}-\d{2}(\|.*)?$/.test(k)); }
+function migrateFreezes_() {
+  const keys = frozenKeys_(); if (!keys.length) return;
+  const props = PropertiesService.getScriptProperties(), of = {}; students_().forEach(s => of[s.id] = s);
+  marksRows_().forEach(m => { const s = of[m.sid];
+    if (s && m.data.ended && !studentFrozen_(s.id)) freezeStudent_(s.id, frozenRaw_('q_' + s.day + '|' + norm_(s.teacher)) || frozenRaw_('q_' + s.day) || questions_(s.teacher)); });
+  keys.forEach(k => props.deleteProperty(k));
 }
-function freezeMarkedDays_() {
-  const of = {}; students_().forEach(s => of[s.id] = s);
-  marksRows_().forEach(m => { const s = of[m.sid]; if (s && Object.keys(m.data.marks || {}).length) freezeSet_(s.day, s.teacher); });
-}
+/** Ops Test ▸ Use the current questions for a test date: lifts the locks of every student on that date. */
 function useCurrentQuestions_(day) {
-  const props = PropertiesService.getScriptProperties();
-  frozenKeys_().filter(k => k.slice(2, 12) === day).forEach(k => props.deleteProperty(k));
-  if (marksRows_().length) freezeMarkedDays_();   // still marked, so it is fixed again, now to the current questions
+  students_().filter(s => s.day === day).forEach(s => unfreezeStudent_(s.id));
   syncMarks_(); buildGrades_();
   return { ok: true };
 }
@@ -1422,8 +1404,8 @@ function gradeList_() {
   const marks = {}; marksRows_().forEach(m => { if (m.teacher.trim()) (marks[m.sid] = marks[m.sid] || {})[m.teacher] = m.data; });
   const sets = liveSets_(), byKey = {};
   const list = students.map(s => {
-    const k = s.day + '|' + norm_(s.teacher);
-    const qs = forStudio_(byKey[k] = byKey[k] || questionsFor_(s.day, s.teacher, sets), s.studio);
+    const k = studentFrozen_(s.id) ? s.id : norm_(s.teacher);
+    const qs = forStudio_(byKey[k] = byKey[k] || questionsFor_(s.day, s.teacher, sets, s.id), s.studio);
     return { s, qs, g: gradeOf_(marks[s.id] || {}, qs) };
   });
   return { live: sets[''], list };

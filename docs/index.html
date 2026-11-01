@@ -614,7 +614,7 @@ body{margin:0;font-size:15px}
    ask:'…'             a question shown on the sheet for the teacher to ask out loud
    studios:['K3']      only for students booked in those studios (leave it out for everyone)
    Each teacher has their own questions tab: a student is asked their teacher's set (QLIVE, '' = shared), and a date
-   that has been marked keeps the set it was first marked with for that teacher (QSETS, keyed date|teacher). */
+   that has been graded keeps the set it was graded on (QSETS, keyed by student id). */
 const STAGES=[
  {id:'power',short:'Power',name:'Power up & safe listening'},
  {id:'mic',short:'Mic',name:'Connecting a Mic'},
@@ -692,7 +692,8 @@ const canMark=()=>!!S.me&&(S.demo||!!S.token);
 const teacherName=n=>n;
 
 const tkey=t=>String(t&&t.teacher||'').trim().toLowerCase().replace(/\s+/g,' ');
-const skillsFor=t=>(QSETS[t.day+'|'+tkey(t)]||QLIVE[tkey(t)]||QLIVE['']||QNOW).filter(c=>!c.studios||c.studios.includes(t.studio));
+// a graded student keeps the questions they were graded on (QSETS, by student); everyone else gets their teacher's current ones
+const skillsFor=t=>(QSETS[t.id]||QLIVE[tkey(t)]||QLIVE['']||QNOW).filter(c=>!c.studios||c.studios.includes(t.studio));
 // the stages of one student's questions, in order
 const stagesFor=t=>{const out=[];for(const c of skillsFor(t))if(!out.some(x=>x.id===c.s))out.push({id:c.s,short:c.stage,name:c.heading||c.stage});return out};
 const bandOf=p=>GRADES.find(g=>p>=g.min*100-1e-9);
@@ -912,7 +913,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793538051';
+const BUILD='1793538788';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();

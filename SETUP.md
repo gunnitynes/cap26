@@ -62,7 +62,7 @@ Or edit the **Questions** tab in the Sheet. Each row is one question, in test or
 | Column name | Optional short name: the Marks column heading. The same name in two teachers' tabs shares one column. Cleared when a different question is typed over the row. |
 | ID (hidden) | Given by the sheet; keeps marks attached when a question is reworded or moved. |
 
-Phones pick up the change within about 10 seconds. A test date keeps the questions it was first marked with, so grades already given never move (rewording still shows there). **Ops Test ▸ Use the current questions for a test date** moves a marked date onto the current questions.
+Phones pick up the change within about 10 seconds. A graded student keeps the questions they were graded on, so grades already given never move (rewording still shows there); every student not graded yet gets the current questions straight away. **Ops Test ▸ Use the current questions for a test date** moves a marked date onto the current questions.
 
 `OPS_SEED=1 node dev/server.mjs` adds example students (with times and marks) three and five days ahead, for trying the start day and the Grades screen.
 

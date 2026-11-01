@@ -267,7 +267,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   call(g, { action: 'addStudents', token: tok, names: ['Polina'], studio: 'K3', day: '2026-11-04' });
   call(g, { action: 'addStudents', token: tok, names: ['Tales'], studio: 'K4', day: '2026-11-11' });
   const [pol, tal] = call(g, { action: 'state', token: tok }).students.map(s => s.id);
-  call(g, { action: 'saveEntry', token: tok, sid: pol, patch: { marks: { p1: 'y' } } });
+  call(g, { action: 'saveEntry', token: tok, sid: pol, patch: { marks: { p1: 'y' }, ended: 1 } });   // Polina's test is ended: she keeps these 18
 
   // a new question for K4 only, typed under the last row with no stage: it joins "Shut down"
   const last = q.getLastRow() + 1;
@@ -281,10 +281,10 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const nq = st.qlive[''].find(x => x.id === newId);
   assert.equal(st.qlive[''].length, 19); assert.equal(nq.stage, 'Shut down'); assert.deepEqual(nq.studios, ['K4']);
   ok('a question typed in the tab gets an ID, its stage from the row above, and its studio');
-  assert.equal(st.qsets['2026-11-04|'].length, 18);
-  assert.equal(st.qsets['2026-11-04|'][0].t, 'Powers up in the right order, speakers last');
-  assert.equal(st.qsets['2026-11-11|'], undefined);
-  ok('a marked date keeps its 18 questions (with the new wording); an unmarked date gets the new set');
+  assert.equal(st.qsets[pol].length, 18);
+  assert.equal(st.qsets[pol][0].t, 'Powers up in the right order, speakers last');
+  assert.equal(st.qsets[tal], undefined);
+  ok('a graded student keeps their 18 questions (with the new wording); a student not graded yet gets the new set at once');
   call(g, { action: 'tidy', token: tok });   // the page sends this after every refresh
   const head = tab(book, 'Marks').data[0];
   assert.ok(head.includes('Patches the headphone line…') || head.some(h => /^Patches the headphone/.test(h)));
@@ -301,28 +301,28 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   call(g, { action: 'tidy', token: tok });
   st = call(g, { action: 'state', token: tok });
   assert.ok(!st.qlive[''].some(x => x.id === 's2'));
-  assert.ok(st.qsets['2026-11-04|'].some(x => x.id === 's2'));
-  assert.ok(tab(book, 'Marks').data[0].some(h => /^Left as found/.test(h)));   // still a column: marked dates (and Gunni's own tab) use it
-  ok('a removed question disappears from new tests but stays on dates already marked with it');
+  assert.ok(st.qsets[pol].some(x => x.id === 's2'));
+  assert.ok(tab(book, 'Marks').data[0].some(h => /^Left as found/.test(h)));   // still a column: Polina's graded test (and Gunni's own tab) use it
+  ok('a removed question disappears from tests not graded yet but stays for students already graded with it');
 
-  // the Grades tab: each date's own set. Tales's date was first marked while there were 19 questions, Polina's with 18
+  // the Grades tab: each student's own set. Polina was graded on the 18; Tales gets today's 18 (s2 gone, the K4 one in)
   const IDS18 = ['p1','p2','p3','m1','m2','m3','m4','r1','t1','t2','t3','t4','c1','c2','c3','c4','s1','s2'];
   call(g, { action: 'saveEntry', token: tok, sid: pol, patch: { marks: Object.fromEntries(IDS18.map(id => [id, 'p'])) } });
-  assert.equal(st.qsets['2026-11-11|'].length, 19);
-  const tq = st.qsets['2026-11-11|'].map(x => x.id);
-  call(g, { action: 'saveEntry', token: tok, sid: tal, patch: { marks: Object.fromEntries(tq.map(id => [id, 'p'])) } });
+  const tq = st.qlive[''].map(x => x.id);
+  assert.equal(tq.length, 18); assert.ok(tq.includes(newId) && !tq.includes('s2'));
+  call(g, { action: 'saveEntry', token: tok, sid: tal, patch: { marks: Object.fromEntries(tq.map(id => [id, 'p'])), ended: 2 } });
   g.buildGrades_();
   const gd = tab(book, 'Grades').data, gh = gd[6], gr = n => gd.find(r => r[1] === n);
   assert.equal(gr('Polina')[gh.indexOf('Grade')], 'Grade A'); assert.equal(gr('Polina')[gh.indexOf('Marked')], '18/18');
-  assert.equal(gr('Tales')[gh.indexOf('Grade')], 'Grade A'); assert.equal(gr('Tales')[gh.indexOf('Marked')], '19/19');
-  ok('Grades marks each student out of their own date\'s questions');
+  assert.equal(gr('Tales')[gh.indexOf('Grade')], 'Grade A'); assert.equal(gr('Tales')[gh.indexOf('Marked')], '18/18');
+  ok('Grades marks each student out of their own questions');
 
   g.useCurrentQuestions_('2026-11-04');
   st = call(g, { action: 'state', token: tok });
-  assert.equal(st.qsets['2026-11-04|'].length, 18);   // today's 18; the page and Grades leave out the K4 one for her
+  assert.equal(st.qsets[pol], undefined);   // today's questions; the page and Grades leave out the K4 one for her
   const gd2 = tab(book, 'Grades').data, gh2 = gd2[6];
   assert.equal(gd2.find(r => r[1] === 'Polina')[gh2.indexOf('Marked')], '17/17');
-  ok('"Use the current questions for a test date" moves a marked date onto today\'s questions');
+  ok('"Use the current questions for a test date" moves that date\'s graded students onto today\'s questions');
 }
 // 9. Each teacher gets only the students they are testing; an admin gets everyone.
 {
@@ -402,7 +402,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(si.qlive['isuru'].length, 19); assert.equal(sa.qlive['ainsley'].length, 18);
   ok('a teacher\'s own questions reach only their phone; the other teacher keeps theirs');
   const kim = si.students[0].id, noor = sa.students[0].id;
-  call(g, { action: 'saveEntry', token: it, sid: kim, patch: { marks: { p1: 'p' } } });
+  call(g, { action: 'saveEntry', token: it, sid: kim, patch: { marks: { p1: 'p' }, ended: 1 } });
   call(g, { action: 'tidy', token: gt });
   const mh = tab(book, 'Marks').data[0];
   assert.ok(mh.includes('Coils the cables over-under'));
@@ -415,18 +415,19 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const gr = call(g, { action: 'grades', token: gt }).students;
   assert.equal(gr.find(x => x.name === 'Kim').total, 19); assert.equal(gr.find(x => x.name === 'Noor').total, 18);
   ok('Marks gets a column for a teacher\'s own question, and each student is graded on their teacher\'s set');
-  // Kim is marked, so Isuru's set is fixed for that date; Noor (unmarked) still follows Ainsley's tab
+  // Kim's test is ended, so she keeps Isuru's set; Noor (not graded) still follows Ainsley's tab
   iq.deleteRow(last);
   const aq = ss.getSheetByName('Questions · Ainsley');
   aq.getRange(aq.getLastRow() + 1, 3, 1, 1).setValues([['Labels the patch bay']]); g.onEdit({ range: aq.getRange(aq.getLastRow(), 3) });
   si = call(g, { action: 'state', token: it }); sa = call(g, { action: 'state', token: at });
-  assert.equal(si.qsets['2026-11-04|isuru'].length, 19); assert.equal(si.qlive['isuru'].length, 18);
-  assert.equal(sa.qsets['2026-11-04|ainsley'], undefined); assert.equal(sa.qlive['ainsley'].length, 19);
-  ok('a marked date keeps its teacher\'s questions; an unmarked one follows the teacher\'s tab');
-  // an older date fixed for everyone (before teachers had their own tabs) still applies to every teacher
+  assert.equal(si.qsets[kim].length, 19); assert.equal(si.qlive['isuru'].length, 18);
+  assert.equal(sa.qsets[noor], undefined); assert.equal(sa.qlive['ainsley'].length, 19);
+  ok('a graded student keeps their teacher\'s questions; one not graded yet follows the teacher\'s tab');
+  // an old whole-date lock (earlier versions) is lifted for everyone not graded
   g.PropertiesService.getScriptProperties().setProperty('q_2026-11-02', JSON.stringify([{ id: 'p1', core: 1, studios: null }]));
-  assert.equal(g.questionsFor_('2026-11-02', 'Ainsley').length, 1); assert.equal(g.questionsFor_('2026-11-02', 'Isuru').length, 1);
-  ok('dates fixed before this change keep their questions for every teacher');
+  g.migrateFreezes_();
+  assert.equal(g.frozenKeys_().length, 0); assert.equal(g.questionsFor_('2026-11-02', 'Ainsley').length, 19);
+  ok('old whole-date locks are converted: students not graded get the current questions');
   te.getRange(5, 1).setValue('Mila'); g.onEdit({ range: te.getRange(5, 1) });
   assert.ok(book.sheets.some(x => x.name === 'Questions · Mila'));
   ok('a teacher typed into the Teachers tab gets their own questions tab at once');
@@ -496,14 +497,12 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const last = iq.getLastRow() + 1;
   iq.getRange(last, 1, 1, 3).setValues([['Shut down', 'Shut down & pack down', 'Demonstrated correct shutdown & reset procedures']]);
   g.onEdit({ range: iq.getRange(last, 1, 1, 3) });
-  const before = g.questionsFor_('2026-11-02', 'Isuru');
-  assert.ok(!before.some(q => q.stage === 'Shut down'));
   g.setup();   // the update runs setup
   const isu = g.questionsFor_('2026-11-02', 'Isuru'), ain = g.questionsFor_('2026-11-02', 'Ainsley');
   assert.ok(isu.some(q => q.stage === 'Shut down' && /shutdown & reset/.test(q.t))); assert.equal(isu.length, 19);
   assert.equal(ain.length, 18);
   assert.equal(g.PropertiesService.getScriptProperties().getProperty('q_2026-11-02'), null);
-  ok('an old day-wide set follows a teacher\'s changed tab (Isuru gets his Shut down question); unchanged teachers keep theirs');
+  ok('an old day-wide lock is lifted for students not graded: Isuru\'s student gets his Shut down question, Ainsley\'s keeps hers');
   // the Grades tab: one band per teacher, then their students
   g.buildGrades_();
   const d = tab(book, 'Grades').data.slice(7).map(r => String(r[0]).startsWith('Isuru') || String(r[0]).startsWith('Ainsley') ? 'BAND ' + r[0].split('  ')[0] : r[1]);
@@ -601,8 +600,8 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   ok('"Reset a student\'s test" removes that student\'s marks (a date picks between two with one name); students stay');
   g.resetAll_();
   assert.equal(tab(book, 'Marks').data.filter(x => x[1]).length, 1);   // only the header
-  assert.equal(g.frozenKeys_().length, 0);
-  ok('"Reset ALL test results" removes every mark and unfixes every test date');
+  assert.equal(g.frozenKeys_().length + g.studentFreezeKeys_().length, 0);
+  ok('"Reset ALL test results" removes every mark and every question lock');
   // the same from the two cells on Start here (the menu hides on narrow windows)
   g.setup();
   call(g, { action: 'saveEntry', token: tok, sid: st[1].id, patch: { marks: { p1: 'y' } } });
@@ -799,6 +798,27 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   raw(g, { action: 'tidy', token: it });   // straight after the last rebuild
   assert.equal(grade(), 'Not started');
   ok('a reset shows in the Grades tab on the next tidy, however soon after the last one');
+}
+
+// 26. A question added to the tab reaches every student not graded yet, also on a date with marks; Reset lifts a lock.
+{
+  const { g } = loadScript();
+  g.setup();
+  const ss = g.SpreadsheetApp.getActive(), te = ss.getSheetByName('Teachers');
+  te.getRange(2, 1, 1, 2).setValues([['Isuru', 'teacher']]); g.onEdit({ range: te.getRange(2, 1, 1, 2) });
+  g.setTeamPassword_('team-pass-1');
+  const it = raw(g, { action: 'login', name: 'Isuru', password: 'team-pass-1' }).token;
+  const [a, b, c] = raw(g, { action: 'addStudents', token: it, names: ['Ana', 'Bo', 'Cy'], studio: 'K3', day: '2026-11-04' }).ids;
+  raw(g, { action: 'saveEntry', token: it, sid: a, patch: { marks: { p1: 'y' }, ended: 1 } });   // graded
+  raw(g, { action: 'saveEntry', token: it, sid: b, patch: { marks: { p1: 'y' } } });             // being marked, same date
+  const iq = ss.getSheetByName('Questions · Isuru'), last = iq.getLastRow() + 1;
+  iq.getRange(last, 1, 1, 3).setValues([['Cue', '', 'Sets a talkback level']]); g.onEdit({ range: iq.getRange(last, 1, 1, 3) });
+  const st = call(g, { action: 'state', token: it }), has = q => q.some(x => x.t === 'Sets a talkback level');
+  assert.ok(!has(st.qsets[a]) && st.qsets[b] === undefined && st.qsets[c] === undefined && has(st.qlive['isuru']));
+  ok('a new question reaches students being marked and not started on the same date; the graded one keeps hers');
+  raw(g, { action: 'saveEntry', token: it, sid: a, patch: { marks: { p1: null }, ended: null } });   // Reset
+  assert.equal(call(g, { action: 'state', token: it }).qsets[a], undefined);
+  ok('Reset lifts the lock: the student gets the current questions again');
 }
 
 console.log(`\n${n} checks passed`);
