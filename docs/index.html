@@ -461,6 +461,8 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .gcard.g-todo{opacity:.75}
 .st-n{font-family:var(--mono);font-size:10.5px;font-weight:700}
 .st small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.endbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:19;width:min(560px,calc(100% - 32px));display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--ink);color:var(--bg);padding:10px 10px 10px 16px;border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.35);font-weight:600;font-size:14px}
+.endbar .primary{width:auto;flex:none;padding:10px 14px}
 .toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;font-weight:600;z-index:20;max-width:calc(100% - 32px)}
 .export{margin-top:10px;font-family:var(--mono);font-size:11px;min-height:120px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -728,7 +730,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793495848';
+const BUILD='1793497388';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -974,9 +976,9 @@ function renderRoster(){
   const row=t=>{const st=statusOf(t),ce=scoreOf(mine(t),t).inc.length,nt=Object.keys(entries(t)).length;
     return `<button class="row${isNow(t)?' now':''}" data-open="${t.id}">${slot(t)}${ring(t,timed?38:44)}<span class="who"><b><span class="nm">${esc(t.name)}</span>${capTag(t)}${timerOf(t.id)?` <span class="tm-mini" data-timer="${t.id}"><span class="tm-num">${timerOf(t.id).txt}</span></span>`:''}</b><span>${[esc(t.studio||''),mineView||!admin?'':t.teacher?esc(t.teacher):'<span class="unas">No teacher</span>',nt?nt+' marking':''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}${st.l==='Graded'?` · <span class="graded${S.pending[t.id]&&S.pending[t.id].by&&S.pending[t.id].by[S.me]?' wait':''}">${S.pending[t.id]&&S.pending[t.id].by&&S.pending[t.id].by[S.me]?'Graded · sending':'Graded ✓'}</span>`:''}</span></span><span class="sdot ${st.k}" role="img" aria-label="${st.l}" title="${st.l}"></span></button>`};
   const stats=`<div class="stat"><div class="n">${list.length}</div><div class="l">Students</div></div>
-      <div class="stat"><div class="n">${marked}</div><div class="l">Graded by you</div></div>
-      <div class="stat"><div class="n" style="color:var(--mute)">${cnt.todo}</div><div class="l">Not started</div></div>
-      <button class="stat stat-res" id="gradesBtn" type="button" aria-label="Overview: every student's result"><div class="n"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="12" width="4" height="9" rx="1.5"/><rect x="10" y="7" width="4" height="14" rx="1.5"/><rect x="17" y="3" width="4" height="18" rx="1.5"/></svg></div><div class="l">Overview <span>›</span></div></button>`;
+      <div class="stat"><div class="n">${marked}</div><div class="l">Graded</div></div>
+      <div class="stat"><div class="n" style="color:var(--mute)">${list.length-cnt.done}</div><div class="l">Remaining</div></div>
+      <button class="stat stat-res" id="gradesBtn" type="button" aria-label="Overview: every student's result"><div class="n"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="12" width="4" height="9" rx="1.5"/><rect x="10" y="7" width="4" height="14" rx="1.5"/><rect x="17" y="3" width="4" height="18" rx="1.5"/></svg></div><div class="l">Overview</div></button>`;
   $('#app').innerHTML=`
    ${S.all?calendar(byDay):''}
    ${S.demo?`<div class="banner"><b>Preview.</b> These students and the second teacher are examples and nothing here is saved.</div>`:''}
@@ -1115,6 +1117,7 @@ function renderSheet(){
        <div class="pair"><div class="field"><label for="moveDay">Test date</label><input type="date" id="moveDay"></div><div class="field"><label for="moveTime">Test time</label><input type="time" id="moveTime"></div></div>
        <div class="field"${S.role==='admin'||S.demo?'':' hidden'}><label for="moveTeacher">Teacher</label><select id="moveTeacher">${[...new Set(['',...Object.keys(S.teachers),t.teacher||''])].map(n=>`<option value="${esc(n)}">${n?esc(n):'No teacher yet'}</option>`).join('')}</select></div>
        <div class="foot"><button class="primary" id="doneBtn" type="button">${mine(t).ended?'Save changes':'End test and grade'}</button><button class="ghost danger" id="resetBtn" type="button">Reset</button></div>
+       <div class="endbar" id="endBar" hidden role="status"><span id="endBarTxt"></span><button class="primary" id="endBarBtn" type="button">${mine(t).ended?'Save changes':'End test and grade'}</button></div>
        <div class="card confirm" id="resetAsk" hidden role="alertdialog" aria-labelledby="resetQ">
          <b id="resetQ">Reset this test?</b>
          <p>All your marks, notes and critical errors for this student are cleared. The student stays on the list.</p>
@@ -1149,18 +1152,22 @@ function renderSheet(){
     const label=e.ended?'Save changes':'End test and grade';
     if(missing.length&&canMark()&&Date.now()-saveArm>8000){
       saveArm=Date.now();
-      saveArm=Date.now();
       app.querySelectorAll('article.crit').forEach(a=>a.classList.toggle('missing',missing.some(c=>c.id===a.dataset.crit)));
       app.querySelector(`article.crit[data-crit="${missing[0].id}"]`)?.scrollIntoView({behavior:'smooth',block:'center'});
-      toast(missing.length===1?'1 skill is not marked yet':missing.length+' skills are not marked yet');
+      // the way out is right there at the bottom of the screen, so nobody has to scroll back down to the button
+      endBar(missing.length);
       const b=$('#doneBtn');b.textContent=e.ended?'Save anyway':'End test anyway';setTimeout(()=>{if($('#doneBtn')===b)b.textContent=label},8000);
       return}
+    finish()};
+  const finish=()=>{
+    const t={id:S.open,...view(S.open)},e=mine(t);
     if(canMark()){
       clearTimeout(debounced._s);const fb=$('#summary').value;
       patchMine(S.open,{...(fb!==(e.summary||'')?{summary:fb}:{}),...(e.ended?{}:{ended:Date.now()})});
       toast(e.ended?'Changes saved':t.name+' graded');
     }
     flushSoon(0);go('roster')};
+  $('#endBarBtn').onclick=finish;
   /* Reset clears this teacher's own marks, notes and critical errors for the student, after a confirmation.
      (Students are removed in the Sheet, not here.) */
   $('#resetBtn').onclick=()=>{if(!canMark())return;$('#resetAsk').hidden=false;$('#resetAsk').scrollIntoView({behavior:'smooth',block:'center'})};
@@ -1180,6 +1187,8 @@ function renderSheet(){
   S.sheetSig=sheetSig(t);
   syncSheet(true);
 }
+// the bar under a missing-skill warning: how many are left, and End test and grade right there
+function endBar(n){const b=$('#endBar');if(!b)return;b.hidden=!n;if(n)$('#endBarTxt').textContent=n===1?'1 skill not marked':n+' skills not marked'}
 function autosize(n){n.style.height='auto';n.style.height=Math.min(n.scrollHeight+2,220)+'px'}
 function syncSheet(first){
   if(S.view!=='test')return;const raw=view(S.open);if(!raw||raw.deleted){go('roster');return}
@@ -1191,6 +1200,8 @@ function syncSheet(first){
   app.querySelectorAll('.marks').forEach(g=>{const v=e.marks?.[g.dataset.crit];g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===v));const a=g.closest('.crit');a.dataset.m=v||'';if(v)a.classList.remove('missing')});
   app.querySelectorAll('[data-note]').forEach(n=>{const v=e.notes?.[n.dataset.note]||'';if(document.activeElement!==n&&n.value!==v){n.value=v}if(v){n.hidden=false;const ab=app.querySelector(`[data-addnote="${n.dataset.note}"]`);if(ab)ab.hidden=true}if(!n.hidden)autosize(n)});
   const sm=$('#summary');if(document.activeElement!==sm&&sm.value!==(e.summary||''))sm.value=e.summary||'';
+  if($('#endBar')&&!$('#endBar').hidden){const m=e.marks||{},left=skillsFor(t).filter(c=>!(m[c.id] in POINTS));endBar(left.length);
+    app.querySelectorAll('article.crit.missing').forEach(a=>{if(m[a.dataset.crit] in POINTS)a.classList.remove('missing')})}
   const nh=$('#notesHint');if(nh)nh.textContent=(e.summary||'').trim()?'':'optional';
   stagesFor(t).forEach(s=>{const cs=skillsFor(t).filter(c=>c.s===s.id);if(!cs.length||!app.querySelector(`[data-count="${s.id}"]`))return;
     const vals=cs.map(c=>e.marks?.[c.id]);const done=vals.filter(Boolean).length;

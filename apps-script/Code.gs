@@ -207,6 +207,9 @@ function buildStart_() {
   sh.setFrozenRows(0);
 }
 
+/** The thin black grid on every cell of a table: the script draws it itself, because its rebuilds clear hand-made borders. */
+function grid_(range) { try { range.setBorder(true, true, true, true, true, true, '#000000', SpreadsheetApp.BorderStyle.SOLID); } catch (e) {} }
+
 function style_() {
   Object.keys(SHEETS).forEach(k => {
     if (k === 'START' || k === 'GRADES' || k === 'MARKS') return;
@@ -220,6 +223,7 @@ function style_() {
     body.setFontFamily('Arial').setFontSize(10).setVerticalAlignment('middle');
     try { sh.getBandings().forEach(b => b.remove()); sh.getRange(1, 1, sh.getMaxRows(), n).applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY, true, false); } catch (e) {}
     sh.getRange(1, 1, 1, n).setBackground(BLUE).setFontColor('#ffffff');
+    grid_(sh.getRange(1, 1, sh.getMaxRows(), n));
   });
   const t = sheet_(SHEETS.TEACHERS);
   t.getRange(2, T.ROLE + 1, t.getMaxRows() - 1, 1).setDataValidation(
@@ -294,7 +298,8 @@ function colourStages_(q) {
     bg.push(Array(W).fill(st ? tintOf[st] : '#ffffff'));
   });
   try { q.getBandings().forEach(b => b.remove()); } catch (e) {}
-  q.getRange(2, 1, vals.length, W).setBackgrounds(bg).setBorder(false, false, false, false, false, false);
+  q.getRange(2, 1, vals.length, W).setBackgrounds(bg);
+  grid_(q.getRange(1, 1, q.getMaxRows(), W));
   starts.forEach(r => q.getRange(r, 1, 1, W).setBorder(true, null, null, null, null, null, INK, SpreadsheetApp.BorderStyle.SOLID_MEDIUM));
   // the stage name is on every row (so a row keeps its stage when moved), but only the first of a block is shown strongly
   try {
@@ -421,6 +426,7 @@ function styleMarks_(ctx) {
   try { m.getRange(1, 1, 1, m.getMaxColumns()).shiftColumnGroupDepth(-8); } catch (e) {}   // drop the old fold
   try { m.showColumns(1, m.getMaxColumns()); } catch (e) {}
   try { m.getRange(1, 1, m.getMaxRows(), m.getMaxColumns()).setBackground(null).setFontColor(null).setFontWeight(null).setFontSize(10).setHorizontalAlignment(null).setBorder(false, false, false, false, false, false); } catch (e) {}
+  grid_(m.getRange(1, 1, m.getMaxRows(), w));
   const head = m.getRange(1, 1, 1, w);
   head.setFontWeight('bold').setFontColor('#ffffff').setBackground(BLUE).setVerticalAlignment('middle').setWrap(true).setHorizontalAlignment('center');
   m.getRange(1, 1, 1, 3).setHorizontalAlignment('left');
@@ -1454,6 +1460,7 @@ function buildGrades_() {
     sh.getRange(top, C.SCORE, values.length, 1).setFontWeight('bold').setFontSize(12);
     sh.getRange(top, C.GRADE, values.length, 1).setHorizontalAlignment('center').setFontWeight('bold');
     sh.getRange(top, C.GRADE + 1, values.length, 1).setFontColor(MUTE).setWrap(true);
+    grid_(sh.getRange(top - 1, 1, values.length + 1, W));
     // a heavier line where a new test date starts
     groupStarts.forEach(r => { try { sh.getRange(r, 1, 1, W).setBorder(true, null, null, null, null, null, INK, SpreadsheetApp.BorderStyle.SOLID_MEDIUM); } catch (e) {} });
     for (let r = top; r < top + values.length; r++) sh.setRowHeight(r, 26);
