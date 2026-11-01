@@ -341,11 +341,12 @@ function stagesTyped_(e) {
   const at = sh.getRange(1, 1, Math.max(1, sh.getLastRow()), 1).getValues().findIndex(r => String(r[0]) === STAGES_LABEL) + 1;
   if (!at || rg.getColumn() > 2 || rg.getLastColumn() < 2 || rg.getLastRow() < at || rg.getRow() > at + MAX_STAGES - 1) return;
   const from = String(e.oldValue || '').trim(), to = String(rg.getValue() || '').trim();
-  if (rg.getNumRows() === 1 && from && to && from !== to) renameStageEverywhere_(from, to);   // a new name, or a corrected spelling
   const list = [];
   sh.getRange(at, 2, MAX_STAGES, 1).getValues().forEach(r => { const v = clean_(r[0], 40); if (v && !list.some(x => norm_(x) === norm_(v))) list.push(v); });
+  // the dropdowns take the new name first: the Stage cells refuse any name that is not on the list
   setStages_(list);
   questionSheets_().forEach(applyStageList_);
+  if (rg.getNumRows() === 1 && from && to && from !== to) { renameStageEverywhere_(from, to); questionSheets_().forEach(q => { try { colourStages_(q); } catch (err) {} }); }   // a new name, or a corrected spelling
   gradesDirty_();
 }
 function renameStageEverywhere_(from, to) {
@@ -357,6 +358,22 @@ function renameStageEverywhere_(from, to) {
     v.forEach(r => { if (norm_(r[0]) === norm_(from)) { r[0] = to; changed = true; } });
     if (changed) rg.setValues(v);
   });
+}
+/** Renames a stage everywhere at once (as typing over it on Start here does): the list, its cell on Start here, every
+ *  questions tab, then Marks and Grades. Run from the script editor, e.g. renameStage_('Mic', 'Connections'). */
+function renameStage_(from, to) {
+  from = clean_(from, 40); to = clean_(to, 40);
+  const list = stages_().slice(), i = list.findIndex(x => norm_(x) === norm_(from));
+  if (i < 0 || !to) return { ok: false, error: 'There is no stage called ' + from + '.' };
+  list[i] = to; setStages_(list);
+  questionSheets_().forEach(applyStageList_);   // first: the Stage cells only accept names on the list
+  renameStageEverywhere_(from, to);
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEETS.START.name);
+  const at = sh ? sh.getRange(1, 1, Math.max(1, sh.getLastRow()), 1).getValues().findIndex(r => String(r[0]) === STAGES_LABEL) + 1 : 0;
+  if (at) sh.getRange(at, 2, MAX_STAGES, 1).setValues(stageSlots_().map(x => [x]));
+  questionSheets_().forEach(q => { try { colourStages_(q); } catch (e) {} });
+  gradesDirty_(); syncMarks_(); buildGrades_(); bump_();
+  return { ok: true };
 }
 /** The Stage column of a questions tab: a dropdown of the stage list. */
 function applyStageList_(sh) {

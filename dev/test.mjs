@@ -821,4 +821,25 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   ok('Reset lifts the lock: the student gets the current questions again');
 }
 
+// 27. Renaming a stage from the script: list, Start here, every tab, Marks and Grades. Dropdowns enforced, as in Google.
+{
+  const { g, book, mock } = loadScript();
+  g.setup();
+  mock.strict = true;
+  assert.equal(g.renameStage_('Mic', 'Connections').ok, true);
+  assert.equal(g.stages_().join(','), 'Power,Connections,Route,Record,Cue,Shut down');
+  assert.ok(tab(book, 'Questions').data.slice(1).every(r => r[0] !== 'Mic'));
+  assert.equal(g.questions_().find(q => q.id === 'm4').stage, 'Connections');
+  const sh = tab(book, 'Start here').data, at = sh.findIndex(r => r[0] === 'Test stages');
+  assert.equal(sh[at + 1][1], 'Connections');
+  assert.ok(tab(book, 'Marks').data[0].includes('Connections') && !tab(book, 'Marks').data[0].includes('Mic'));
+  assert.equal(g.renameStage_('Nope', 'X').ok, false);
+  ok('renameStage_ renames a stage in the list, on Start here, in every tab and in Marks');
+  // typing over it on Start here does the same, also with the dropdowns enforced
+  const st = g.SpreadsheetApp.getActive().getSheetByName('Start here'), cell = st.getRange(at + 2, 2);   // (data is 0-based, the sheet 1-based)
+  cell.setValue('Patching'); g.onEdit({ range: cell, oldValue: 'Connections' });
+  assert.equal(g.questions_().find(q => q.id === 'm4').stage, 'Patching');
+  ok('typing a new stage name on Start here renames it in every tab (dropdowns enforced)');
+}
+
 console.log(`\n${n} checks passed`);

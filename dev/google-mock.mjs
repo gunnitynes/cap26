@@ -9,6 +9,11 @@ export function loadScript() {
   // ---- a small in-memory spreadsheet. Formatting calls (colours, widths, validation…) are accepted and ignored.
   const chain = () => new Proxy(function () {}, { get: (t, k) => k === 'build' ? () => ({}) : () => chain() });
   const lenient = obj => new Proxy(obj, { get: (t, k) => k in t ? t[k] : (typeof k === 'string' ? () => lenient(t) : undefined) });
+  const mock = { strict: false };   // set strict to enforce dropdowns, as Google does for script writes
+  // dropdowns with allowInvalid false are enforced like Google does: a script writing a value outside the list throws
+  const dv = () => { const rule = { list: null, strict: false, help: '' };
+    const b = new Proxy({}, { get: (t, k) => k === 'build' ? () => ({ __dv: rule }) : k === 'requireValueInList' ? l => { rule.list = [...l].map(String); return b }
+      : k === 'setAllowInvalid' ? x => { rule.strict = !x; return b } : k === 'setHelpText' ? h => { rule.help = h; return b } : () => b }); return b; };
   const colNum = s => s.split('').reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0);
   class Range {
     constructor(sh, r, c, nr, nc) { Object.assign(this, { sh, r, c, nr, nc }); }
@@ -16,13 +21,18 @@ export function loadScript() {
     getValue() { return this.sh.get(this.r, this.c); }
     getDisplayValue() { const v = this.getValue(); return v instanceof Date ? v.toISOString() : String(v ?? ''); }
     getDisplayValues() { return this.getValues().map(r => r.map(v => v instanceof Date ? v.toISOString() : String(v ?? ''))); }
-    setValues(v) { v.forEach((row, i) => row.forEach((x, j) => this.sh.set(this.r + i, this.c + j, x))); return lenient(this); }
-    setValue(x) { this.sh.set(this.r, this.c, x); return lenient(this); }
+    setValues(v) { v.forEach((row, i) => row.forEach((x, j) => this.sh.check(this.r + i, this.c + j, x))); v.forEach((row, i) => row.forEach((x, j) => this.sh.set(this.r + i, this.c + j, x))); return lenient(this); }
+    setValue(x) { this.sh.check(this.r, this.c, x); this.sh.set(this.r, this.c, x); return lenient(this); }
+    setDataValidation(rule) { const d = rule && rule.__dv; this.sh.rules = this.sh.rules.filter(q => !(q.c >= this.c && q.c < this.c + this.nc && q.r >= this.r && q.r < this.r + this.nr));
+      if (d && d.list && d.strict) this.sh.rules.push({ r: this.r, c: this.c, nr: this.nr, nc: this.nc, ...d }); return lenient(this); }
+    clearDataValidations() { this.sh.rules = this.sh.rules.filter(q => !(q.c >= this.c && q.c < this.c + this.nc)); return lenient(this); }
     setFormula(f) { this.sh.set(this.r, this.c, f); return lenient(this); }
     getRow() { return this.r; } getNumRows() { return this.nr; } getColumn() { return this.c; } getNumColumns() { return this.nc; } getSheet() { return this.sh; }
   }
   class Sheet {
-    constructor(name) { this.name = name; this.data = []; }
+    constructor(name) { this.name = name; this.data = []; this.rules = []; }
+    check(r, c, x) { if (!mock.strict || x === '' || x == null) return; const q = this.rules.find(q => r >= q.r && r < q.r + q.nr && c >= q.c && c < q.c + q.nc);
+      if (q && !q.list.includes(String(x))) throw new Error(q.help || 'Invalid value: ' + x); }
     getName() { return this.name; }
     get(r, c) { return (this.data[r - 1] || [])[c - 1] ?? ''; }
     set(r, c, x) { while (this.data.length < r) this.data.push([]); const row = this.data[r - 1]; while (row.length < c) row.push(''); row[c - 1] = x; }
@@ -56,7 +66,7 @@ export function loadScript() {
       deleteSheet: s => { book.sheets = book.sheets.filter(x => x.name !== s.getName()); },
     }),
     getUi: () => { throw new Error('no ui here'); },
-    newDataValidation: chain, newConditionalFormatRule: chain, BandingTheme: {}, InterpolationType: { NUMBER: 'NUMBER' }, BorderStyle: {},
+    newDataValidation: dv, newConditionalFormatRule: chain, BandingTheme: {}, InterpolationType: { NUMBER: 'NUMBER' }, BorderStyle: {},
   };
   const props = new Map(), cache = new Map();
   const g = {
@@ -84,7 +94,7 @@ export function loadScript() {
   };
   vm.createContext(g);
   vm.runInContext(fs.readFileSync(path.join(root, 'apps-script/Code.gs'), 'utf8'), g);
-  return { g, book };
+  return { g, book , mock };
   g.setup();
   g.setTeacher_('Gunnar', 'catalyst', 'admin');
   g.setTeacher_('Anna', '', null, true);            // no password yet: she chooses one at first sign-in
