@@ -397,6 +397,7 @@ details.errfold[open]>summary::after{content:"–"}
   background:repeating-linear-gradient(90deg,transparent 0 47px,color-mix(in srgb,var(--line) 55%,transparent) 47px 48px);
   -webkit-mask:linear-gradient(180deg,transparent,#000 30%,#000 70%,transparent);mask:linear-gradient(180deg,transparent,#000 30%,#000 70%,transparent)}
 .door-top{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+.door-logo{height:52px;width:auto;color:var(--ink);display:block;margin-bottom:10px;animation:fadein .6s ease-out both}
 .door-mark{width:64px;height:64px;filter:drop-shadow(0 12px 24px color-mix(in srgb,var(--led) 45%,transparent))}
 .door-mark .cap{transition:transform .9s cubic-bezier(.2,.8,.2,1)}
 .door-mark .c1{animation:fade1 1.2s .1s both}.door-mark .c2{animation:fade2 1.2s .2s both}.door-mark .c3{animation:fade3 1.2s .3s both}
@@ -911,7 +912,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793537299';
+const BUILD='1793537545';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1078,9 +1079,9 @@ function renderLogin(){
   const last=ls.get('ops.lastName','');
   $('#app').innerHTML=`<div class="door">
     <div class="door-top">
-      <svg class="door-mark" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="var(--led)"/><g fill="none" stroke="#fff" stroke-width="34" stroke-linecap="round"><path d="M150 140v232M256 140v232M362 140v232"/></g><g fill="#fff"><rect class="cap c1" x="118" y="290" width="64" height="40" rx="12"/><rect class="cap c2" x="224" y="180" width="64" height="40" rx="12"/><rect class="cap c3" x="330" y="250" width="64" height="40" rx="12"/></g></svg>
+      <svg class="door-logo" viewBox="0 0 114 46" role="img" aria-label="Catalyst"><path d="M33.9 12.3A16 16 0 1 0 33.9 33.7" fill="none" stroke="currentColor" stroke-width="11.5"/><path d="M62 2h6.2L52.2 44H46zM84 2h6.2L74.2 44H68zM106 2h6.2L96.2 44H90z" fill="currentColor"/></svg>
       <span class="eyebrow">Catalyst Berlin · CAP 2026</span>
-      <h1 class="door-h">Operations<br>Test</h1>
+      <h1 class="door-h">Operation<br>Test</h1>
     </div>
     <form class="door-form" id="loginForm" autocomplete="off">
       <p class="readout info" id="lInfo" hidden></p>
