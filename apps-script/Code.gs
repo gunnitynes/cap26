@@ -1388,10 +1388,10 @@ function publishResults_(me, req) {
 // ─────────────────────────────────────────────────────────────── the Grades overview tab
 
 function gradesDirty_() { try { CacheService.getScriptCache().put('grades_dirty', '1', 21600); } catch (e) {} }
-/** Called on every page refresh: rebuilds at most every 20 seconds, and only after something changed. */
+/** Called by the page's tidy after its saves: rebuilds the Grades tab whenever something changed since the last build. */
 function maybeBuildGrades_() {
   const c = CacheService.getScriptCache();
-  if (!c.get('grades_dirty') || c.get('grades_recent')) return;
+  if (!c.get('grades_dirty')) return;   // (the page asks for this after its saves, at most every few seconds)
   buildGrades_();
 }
 

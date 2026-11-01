@@ -781,4 +781,24 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   ok('an admin can open any teacher\'s tab or the shared one; other tabs are untouched');
 }
 
+// 25. A reset on the phone reaches the Grades tab, even seconds after the last rebuild.
+{
+  const { g, book } = loadScript();
+  g.setup();
+  const ss = g.SpreadsheetApp.getActive(), te = ss.getSheetByName('Teachers');
+  te.getRange(2, 1, 1, 2).setValues([['Isuru', 'teacher']]); g.onEdit({ range: te.getRange(2, 1, 1, 2) });
+  g.setTeamPassword_('team-pass-1');
+  const it = raw(g, { action: 'login', name: 'Isuru', password: 'team-pass-1' }).token;
+  const id = raw(g, { action: 'addStudents', token: it, names: ['Edo'], studio: 'K3', day: '2026-11-04' }).ids[0];
+  const qs = raw(g, { action: 'state', token: it }).questions.map(q => q.id);
+  const grade = () => { const d = tab(book, 'Grades').data, h = d[6]; const r = d.find(x => x[1] === 'Edo'); return r[h.indexOf('Grade')]; };
+  raw(g, { action: 'batch', token: it, steps: [['saveEntry', { sid: id, patch: { marks: Object.fromEntries(qs.map(q => [q, 'y'])), ended: 1 } }]] });
+  raw(g, { action: 'tidy', token: it });
+  assert.equal(grade(), 'Qualified');
+  raw(g, { action: 'batch', token: it, steps: [['saveEntry', { sid: id, patch: { marks: Object.fromEntries(qs.map(q => [q, null])), summary: '', ended: null } }]] });
+  raw(g, { action: 'tidy', token: it });   // straight after the last rebuild
+  assert.equal(grade(), 'Not started');
+  ok('a reset shows in the Grades tab on the next tidy, however soon after the last one');
+}
+
 console.log(`\n${n} checks passed`);
