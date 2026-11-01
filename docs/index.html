@@ -489,8 +489,9 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .tm-btns{display:flex;gap:8px}.tm-btns button{min-width:84px}
 .tm-pill{flex:none;border:1px solid var(--led);background:var(--led-soft);color:var(--led);border-radius:12px;height:40px;min-width:76px;padding:0 10px;font-family:var(--mono);font-weight:700;font-size:18px;font-variant-numeric:tabular-nums}
 /* the student's name in the header: the yellow tape label, small, up to two lines for long names */
-.brand .sname{display:block;max-width:min(34vw,240px);background:var(--tape);color:var(--tape-ink);font-family:var(--mono);font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:12px;line-height:1.2;padding:5px 9px;border-radius:2px;transform:rotate(-1deg);box-shadow:0 1px 0 #0000001f;text-align:center}
-.brand .sname span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
+.brand .sname{display:block;max-width:min(52vw,320px);background:var(--tape);color:var(--tape-ink);font-family:var(--mono);font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:22px;line-height:1.1;padding:6px 12px 5px;border-radius:2px;box-shadow:0 1px 0 #0000001f;text-align:center}
+.brand .sname span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:400px){.brand .sname{font-size:20px}}
 .tm-start{flex:none;display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 10px 0 8px;border:1px solid var(--led);background:var(--led-soft);color:var(--led);border-radius:12px;font:inherit;font-weight:700;white-space:nowrap}
 .tm-start svg{width:16px;height:16px;fill:currentColor}
 .tm-start .tm-num{font-family:var(--mono);font-size:16px;color:var(--ink)}
@@ -907,7 +908,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793534956';
+const BUILD='1793535496';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -975,12 +976,20 @@ function bindDhead(setDay){
 }
 function stripCounts(byDay){document.querySelectorAll('.dcell').forEach(c=>{const n=(byDay[c.dataset.d]||[]).length;if(n){c.dataset.n=n;c.querySelector('.c').textContent=n}else{delete c.dataset.n;c.querySelector('.c').textContent=''}})}
 let tmArmT=0;
+const firstName=n=>String(n||'').trim().split(/\s+/)[0]||'';
+// the name label as large as the header allows: it shrinks only when it would reach the timer (down to 14px, then "…")
+function fitName(){const lab=document.querySelector('.brand .sname'),tm=document.querySelector('.bar-r button');if(!lab||!tm)return;
+  lab.style.fontSize='';lab.style.maxWidth='';let fs=parseFloat(getComputedStyle(lab).fontSize);
+  while(fs>14&&lab.getBoundingClientRect().right>tm.getBoundingClientRect().left-12){fs-=1;lab.style.fontSize=fs+'px'}
+  const r=lab.getBoundingClientRect(),room=tm.getBoundingClientRect().left-12-(r.left+r.right)/2;
+  if(r.right>tm.getBoundingClientRect().left-12)lab.style.maxWidth=Math.max(60,2*room)+'px'}   // still too long: cut with "…"
+addEventListener('resize',fitName);
 function renderBar(){
   const t=S.view==='test'&&view(S.open);
   const nm=S.view==='login'?'':S.me;
   $('#barInner').innerHTML=`<div class="barrow"><div class="bar-l">${S.view==='test'||S.view==='account'||S.view==='grades'||S.view==='questions'||S.view==='add'?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
-   ${S.me&&nm?`<div class="who"><button class="whobtn" id="whoBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(nm)}: menu"><span class="av" aria-hidden="true">${esc(nm.trim().charAt(0).toUpperCase())}</span><span class="wn">${esc(nm)}</span><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>${whoMenu()}</div>`:''}</div>
-   <div class="brand">${S.view==='test'&&t?`<b class="sname"><span id="sName">${esc(t.name)}</span></b>`:'<b class="ttl">Operations Test</b>'}</div><div class="bar-r">
+   ${S.me&&nm&&S.view!=='test'?`<div class="who"><button class="whobtn" id="whoBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(nm)}: menu"><span class="av" aria-hidden="true">${esc(nm.trim().charAt(0).toUpperCase())}</span><span class="wn">${esc(nm)}</span><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>${whoMenu()}</div>`:''}</div>
+   <div class="brand">${S.view==='test'&&t?`<b class="sname" title="${esc(t.name)}"><span id="sName">${esc(firstName(t.name))}</span></b>`:'<b class="ttl">Operations Test</b>'}</div><div class="bar-r">
    ${S.view==='test'&&t&&timerOf(S.open)?`<button class="tm-pill" data-timer="${S.open}" id="tmPill" type="button" aria-label="Timer running. Tap twice to reset"><span class="tm-num">${timerOf(S.open).txt}</span></button>`:''}
    ${S.view==='test'&&t&&!timerOf(S.open)?`<button class="tm-start" id="tmStart" type="button" aria-label="Start the 10-minute timer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg><span class="tm-num">10:00</span></button>`:''}
    ${S.view==='roster'&&(S.ready||S.demo)?(()=>{const sd=new Date(S.day+'T12:00');return `<button class="datecard datebtn" id="dateBtn" type="button" aria-expanded="${!!S.stripOpen}" aria-label="Test date ${fmtDay(S.day)}. Change date"><small>${S.day===today()?'TODAY':sd.toLocaleDateString('en-GB',{weekday:'short'}).toUpperCase()}</small><b>${sd.getDate()}</b><span>${sd.toLocaleDateString('en-GB',{month:'short'})}</span></button>`})():''}</div></div>
@@ -1005,6 +1014,7 @@ function renderBar(){
       st.querySelectorAll('.dcell').forEach(x=>x.setAttribute('aria-pressed',x===c));
       setTimeout(()=>setDay(c.dataset.d),160)};
     const mon=st.children[14];st.style.scrollBehavior='auto';st.scrollLeft=mon.offsetLeft-st.offsetLeft;st.style.scrollBehavior=''}
+  fitName();
   const h=document.querySelector('.bar').offsetHeight;document.documentElement.style.setProperty('--barh',h+'px');
 }
 /* The teacher menu (the name button, top left): marking style, the account page (teachers, for an admin), sign out last. */
@@ -1578,7 +1588,7 @@ function autosize(n){n.style.height='auto';n.style.height=Math.min(n.scrollHeigh
 function syncSheet(first){
   if(S.view!=='test')return;const raw=view(S.open);if(!raw||raw.deleted){go('roster');return}
   const t={id:S.open,...raw},e=mine(t),sc=scoreOf(e,t),app=$('#app');
-  const sn=$('#sName');if(sn&&sn.textContent!==t.name)sn.textContent=t.name;
+  const sn=$('#sName');if(sn&&sn.textContent!==firstName(t.name)){sn.textContent=firstName(t.name);fitName()}
   app.querySelectorAll('.marks').forEach(g=>{const v=e.marks?.[g.dataset.crit];g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===v));swipeShow(g,v);const a=g.closest('.crit');a.dataset.m=v||'';if(v)a.classList.remove('missing')});
   app.querySelectorAll('[data-note]').forEach(n=>{const v=e.notes?.[n.dataset.note]||'';if(document.activeElement!==n&&n.value!==v){n.value=v}if(v){n.hidden=false;const ab=app.querySelector(`[data-addnote="${n.dataset.note}"]`);if(ab)ab.hidden=true}if(!n.hidden)autosize(n)});
   const sm=$('#summary');if(document.activeElement!==sm&&sm.value!==(e.summary||''))sm.value=e.summary||'';
