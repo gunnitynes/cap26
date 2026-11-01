@@ -876,7 +876,7 @@ const ago=t=>{const s=Math.round((Date.now()-t)/1000);return s<10?'just now':s<6
 function paintSync(){const [k,t1,t2]=syncState();
   const w=$('#whoBtn');if(w){w.dataset.sync=k;w.setAttribute('aria-label',S.me+': menu. '+t1)}
   const el=$('#sync');if(el)el.dataset.c=k;
-  const a=$('#msTitle');if(a){a.textContent=t1;$('#msSub').textContent=t2}}
+  const a=$('#msTitle');if(a){a.textContent=k==='spin'?'Syncing…':'Sync';$('#msSub').textContent=k==='spin'?t1:'Tap to sync'}}
 setInterval(()=>{if($('#whoMenu')&&!$('#whoMenu').hidden)paintSync()},5000);   // keeps "checked … ago" honest while the menu is open
 async function syncNow(){
   if(S.demo||!S.token||S.manual)return;S.manual=true;paintSync();
@@ -894,7 +894,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793532677';
+const BUILD='1793533205';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1001,11 +1001,11 @@ if(themeNow()!=='auto')setTheme(themeNow());
 function whoMenu(){const st=markStyle();
   return `<div class="menu" id="whoMenu" role="menu" hidden>
     <div class="menu-h"><b>${esc(S.me)}</b><span>${S.role==='admin'?'Admin':'Teacher'} · signed in</span></div>
-    <div class="menu-sec"><span class="menu-l">Students</span>
-      <button class="menu-big" type="button" role="menuitem" data-go="add">Add students<span aria-hidden="true">›</span></button></div>
     <div class="menu-sec"><span class="menu-l">Questions</span>
       <button class="menu-big" type="button" role="menuitem" data-go="questions">${S.role==='admin'?'Edit questions':'My questions'}<span aria-hidden="true">›</span></button></div>
-    <div class="menu-sec"><span class="menu-l">Google Sheet</span>
+    <div class="menu-sec"><span class="menu-l">Students</span>
+      <button class="menu-big" type="button" role="menuitem" data-go="add">Add students<span aria-hidden="true">›</span></button></div>
+    <div class="menu-sec">
       <button class="menu-sync" id="menuSync" type="button" role="menuitem"><span class="sync" id="sync" data-c="ok"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 0 1-13.2 4.9M4.5 12a7.5 7.5 0 0 1 13.2-4.9"/><path d="M18.4 3.6v3.7h-3.7M5.6 20.4v-3.7h3.7"/></svg></span><span class="ms-t"><b id="msTitle"></b><small id="msSub"></small></span></button></div>
     <div class="menu-sec"><span class="menu-l">Appearance</span>
       <div class="seg" role="group" aria-label="Appearance">${[['auto','Auto'],['light','Light'],['dark','Dark']].map(([k,l])=>`<button type="button" role="menuitemradio" data-theme-pick="${k}" aria-pressed="${themeNow()===k}">${l}</button>`).join('')}</div></div>
@@ -1530,7 +1530,7 @@ function renderSheet(){
       app.querySelectorAll('article.crit').forEach(a=>a.classList.toggle('missing',missing.some(c=>c.id===a.dataset.crit)));
       app.querySelector(`article.crit[data-crit="${missing[0].id}"]`)?.scrollIntoView({behavior:'smooth',block:'center'});
       // the way out is right there at the bottom of the screen, so nobody has to scroll back down to the button
-      endBar(missing.length);
+      endBar(missing.length);$('#endBar').dataset.n=missing.length;
       const b=$('#doneBtn');b.textContent=e.ended?'Save anyway':'End test anyway';setTimeout(()=>{if($('#doneBtn')===b)b.textContent=label},8000);
       return}
     finish()};
@@ -1573,7 +1573,9 @@ function syncSheet(first){
   app.querySelectorAll('.marks').forEach(g=>{const v=e.marks?.[g.dataset.crit];g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===v));swipeShow(g,v);const a=g.closest('.crit');a.dataset.m=v||'';if(v)a.classList.remove('missing')});
   app.querySelectorAll('[data-note]').forEach(n=>{const v=e.notes?.[n.dataset.note]||'';if(document.activeElement!==n&&n.value!==v){n.value=v}if(v){n.hidden=false;const ab=app.querySelector(`[data-addnote="${n.dataset.note}"]`);if(ab)ab.hidden=true}if(!n.hidden)autosize(n)});
   const sm=$('#summary');if(document.activeElement!==sm&&sm.value!==(e.summary||''))sm.value=e.summary||'';
-  if($('#endBar')&&!$('#endBar').hidden){const m=e.marks||{},left=skillsFor(t).filter(c=>!(m[c.id] in POINTS));endBar(left.length);
+  if($('#endBar')&&!$('#endBar').hidden){const m=e.marks||{},left=skillsFor(t).filter(c=>!(m[c.id] in POINTS)),bar=$('#endBar'),was=+bar.dataset.n||0;endBar(left.length);bar.dataset.n=left.length;
+    // one more marked and some still missing: after a moment (so the mark is seen), on to the next missing skill
+    if(left.length&&left.length<was){const nx=app.querySelector(`article.crit[data-crit="${left[0].id}"]`);clearTimeout(endBar.jump);endBar.jump=setTimeout(()=>nx?.scrollIntoView({behavior:'smooth',block:'center'}),450)}
     app.querySelectorAll('article.crit.missing').forEach(a=>{if(m[a.dataset.crit] in POINTS)a.classList.remove('missing')})}
   const nh=$('#notesHint');if(nh)nh.textContent=(e.summary||'').trim()?'':'optional';
   stagesFor(t).forEach(s=>{const cs=skillsFor(t).filter(c=>c.s===s.id);if(!cs.length||!app.querySelector(`[data-count="${s.id}"]`))return;
