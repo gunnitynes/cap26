@@ -975,5 +975,31 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(of('Top'), g.heat_(100)); assert.equal(of('Half'), g.heat_(50)); assert.equal(of('Open'), '#ffffff');
   ok('Students: a completed test colours the name like its Score %, an open one stays plain');
 }
+// 33. The score curve: 100 and anything at or under 70 stay, the rest comes down a little, order kept; off = plain scores.
+{
+  const { g, book } = loadScript();
+  g.setup(); g.setTeacher_('Gunni', 'admin'); g.setTeamPassword_('catalyst'); g.setAdminPin_('2468');
+  assert.equal(g.curve_(90), 90);   // off by default
+  const gt = call(g, { action: 'login', name: 'Gunni', password: 'catalyst', pin: '2468' }).token;
+  call(g, { action: 'addStudents', token: gt, studio: 'K3', day: '2026-11-02', teacher: 'Gunni', names: ['Ace', 'Pat', 'Low'] });
+  const st = call(g, { action: 'state', token: gt }), id = n => st.students.find(s => s.name === n).id, qs = st.qlive.gunni.filter(q => !q.studios || q.studios.includes('K3'));
+  const all = v => Object.fromEntries(qs.map(q => [q.id, v]));
+  call(g, { action: 'saveEntry', token: gt, sid: id('Ace'), patch: { marks: all('p'), ended: 1 } });   // 100
+  call(g, { action: 'saveEntry', token: gt, sid: id('Pat'), patch: { marks: all('y'), ended: 1 } });   // 80
+  call(g, { action: 'saveEntry', token: gt, sid: id('Low'), patch: { marks: all('g'), ended: 1 } });   // 50
+  g.buildGrades_();
+  const grade = n => { const d = tab(book, 'Grades').data, h = d.find(r => r[0] === 'Test date'); const r = d.find(x => x[1] === n); return [r[h.indexOf('Score %')], r[h.indexOf('Grade')]]; };
+  const marks = n => { const m = tab(book, 'Marks').data, h = m[0]; const r = m.find(x => x[1] === n); return [r[h.indexOf('Score %')], r[h.indexOf('Result')]]; };
+  const before = ['Ace', 'Pat', 'Low'].map(n => grade(n).concat(marks(n)));
+  g.setCurve_(true);
+  assert.deepEqual(grade('Ace'), [100, 'Grade A']); assert.deepEqual(grade('Low'), [50, 'Eligible']);
+  assert.equal(grade('Pat')[0], 74); assert.equal(marks('Pat')[0], 74);   // 80 − 0.9·10·20/30
+  assert.ok([60, 70, 75, 80, 85, 90, 95, 99, 100].map(g.curve_).every((v, i, a) => !i || v > a[i - 1]));
+  assert.equal(g.curve_(70), 70); assert.equal(g.curve_(40), 40); assert.equal(g.curve_(100), 100);
+  ok('the curve keeps 100 and everything at or under 70, lowers the rest a little, and never changes anyone\'s order');
+  g.setCurve_(false);
+  assert.deepEqual(['Ace', 'Pat', 'Low'].map(n => grade(n).concat(marks(n))), before);
+  ok('switching the curve off gives back exactly the plain scores, in Grades and Marks');
+}
 
 console.log(`\n${n} checks passed`);

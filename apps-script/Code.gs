@@ -123,6 +123,9 @@ function onOpen() {
     .addItem('Refresh the Grades tab', 'buildGrades_')
     .addItem('Use the current questions for a test date…', 'menuUseCurrentQuestions')
     .addSeparator()
+    .addItem('Score curve: on', 'menuCurveOn')
+    .addItem('Score curve: off (the plain scores)', 'menuCurveOff')
+    .addSeparator()
     .addItem('Reset a student\'s test…', 'menuResetStudent')
     .addItem('Reset ALL test results…', 'menuResetAll')
     .addToUi();
@@ -1179,10 +1182,36 @@ function stageScores_(qs, val) {
     return { stages, score: ks.length ? ks.reduce((a, k) => a + stages[k], 0) / ks.length : null };
   };
   // a bonus question can only help: the score with it, when that is higher, otherwise the score without it
-  if (!qs.some(q => q.bonus)) return run(qs);
-  const base = run(qs.filter(q => !q.bonus)), all = run(qs);
-  return all.score !== null && (base.score === null || all.score > base.score) ? all : base;
+  let out = run(qs);
+  if (qs.some(q => q.bonus)) { const base = run(qs.filter(q => !q.bonus)); if (out.score === null || (base.score !== null && base.score >= out.score)) out = base; }
+  return { stages: out.stages, score: curve_(out.score) };   // the stages stay as marked; only the total follows the curve
 }
+
+/* The score curve (Ops Test ▸ Score curve: on / off). It spreads out the high scores without touching the ends:
+   100 stays 100, a score of CURVE_FROM or below is never changed, and in between a score comes down by
+   strength × (s − 70)(100 − s) / 30, most in the middle of that range. It never changes anyone's order (a higher score
+   stays higher). Off (strength 0) gives exactly the plain scores back. Every score, Marks row and grade follows it. */
+const CURVE_FROM = 70, CURVE_STRENGTH = 0.9;
+let CURVE_ = null;
+function curveStrength_() {
+  if (CURVE_ === null) { try { CURVE_ = Number(PropertiesService.getScriptProperties().getProperty('curve') || 0) || 0; } catch (e) { CURVE_ = 0; } }
+  return CURVE_;
+}
+function curve_(s) {
+  const a = curveStrength_();
+  if (!a || s === null || s === undefined || s <= CURVE_FROM || s >= 100) return s;
+  return s - a * (s - CURVE_FROM) * (100 - s) / (100 - CURVE_FROM);
+}
+/** Switches the curve and brings Marks, Grades and the page up to date at once. */
+function setCurve_(on) {
+  const props = PropertiesService.getScriptProperties();
+  if (on) props.setProperty('curve', String(CURVE_STRENGTH)); else props.deleteProperty('curve');
+  CURVE_ = null;
+  syncMarks_(true); buildGrades_(); bump_();
+  return { ok: true, curve: curveStrength_() };
+}
+function menuCurveOn() { const r = withLock_(() => setCurve_(true)); try { SpreadsheetApp.getUi().alert(r.ok ? 'The score curve is on. Marks, Grades and the app now show the curved scores.' : r.error); } catch (e) {} }
+function menuCurveOff() { const r = withLock_(() => setCurve_(false)); try { SpreadsheetApp.getUi().alert(r.ok ? 'The score curve is off: every score is the plain one again.' : r.error); } catch (e) {} }
 /** In words: Grade A / Pass / Resit once every skill is marked or the test was ended; before that In progress or Not started. */
 function resultOf_(score, errors, marked, total, ended) {
   if (!marked && !errors.length) return ended ? 'Not marked' : 'Not started';
@@ -1192,10 +1221,10 @@ function resultOf_(score, errors, marked, total, ended) {
 }
 
 /** Keeps the Marks columns in step with the questions. When they change, every row is rewritten from its own page copy. */
-function syncMarks_() {
+function syncMarks_(force) {
   const ctx = marksCtx_(), head = marksHeader_(ctx), sh = sheet_(SHEETS.MARKS), w = sh.getLastColumn();
   const now = w ? sh.getRange(1, 1, 1, w).getValues()[0].map(String) : [];
-  if (now.join('\u0001') === head.join('\u0001')) return ctx;
+  if (!force && now.join('\u0001') === head.join('\u0001')) return ctx;
   const studs = {}; students_().forEach(s => studs[s.id] = s);
   const rows = marksRows_().map(m => marksRow_(studs[m.sid] || { id: m.sid, day: m.day, name: m.name, studio: '', teacher: '' }, m.teacher, m.data, ctx, m.updated));
   if (sh.getMaxColumns() < head.length) sh.insertColumnsAfter(sh.getMaxColumns(), head.length - sh.getMaxColumns());
