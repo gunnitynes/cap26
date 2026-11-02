@@ -1565,8 +1565,8 @@ function buildGrades_() {
   // B1: the supervisors' view (every student, read only, always up to date), when an admin has made the link in the app
   const url = shareUrl_();
   if (url) sh.getRange('B1').setFormula('=HYPERLINK("' + url + '","Supervisors’ view  ↗")').setFontWeight('bold').setFontColor('#ffffff').setBackground(BLUE)
-    .setHorizontalAlignment('center').setVerticalAlignment('middle').setFontSize(11)
-    .setNote('Opens the overview of every student, read only and always up to date. Click the cell, then the link that pops up.');
+    .setHorizontalAlignment('center').setVerticalAlignment('middle').setFontSize(11);
+  try { sh.getRange('B1').clearNote(); } catch (e) {}   // a note there would open on top of the link
   names.forEach((n, i) => {
     const c = cols[i], fg = colours[i][2], txt = counts[n] + '  ' + n, cell = sh.getRange(1, c);
     try { sh.getRange(1, c, 1, 2).merge(); } catch (e) {}
