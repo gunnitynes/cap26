@@ -1562,10 +1562,16 @@ function buildGrades_() {
   const colours = [BANDS[0], BANDS[1], BANDS[2], ['', 0, '#9aa3b5', PAPER]];
   sh.getRange(1, 1).setValue('Grades').setVerticalAlignment('middle');
   sh.getRange('A1').setFontSize(16).setFontWeight('bold').setFontColor(BLUE);
-  // B1: the supervisors' view (every student, read only, always up to date), when an admin has made the link in the app
-  const url = shareUrl_();
-  if (url) sh.getRange('B1').setFormula('=HYPERLINK("' + url + '","Supervisors’ view  ↗")').setFontWeight('bold').setFontColor('#ffffff').setBackground(BLUE)
-    .setHorizontalAlignment('center').setVerticalAlignment('middle').setFontSize(11);
+  // B1: the OVERVIEW button, the supervisors' view (every student, read only, always up to date) when an admin has made
+  // the link in the app. A Sheet can't run a click, so it is a link drawn as a button: white, a heavy frame, bold capitals.
+  const url = shareUrl_(), b1 = sh.getRange('B1');
+  b1.clearContent();
+  if (url) {
+    b1.setFormula('=HYPERLINK("' + url + '","OVERVIEW  ↗")').setFontWeight('bold').setFontColor(INK).setBackground('#ffffff').setFontSize(12)
+      .setHorizontalAlignment('center').setVerticalAlignment('middle').setFontFamily('Arial')
+      .setBorder(true, true, true, true, null, null, INK, SpreadsheetApp.BorderStyle.SOLID_THICK);
+    try { b1.setFontLine('none'); } catch (e) {}
+  }
   try { sh.getRange('B1').clearNote(); } catch (e) {}   // a note there would open on top of the link
   names.forEach((n, i) => {
     const c = cols[i], fg = colours[i][2], txt = counts[n] + '  ' + n, cell = sh.getRange(1, c);
