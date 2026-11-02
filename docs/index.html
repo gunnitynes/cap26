@@ -582,6 +582,8 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .gdist{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--sunk);margin-top:14px}
 .gdist i{display:block;height:100%}
 .gv-sum{margin-top:10px}
+.gv-upd{display:inline-flex;align-items:center;gap:6px;margin-top:4px;font-family:var(--mono);font-size:11px;color:var(--mute)}
+.gv-upd .spin{width:11px;height:11px;border-width:2px;margin:0}
 .ggraph{display:block;margin-top:12px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
 .ggraph .gg-row+.gg-row{margin-top:7px}
 .ggraph summary{display:flex;align-items:baseline;gap:10px;cursor:pointer;list-style:none;padding:2px 0}
@@ -1027,7 +1029,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793656325';
+const BUILD='1793656667';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1058,7 +1060,7 @@ async function boot(){
 function startShared(){
   S.viewOnly=true;S.token='';S.me='';S.role='';S.view='grades';S.ready=true;G.mine=false;
   document.title='Operation Test · Overview';
-  renderBar();renderGrades();
+  lastOverview();renderBar();renderGrades();
   const pull=async()=>{await loadGrades(true);if(S.view==='grades')renderGrades()};
   pull();setInterval(()=>{if(document.visibilityState==='visible')pull()},60000);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')pull()});
@@ -1179,7 +1181,8 @@ function menuCounts(){const c=dayCounts(),set=(id,v)=>{const el=$(id);if(el)el.t
   set('#mDay',fmtDay(S.day)+(S.day===today()?' · today':''));set('#mN',c.n);set('#mDone',c.done);set('#mLeft',c.left)}
 function bindWhoMenu(){
   const b=$('#whoBtn'),m=$('#whoMenu');if(!b||!m)return;
-  const show=on=>{m.hidden=!on;b.setAttribute('aria-expanded',on);if(on){menuCounts();document.addEventListener('pointerdown',away,true);document.addEventListener('keydown',esc_)}else{document.removeEventListener('pointerdown',away,true);document.removeEventListener('keydown',esc_)}};
+  const show=on=>{m.hidden=!on;b.setAttribute('aria-expanded',on);if(on){menuCounts();if(!S.demo)loadGrades();   // the Overview is usually next: start fetching it now
+document.addEventListener('pointerdown',away,true);document.addEventListener('keydown',esc_)}else{document.removeEventListener('pointerdown',away,true);document.removeEventListener('keydown',esc_)}};
   // a tap outside the menu only closes it: the tap does not also open a student or press a button underneath
   const away=e=>{if(e.target.closest('.who'))return;show(false);
     const swallow=ev=>{ev.preventDefault();ev.stopPropagation()};document.addEventListener('click',swallow,{capture:true,once:true});
@@ -1515,9 +1518,13 @@ const parseLine=l=>{const m=l.match(/^(\d{1,2})[:.](\d{2})\s+(.+)$/);return m&&+
 const G={list:null,at:0,busy:false,day:null,err:'',mine:ls.get('ops.ovMine',true)};
 async function loadGrades(force){
   if(S.demo){G.list=demoGrades();return}
-  if(G.busy||(!force&&Date.now()-G.at<8000))return;
-  G.busy=true;const j=S.viewOnly?await api('sharedGrades',{key:VIEWKEY}):await api('grades');G.busy=false;
-  if(j.ok){G.list=j.students;G.order=j.teacherOrder||[];G.at=Date.now();G.err=''}else{G.err=j.error||'The grades could not be loaded.';if(j.code==='noshare')G.list=null}
+  if(G.busy)return G.p;   // already on its way (e.g. started when the menu opened): wait for that one
+  if(!force&&Date.now()-G.at<8000)return;
+  G.busy=true;
+  G.p=(async()=>{const j=S.viewOnly?await api('sharedGrades',{key:VIEWKEY}):await api('grades');G.busy=false;
+    if(j.ok){G.list=j.students;G.order=j.teacherOrder||[];G.at=Date.now();G.err='';G.stale=false;ls.set(ovKey(),{list:G.list,order:G.order})}
+    else{G.err=j.error||'The grades could not be loaded.';if(j.code==='noshare')G.list=null;else if(G.stale)G.stale='err'}})();
+  return G.p;
 }
 function demoGrades(){return allTests().map(t=>{const g=gradeOf(t);
   return {id:t.id,day:t.day,time:t.time||'',end:t.end||'',name:t.name,cap:t.cap||'',studio:t.studio,teacher:t.teacher||'',marked:g.marked,total:g.total,score:g.marked?Math.round(g.score):null,final:g.marked?Math.round(g.final):null,
@@ -1554,7 +1561,10 @@ function bindShare(){
   $('#shareOff')?.addEventListener('click',async e=>{const b=e.currentTarget;if(b.dataset.arm!=='1'){b.dataset.arm='1';b.textContent='Tap again: old link stops';setTimeout(()=>{if(b.isConnected){b.dataset.arm='';b.textContent='Switch off'}},4000);return}
     const j=await api('shareLink',{off:1});if(j.ok){G.share='';renderGrades();toast('The link is switched off')}});
 }
-async function openGrades(){G.day=null;go('grades');await loadGrades(true);if(S.view==='grades')renderGrades()}
+/* The last overview this browser saw is shown at once (marked "Updating…") while the fresh one comes from the Sheet. */
+const ovKey=()=>S.viewOnly?'ops.ovShared':'ops.ov.'+String(S.me||'').toLowerCase();
+function lastOverview(){if(G.list)return;const c=ls.get(ovKey(),null);if(c&&Array.isArray(c.list)){G.list=c.list;G.order=c.order||[];G.stale=true}}
+async function openGrades(){G.day=null;lastOverview();go('grades');await loadGrades(true);if(S.view==='grades')renderGrades()}
 const GK={'Grade A':{cls:'a',pill:'merit',col:'ok'},Eligible:{cls:'pass',pill:'passg',col:'ink'},Resit:{cls:'resit',pill:'resitg',col:'no'},
   open:{cls:'open',pill:'live',col:'led',l:'Remaining'},todo:{cls:'todo',pill:'todo',col:'mute',l:'Not started'}};
 const gkey=x=>!x.marked?'todo':x.complete&&GK[x.grade]?x.grade:'open';
@@ -1590,7 +1600,7 @@ function renderGrades(){
       ${x.errors.length?`<div class="gc-flag">Critical: ${esc(x.errors.join('; '))}</div>`:''}`}
     </article>`};
   app.innerHTML=`
-   <div class="gv-head"><span class="eyebrow">Overview</span><h2>${S.viewOnly?'All students':day==='all'?'All test days':fmtDay(day)}</h2></div>
+   <div class="gv-head"><span class="eyebrow">Overview</span><h2>${S.viewOnly?'All students':day==='all'?'All test days':fmtDay(day)}</h2>${G.stale==='err'?'<span class="gv-upd" role="status">Last saved overview · the Sheet did not answer</span>':G.stale?'<span class="gv-upd" role="status"><span class="spin" aria-hidden="true"></span>Updating…</span>':''}</div>
    ${admin?`<div class="seg whoseg" id="gWho" role="group" aria-label="Whose students"><button type="button" data-mine="1" aria-pressed="${mineOnly}">My students · ${dayMine.length}</button><button type="button" data-mine="0" aria-pressed="${!mineOnly}">Everyone · ${dayAll.length}</button></div>`:''}
    ${days.length>1&&!S.viewOnly?`<div class="chips" id="gDays" role="group" aria-label="Test day">${days.map(d=>`<button type="button" data-gday="${d}" aria-pressed="${d===day}">${fmtDay(d)}</button>`).join('')}<button type="button" data-gday="all" aria-pressed="${day==='all'}">All</button></div>`:''}
    ${list.length?`<div class="gdist" aria-hidden="true">${order.filter(k=>n[k]).map(k=>`<i style="width:${n[k]/list.length*100}%;background:var(--${GK[k].col==='mute'?'line':GK[k].col})"></i>`).join('')}</div>`:''}

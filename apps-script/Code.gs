@@ -1354,7 +1354,9 @@ function seedQuestions_() {
    (rewording still shows). The lock is per student and starts when a teacher presses End test and grade; Reset lifts it.
    Everyone not graded yet gets their teacher's current questions, so an added question reaches them at once.
    Stored as script property qs_<student id>. (Older versions locked whole dates: q_<date>|<teacher>, converted below.) */
-function frozenRaw_(key) { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty(key) || 'null'); } catch (e) { return null; } }
+// gradeList_ reads every script property in one call (PROPS_) instead of one call per student
+let PROPS_ = null;
+function frozenRaw_(key) { try { return JSON.parse((PROPS_ ? PROPS_[key] : PropertiesService.getScriptProperties().getProperty(key)) || 'null'); } catch (e) { return null; } }
 function studentFrozen_(sid) { return sid ? frozenRaw_('qs_' + sid) : null; }
 function studentFreezeKeys_() { return Object.keys(PropertiesService.getScriptProperties().getProperties()).filter(k => /^qs_/.test(k)); }
 function freezeStudent_(sid, qs) {
@@ -1433,6 +1435,11 @@ function gradeOf_(byTeacher, qs) {
 
 /** Every student with their combined grade, each on their own date's questions. Used by the Grades tab and the page. */
 function gradeList_() {
+  const own = !PROPS_;
+  if (own) try { PROPS_ = PropertiesService.getScriptProperties().getProperties(); } catch (e) { PROPS_ = null; }
+  try { return gradeListNow_(); } finally { if (own) PROPS_ = null; }
+}
+function gradeListNow_() {
   const students = students_().filter(s => !s.removed).sort(byTestTime_);
   // a Marks row whose Teacher cell is empty cannot be anyone's marking (e.g. cleared by hand): it does not count
   const marks = {}; marksRows_().forEach(m => { if (m.teacher.trim()) (marks[m.sid] = marks[m.sid] || {})[m.teacher] = m.data; });
@@ -1447,13 +1454,25 @@ function gradeList_() {
 
 /** The page's Grades screen: the combined result per student, never one teacher's marks. */
 function grades_(me) {
-  return { ok: true, students: gradeList_().list.filter(x => sees_(me, x.s)).map(({ s, qs, g }) => {
+  const all = gradesAll_();
+  return { ok: true, students: all.students.filter(x => sees_(me, x)), teacherOrder: all.teacherOrder };
+}
+/* Every student's combined result, worked out once and kept until anything changes: the same 'ver' as the page's state
+   (bumped by every save, every edit in the Sheet and every locked change), so a second look is quick and never stale. */
+function gradesAll_() {
+  const c = CacheService.getScriptCache();
+  let ver = null;
+  try { ver = c.get('ver'); const hit = JSON.parse(c.get('grades_all') || 'null'); if (ver && hit && hit.v === ver) return hit.r; } catch (e) {}
+  if (!ver) { bump_(); try { ver = c.get('ver'); } catch (e) {} }
+  const r = { teacherOrder: teachers_().map(t => t.name), students: gradeList_().list.map(({ s, qs, g }) => {
     const stages = [];
     qs.forEach(q => { if (!stages.some(x => x.name === q.stage)) stages.push({ name: q.stage, pct: q.stage in g.stages ? g.stages[q.stage] : null }); });
     return { id: s.id, day: s.day, time: s.time, end: s.end, name: s.name, cap: s.cap, studio: s.studio, teacher: s.teacher, marked: g.marked, total: qs.length,
       score: g.score === null ? null : Math.round(g.score), final: g.final === null ? null : Math.round(g.final),
       errors: g.errors, coreFails: g.coreFails, complete: g.complete, grade: g.band ? g.band[0] : null, teachers: g.teachers, stages };
-  }), teacherOrder: teachers_().map(t => t.name) };
+  }) };
+  try { const body = JSON.stringify({ v: ver, r }); if (ver && body.length < 95000) c.put('grades_all', body, 21600); } catch (e) {}
+  return r;
 }
 
 /* The view-only Overview for supervisors: one secret link, made and switched off by an admin on the Overview page.
@@ -1471,9 +1490,9 @@ function shareLink_(req) {
 function sharedGrades_(key) {
   const k = shareKey_();
   if (!k || String(key || '') !== k) return { ok: false, code: 'noshare', error: 'This link is switched off. Ask the test organiser for a new one.' };
-  const r = grades_({ name: '', role: 'admin' });
-  r.students.forEach(x => { delete x.teachers; delete x.coreFails; delete x.id; });
-  return r;
+  const all = gradesAll_();
+  return { ok: true, teacherOrder: all.teacherOrder,
+    students: all.students.map(x => { const o = Object.assign({}, x); delete o.teachers; delete o.coreFails; delete o.id; return o; }) };
 }
 
 /* The Grades tab keeps the column widths and alignment set by hand. Before every rebuild they are read (by column heading,

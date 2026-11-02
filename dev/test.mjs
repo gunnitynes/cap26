@@ -941,5 +941,23 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(b1(), '');
   ok('switching the link off stops it at once, and takes it out of Grades');
 }
+// 31. The overview is kept until something changes: a second look is quick, and a save shows at once.
+{
+  const { g } = loadScript();
+  g.setup(); g.setTeacher_('Gunni', 'admin'); g.setTeamPassword_('catalyst'); g.setAdminPin_('2468');
+  const gt = call(g, { action: 'login', name: 'Gunni', password: 'catalyst', pin: '2468' }).token;
+  call(g, { action: 'addStudents', token: gt, studio: 'K3', day: '2026-11-03', teacher: 'Gunni', names: ['Bo', 'Cy'] });
+  const sid = call(g, { action: 'state', token: gt }).students[0].id;
+  const raw2 = b => JSON.parse(g.doPost({ postData: { contents: JSON.stringify(b) } }).s);   // no extra bump: what the page does
+  let runs = 0; const real = g.gradeListNow_; g.gradeListNow_ = () => { runs++; return real(); };
+  const a = raw2({ action: 'grades', token: gt }), b = raw2({ action: 'grades', token: gt });
+  assert.equal(runs, 1); assert.deepEqual(b, a);
+  ok('a second look at the overview is answered from the kept copy');
+  call(g, { action: 'batch', token: gt, steps: [['saveEntry', { sid, patch: { marks: { p1: 'p' } } }]] });
+  const c = raw2({ action: 'grades', token: gt });
+  assert.equal(runs, 2); assert.equal(c.students.find(x => x.id === sid).marked, 1);
+  ok('a save makes the overview work it out again at once: never stale');
+  g.gradeListNow_ = real;
+}
 
 console.log(`\n${n} checks passed`);
