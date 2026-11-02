@@ -582,9 +582,15 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .gdist{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--sunk);margin-top:14px}
 .gdist i{display:block;height:100%}
 .gv-sum{margin-top:10px}
-.ggraph{margin-top:12px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:7px}
-.gg-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:2px}
-.gg-h b{font-size:14px;font-weight:800}.gg-h span{font-family:var(--mono);font-size:11px;color:var(--mute)}
+.ggraph{display:block;margin-top:12px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.ggraph .gg-row+.gg-row{margin-top:7px}
+.ggraph summary{display:flex;align-items:baseline;gap:10px;cursor:pointer;list-style:none;padding:2px 0}
+.ggraph summary::-webkit-details-marker{display:none}
+.ggraph summary::before{content:"+";font-family:var(--mono);font-weight:700;color:var(--mute);width:12px}
+.ggraph[open] summary::before{content:"–"}
+.ggraph summary b{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.ggraph summary span{font-family:var(--mono);font-size:11px;color:var(--mute);margin-left:auto}
+.ggraph[open] summary{margin-bottom:6px}
 .gg-row{display:grid;grid-template-columns:84px 1fr 42px;align-items:center;gap:10px;padding:2px 0;border-radius:6px}
 .gg-row:hover{background:var(--sunk)}
 .gg-l{font-family:var(--mono);font-size:11.5px;color:var(--mute);white-space:nowrap}
@@ -1015,7 +1021,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793655325';
+const BUILD='1793655685';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1521,12 +1527,12 @@ function stageGraph(list){
   if(!order.length)return '';
   const rows=order.map(name=>({name,n:by[name].n,avg:Math.round(by[name].sum/by[name].n)}));
   const lo=rows.reduce((a,r)=>r.avg<a.avg?r:a),hi=rows.reduce((a,r)=>r.avg>a.avg?r:a),spread=rows.length>1&&hi.avg>lo.avg;
-  return `<section class="ggraph" aria-label="Average score per test stage">
-    <div class="gg-h"><b>Per stage</b><span>average of ${who} student${who===1?'':'s'} with marks</span></div>
+  // folded away by default; stays open through the refreshes once someone opens it
+  return `<details class="ggraph" id="gGraph"${G.graphOpen?' open':''}><summary><b>Comparison</b><span>${who} student${who===1?'':'s'}</span></summary>
     ${rows.map(r=>`<div class="gg-row${spread&&r.avg===lo.avg?' weak':''}" title="${esc(r.name)}: ${r.avg}% on average · ${r.n} student${r.n===1?'':'s'}">
       <span class="gg-l">${esc(r.name)}</span><span class="gg-t"><i style="width:${Math.max(2,r.avg)}%"></i><u style="left:40%"></u><u style="left:85%"></u></span><span class="gg-v">${r.avg}%</span></div>`).join('')}
-    ${spread?`<div class="gg-note">Weakest <b>${rows.filter(r=>r.avg===lo.avg).map(r=>esc(r.name)).join(', ')}</b> ${lo.avg}% · Strongest <b>${rows.filter(r=>r.avg===hi.avg).map(r=>esc(r.name)).join(', ')}</b> ${hi.avg}%<span>Lines at 40% (Eligible) and 85% (Grade A)</span></div>`:''}
-  </section>`}
+    <div class="gg-note"><span>Lines at 40% (Eligible) and 85% (Grade A)</span></div>
+  </details>`}
 /* An admin's switch for the view-only link (for supervisors): make it, copy it, switch it off. */
 function shareUrl(){return location.origin+location.pathname+'?view='+G.share}
 function shareBox(){
@@ -1586,6 +1592,7 @@ function renderGrades(){
    ${admin&&!S.demo?shareBox():''}
    <div style="height:32px"></div>`;
   bindShare();
+  $('#gGraph')?.addEventListener('toggle',e=>{G.graphOpen=e.target.open});
   app.querySelectorAll('[data-gday]').forEach(b=>b.onclick=()=>{G.day=b.dataset.gday;renderGrades()});
   $('#gWho')?.addEventListener('click',e=>{const b=e.target.closest('[data-mine]');if(!b)return;G.mine=b.dataset.mine==='1';ls.set('ops.ovMine',G.mine);renderGrades()});
 }
