@@ -605,7 +605,8 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .gg-v{font-family:var(--mono);font-size:12px;font-weight:700;text-align:right;color:var(--ink)}
 .gg-row.weak .gg-t i{background:var(--hint)}.gg-row.weak .gg-l{color:var(--ink);font-weight:700}
 .gg-note{font-size:12.5px;color:var(--mute);margin-top:4px;display:flex;flex-wrap:wrap;gap:4px 12px}
-.gg-note b{color:var(--ink)}.gg-note span{font-family:var(--mono);font-size:10.5px;margin-left:auto}
+.gg-note b{color:var(--ink)}
+.gg-foot{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}.gg-foot .gv-sum{margin-top:0}.gg-note span{font-family:var(--mono);font-size:10.5px;margin-left:auto}
 .gv-list{margin-top:14px}
 .gcols{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:14px;margin-top:14px;align-items:start}
 .gcol{display:flex;flex-direction:column;gap:10px;min-width:0}
@@ -1026,7 +1027,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793655965';
+const BUILD='1793656325';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1524,7 +1525,7 @@ function demoGrades(){return allTests().map(t=>{const g=gradeOf(t);
     stages:stagesFor(t).map(s=>{const xs=g.per.filter(x=>x.c.s===s.id&&x.avg!==null);return {name:s.short,pct:xs.length?Math.round(xs.reduce((a,x)=>a+x.avg,0)/xs.length*100):null}})}})}
 /* The graph under the progress bar: each test stage's average over every student shown who has marks in it,
    so it is plain where the group as a whole does well or badly. The weakest stage is picked out (in words too). */
-function stageGraph(list){
+function stageGraph(list,foot){
   const by={},order=[];let who=0;
   for(const x of list){if(!x.marked)continue;let any=false;
     for(const st of x.stages||[]){if(st.pct==null)continue;any=true;if(!by[st.name]){by[st.name]={sum:0,n:0};order.push(st.name)}by[st.name].sum+=st.pct;by[st.name].n++}
@@ -1537,6 +1538,7 @@ function stageGraph(list){
     ${rows.map(r=>`<div class="gg-row${spread&&r.avg===lo.avg?' weak':''}" title="${esc(r.name)}: ${r.avg}% on average · ${r.n} student${r.n===1?'':'s'}">
       <span class="gg-l">${esc(r.name)}</span><span class="gg-t"><i style="width:${Math.max(2,r.avg)}%"></i><u style="left:40%"></u><u style="left:85%"></u></span><span class="gg-v">${r.avg}%</span></div>`).join('')}
     <div class="gg-note"><span>Lines at 40% (Eligible) and 85% (Grade A)</span></div>
+    ${foot?`<div class="gg-foot">${foot}</div>`:''}
   </details>`}
 /* An admin's switch for the view-only link (for supervisors): make it, copy it, switch it off. */
 function shareUrl(){return location.origin+location.pathname+'?view='+G.share}
@@ -1571,6 +1573,8 @@ function renderGrades(){
   const list=(mineOnly?dayMine:dayAll).sort(byTime);
   const n={};for(const k in GK)n[k]=0;list.forEach(x=>n[gkey(x)]++);
   const order=['Grade A','Eligible','Resit','open','todo'];
+  // the result counters: inside COMPARISON (its bottom part) when there is a graph, on their own when there is not
+  const sumHtml=`<div class="modal-sum gv-sum">${order.filter(k=>n[k]||k==='Grade A'||k==='Eligible'||k==='Resit').map(k=>`<span style="--c:var(--${GK[k].col})"><b>${n[k]}</b>${esc(GK[k].l||k)}</span>`).join('')}</div>`;
   // everyone: one column per teacher (in the Teachers tab's order, students without a teacher last); one teacher: one list
   const tk=x=>String(x.teacher||'').trim().toLowerCase(),names=[...new Set(list.map(tk))];
   const rank=k=>{const i=(G.order||[]).findIndex(n=>n.trim().toLowerCase()===k);return k===''?1e9:i<0?1e6:i};
@@ -1590,8 +1594,7 @@ function renderGrades(){
    ${admin?`<div class="seg whoseg" id="gWho" role="group" aria-label="Whose students"><button type="button" data-mine="1" aria-pressed="${mineOnly}">My students · ${dayMine.length}</button><button type="button" data-mine="0" aria-pressed="${!mineOnly}">Everyone · ${dayAll.length}</button></div>`:''}
    ${days.length>1&&!S.viewOnly?`<div class="chips" id="gDays" role="group" aria-label="Test day">${days.map(d=>`<button type="button" data-gday="${d}" aria-pressed="${d===day}">${fmtDay(d)}</button>`).join('')}<button type="button" data-gday="all" aria-pressed="${day==='all'}">All</button></div>`:''}
    ${list.length?`<div class="gdist" aria-hidden="true">${order.filter(k=>n[k]).map(k=>`<i style="width:${n[k]/list.length*100}%;background:var(--${GK[k].col==='mute'?'line':GK[k].col})"></i>`).join('')}</div>`:''}
-   ${stageGraph(list)}
-   <div class="modal-sum gv-sum">${order.filter(k=>n[k]||k==='Grade A'||k==='Eligible'||k==='Resit').map(k=>`<span style="--c:var(--${GK[k].col})"><b>${n[k]}</b>${esc(GK[k].l||k)}</span>`).join('')}</div>
+   ${stageGraph(list,sumHtml)||sumHtml}
    ${cols?`<div class="gcols" style="--n:${cols.length}">${cols.map(c=>`<section class="gcol"><div class="gcol-h"><b>${esc(c.name)}</b><span>${c.list.length} student${c.list.length===1?'':'s'} · ${c.list.filter(x=>x.complete&&x.grade).length} graded</span></div><div class="gcol-list">${c.list.map(card).join('')}</div></section>`).join('')}</div>`:''}
    <div class="gcards gv-list"${cols?' hidden':''}>${cols?'':list.length?list.map(card).join(''):(mineOnly&&dayAll.length?'<div class="empty"><b>None of your students here</b>Tap Everyone to see all students.</div>':'<div class="empty"><b>No students yet</b>Add students on the main page or in the Sheet.</div>')}</div>
    ${admin&&!S.demo?shareBox():''}
