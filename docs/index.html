@@ -553,6 +553,8 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 /* a student's state as a small dot: grey not started, yellow in progress, green marked */
 .sdot{flex:none;width:10px;height:10px;border-radius:50%;background:var(--mute);opacity:.55;margin-left:2px}
 .sdot.live,.sdot.done{opacity:1}
+.row.is-absent{opacity:.55}.row.is-absent .nm{text-decoration:line-through}
+.cap.absent{color:var(--mute);border-color:var(--mute)}
 .graded{color:var(--ok);font-weight:700} .graded.wait{color:var(--led)}
 .sdot.live{background:var(--hint);box-shadow:0 0 0 3px var(--hint-soft)}
 .sdot.done{background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft)}
@@ -781,7 +783,7 @@ function statusOf(t){
   const e=mine(t),sc=scoreOf(e,t);
   if(e.ended)return {k:'done',l:'Graded'};   // the teacher pressed End test and grade
   if(sc.complete)return {k:'live',l:'All marked, test not ended'};
-  if(!sc.n)return {k:'todo',l:'Not started'};
+  if(!sc.n)return t.absent?{k:'absent',l:'Absent'}:{k:'todo',l:'Not started'};   // ticked Absent in the Students tab
   return {k:'live',l:'In progress'}}
 
 /* ------------------------------------------------------------------ back end */
@@ -827,7 +829,7 @@ async function tidy(force){
 function applyState(j){
   S.me=j.me.name;S.role=j.me.role;ls.set('ops.me',S.me);ls.set('ops.role',S.role);
   const tests={};
-  for(const st of j.students)tests[st.id]={name:st.name,cap:st.cap||'',studio:st.studio,day:st.day,time:st.time||'',end:st.end||'',teacher:st.teacher||'',by:{}};
+  for(const st of j.students)tests[st.id]={name:st.name,cap:st.cap||'',studio:st.studio,day:st.day,time:st.time||'',end:st.end||'',teacher:st.teacher||'',absent:!!st.absent,by:{}};
   for(const e of j.entries)if(tests[e.sid])tests[e.sid].by[e.teacher]=e.data||{_progress:e.progress||0};
   S.tests=tests;backupFromSheet();
   S.teachers=Object.fromEntries(j.teachers.map(n=>[n,{name:n}]));
@@ -1030,7 +1032,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793662803';
+const BUILD='1793663384';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1480,7 +1482,8 @@ function calendar(byDay){
 // the students the list shows for the chosen day (an admin with own students: just theirs)
 function dayCounts(){const all=allTests(),day=all.filter(t=>t.day===S.day),mine=day.filter(isMine);
   const list=(S.role==='admin'||S.demo)&&all.some(isMine)?mine:day,done=list.filter(t=>statusOf(t).k==='done').length;
-  return {n:list.length,done,left:list.length-done}}
+  const away=list.filter(t=>statusOf(t).k==='absent').length;   // absent students are not waiting for a test
+  return {n:list.length,done,left:list.length-done-away}}
 function renderRoster(){
   const all=allTests();
   const byDay={};all.forEach(t=>(byDay[t.day]=byDay[t.day]||[]).push(t));
@@ -1494,7 +1497,7 @@ function renderRoster(){
   const isNow=t=>{const a=toM(t.time),b=t.end?toM(t.end):a+15;return nowM>=a&&nowM<b};
   const slot=t=>!timed?'':t.time?`<span class="slot" aria-label="${t.time}${t.end?' to '+t.end:''}"><b>${t.time}</b>${t.end?`<span>${t.end}</span>`:''}</span>`:'<span class="slot none" aria-hidden="true"><b>––:––</b></span>';
   const row=t=>{const st=statusOf(t),ce=scoreOf(mine(t),t).inc.length,nt=Object.keys(entries(t)).length;
-    return `<button class="row${isNow(t)?' now':''}" data-open="${t.id}">${slot(t)}${ring(t,timed?38:44)}<span class="who"><b><span class="nm">${esc(t.name)}</span>${capTag(t)}${timerOf(t.id)?` <span class="tm-mini" data-timer="${t.id}"><span class="tm-num">${timerOf(t.id).txt}</span></span>`:''}</b><span>${[esc(t.studio||''),mineView||!admin?'':t.teacher?esc(t.teacher):'<span class="unas">No teacher</span>',nt?nt+' marking':''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}${st.l==='Graded'?` · <span class="graded${S.pending[t.id]&&S.pending[t.id].by&&S.pending[t.id].by[S.me]?' wait':''}">${S.pending[t.id]&&S.pending[t.id].by&&S.pending[t.id].by[S.me]?'Graded · sending':'Graded ✓'}</span>`:''}</span></span><span class="sdot ${st.k}" role="img" aria-label="${st.l}" title="${st.l}"></span></button>`};
+    return `<button class="row${isNow(t)?' now':''}${st.k==='absent'?' is-absent':''}" data-open="${t.id}">${slot(t)}${ring(t,timed?38:44)}<span class="who"><b><span class="nm">${esc(t.name)}</span>${capTag(t)}${st.k==='absent'?' <span class="cap absent">ABSENT</span>':''}${timerOf(t.id)?` <span class="tm-mini" data-timer="${t.id}"><span class="tm-num">${timerOf(t.id).txt}</span></span>`:''}</b><span>${[esc(t.studio||''),mineView||!admin?'':t.teacher?esc(t.teacher):'<span class="unas">No teacher</span>',nt?nt+' marking':''].filter(Boolean).join(' · ')}${ce?` · <span class="crit-n">${ce} critical</span>`:''}${st.l==='Graded'?` · <span class="graded${S.pending[t.id]&&S.pending[t.id].by&&S.pending[t.id].by[S.me]?' wait':''}">${S.pending[t.id]&&S.pending[t.id].by&&S.pending[t.id].by[S.me]?'Graded · sending':'Graded ✓'}</span>`:''}</span></span><span class="sdot ${st.k}" role="img" aria-label="${st.l}" title="${st.l}"></span></button>`};
   $('#app').innerHTML=`
    ${S.all?calendar(byDay):''}
    ${S.demo?`<div class="banner"><b>Preview.</b> These students and the second teacher are examples and nothing here is saved.</div>`:''}
@@ -1571,8 +1574,8 @@ const ovKey=()=>S.viewOnly?'ops.ovShared':'ops.ov.'+String(S.me||'').toLowerCase
 function lastOverview(){if(G.list)return;const c=ls.get(ovKey(),null);if(c&&Array.isArray(c.list)){G.list=c.list;G.order=c.order||[];G.stale=true}}
 async function openGrades(){G.day=null;lastOverview();go('grades');await loadGrades(true);if(S.view==='grades')renderGrades()}
 const GK={'Grade A':{cls:'a',pill:'merit',col:'ok'},Eligible:{cls:'pass',pill:'passg',col:'ink'},Resit:{cls:'resit',pill:'resitg',col:'no'},
-  open:{cls:'open',pill:'live',col:'led',l:'Remaining'},todo:{cls:'todo',pill:'todo',col:'mute',l:'Not started'}};
-const gkey=x=>!x.marked?'todo':x.complete&&GK[x.grade]?x.grade:'open';
+  open:{cls:'open',pill:'live',col:'led',l:'Remaining'},todo:{cls:'todo',pill:'todo',col:'mute',l:'Not started'},absent:{cls:'todo',pill:'todo',col:'mute',l:'Absent'}};
+const gkey=x=>!x.marked?(x.absent?'absent':'todo'):x.complete&&GK[x.grade]?x.grade:'open';
 function renderGrades(){
   const app=$('#app');
   if(!G.list){
@@ -1587,7 +1590,7 @@ function renderGrades(){
   const dayAll=G.list.filter(x=>day==='all'||x.day===day),dayMine=dayAll.filter(isMine);
   const list=(mineOnly?dayMine:dayAll).sort(byTime);
   const n={};for(const k in GK)n[k]=0;list.forEach(x=>n[gkey(x)]++);
-  const order=['Grade A','Eligible','Resit','open','todo'];
+  const order=['Grade A','Eligible','Resit','open','todo','absent'];
   // the result counters: inside COMPARISON (its bottom part) when there is a graph, on their own when there is not
   const sumHtml=`<div class="modal-sum gv-sum">${order.filter(k=>n[k]||k==='Grade A'||k==='Eligible'||k==='Resit').map(k=>`<span style="--c:var(--${GK[k].col})"><b>${n[k]}</b>${esc(GK[k].l||k)}</span>`).join('')}</div>`;
   // everyone: one column per teacher (in the Teachers tab's order, students without a teacher last); one teacher: one list

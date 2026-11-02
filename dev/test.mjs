@@ -97,7 +97,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const { g, book } = loadScript();
   g.setup();
   const ss = g.SpreadsheetApp.getActive(), te = ss.getSheetByName('Teachers'), st = ss.getSheetByName('Students');
-  assert.deepEqual(tab(book, 'Students').data[0], ['Test date', 'Test time', 'Student', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID']);
+  assert.deepEqual(tab(book, 'Students').data[0], ['Test date', 'Test time', 'Student', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID', 'Absent']);
   te.getRange(2, 1, 1, 2).setValues([['Gunni', 'admin']]); g.setTeamPassword_('test-pass-1');
   const tok = call(g, { action: 'login', name: 'gunni', password: 'test-pass-1' }).token;
   // dates must come from inside the sandbox, like the ones Google hands the script
@@ -168,8 +168,8 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   sh.getRange(2, 1, 2, 7).setValues([[g.toDate_('2026-11-02'), 'Faddei', 'K3', 'Gunni', new Date(), '', 'abc-1'], [g.toDate_('2026-11-02'), 'Paul', 'K4', 'Sheet', new Date(), 'absent', 'abc-2']]);
   g.setup();
   const d = tab(book, 'Students').data;
-  assert.deepEqual(d[0], ['Test date', 'Test time', 'Student', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID']);
-  assert.deepEqual(d.slice(1).map(r => r.slice(1)), [['', 'Faddei', '', 'K3', '', '', 'abc-1'], ['', 'Paul', '', 'K4', '', 'absent', 'abc-2']]);
+  assert.deepEqual(d[0], ['Test date', 'Test time', 'Student', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID', 'Absent']);
+  assert.deepEqual(d.slice(1).map(r => r.slice(1)), [['', 'Faddei', '', 'K3', '', '', 'abc-1', false], ['', 'Paul', '', 'K4', '', 'absent', 'abc-2', false]]);
   assert.equal(g.day_(d[1][0]), '2026-11-02');
   ok('the oldest Students layout becomes date | time | name | CAP | studio | teacher | removed | id, keeping IDs');
 }
@@ -181,7 +181,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   sh.getRange(2, 1, 1, 6).setValues([[g.toDate_('2026-11-02'), '09:30', 'Faddei', 'K3', '', 'abc-1']]);
   g.setup();
   const d = tab(book, 'Students').data;
-  assert.deepEqual(d[0], ['Test date', 'Test time', 'Student', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID']);
+  assert.deepEqual(d[0], ['Test date', 'Test time', 'Student', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID', 'Absent']);
   assert.deepEqual(d[1].slice(1), ['09:30', 'Faddei', '', 'K3', '', '', 'abc-1']);
   ok('the layout without Teacher and CAP gets both where they belong, nothing else moves');
 }
@@ -193,7 +193,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   sh.getRange(2, 1, 1, 7).setValues([[g.toDate_('2026-11-02'), '10:00 - 10:15', 'Alice', 'K4', 'Gunni', '', 'abc-1']]);
   g.setup();
   const d = tab(book, 'Students').data;
-  assert.deepEqual(d[0], ['Test date', 'Test time', 'Student', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID']);
+  assert.deepEqual(d[0], ['Test date', 'Test time', 'Student', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID', 'Absent']);
   assert.deepEqual(d[1].slice(1), ['10:00 - 10:15', 'Alice', '', 'K4', 'Gunni', '', 'abc-1']);
   ok('the current layout gets a CAP column after Student; times, studios and teachers stay put');
 }
@@ -1016,6 +1016,23 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const stages = g.questionsFor_('', 'Gunni', null, sid).map(q => q.stage);
   assert.ok(!stages.includes('Mic') && stages.includes('In/Out'));
   ok('renaming a stage also renames it in the question sets graded students keep (no stage shows twice)');
+}
+// 35. Absent: a checkbox column at the end of Students; the page and Grades show the student as Absent, not as remaining.
+{
+  const { g, book } = loadScript();
+  g.setup(); g.setTeacher_('Gunni', 'admin'); g.setTeamPassword_('catalyst'); g.setAdminPin_('2468');
+  const gt = call(g, { action: 'login', name: 'Gunni', password: 'catalyst', pin: '2468' }).token;
+  call(g, { action: 'addStudents', token: gt, studio: 'K3', day: '2026-11-03', teacher: 'Gunni', names: ['Here', 'Away'] });
+  const sh = g.SpreadsheetApp.getActive().getSheetByName('Students'), d = tab(book, 'Students').data;
+  assert.equal(d[0][8], 'Absent');
+  sh.getRange(d.findIndex(r => r[2] === 'Away') + 1, 9).setValue(true);
+  const st = call(g, { action: 'state', token: gt });
+  assert.equal(st.students.find(s => s.name === 'Away').absent, true); assert.equal(st.students.find(s => s.name === 'Here').absent, false);
+  g.buildGrades_();
+  const gd = tab(book, 'Grades').data, h = gd.find(r => r[0] === 'Test date'), grade = n => gd.find(r => r[1] === n)[h.indexOf('Grade')];
+  assert.equal(grade('Away'), 'Absent'); assert.equal(grade('Here'), 'Not started');
+  assert.equal(gd[0][8], '1  Remaining');   // only Here is waiting for a test
+  ok('Absent: ticked in Students, the page gets it and Grades shows Absent, not counted as remaining');
 }
 
 console.log(`\n${n} checks passed`);

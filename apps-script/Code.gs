@@ -101,8 +101,8 @@ const BLUE = '#0b43e0', INK = '#10131c', PAPER = '#f4f6fa', MUTE = '#5a6276';
 const SHEETS = {
   START:    { name: 'Start here', header: [] },
   TEACHERS: { name: 'Teachers', header: ['Name', 'Role', 'Last sign-in'], widths: [220, 120, 170] },
-  STUDENTS: { name: 'Students', header: ['Test date', 'Test time', 'Student', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID'],
-              widths: [110, 110, 220, 110, 90, 140, 220, 110] },
+  STUDENTS: { name: 'Students', header: ['Test date', 'Test time', 'Student', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID', 'Absent'],
+              widths: [110, 110, 220, 110, 90, 140, 220, 110, 80] },   // Absent last: added after the hidden ID, so no column moved
   QUESTIONS:{ name: 'Questions', header: ['Stage', 'Stage heading', 'Question', 'Ask out loud (optional)', 'Studio', 'Column name', 'ID', 'Bonus'],
               widths: [110, 220, 380, 320, 80, 220, 90, 70] },
   MARKS:    { name: 'Marks', header: [] },   // its skill columns follow the questions: see syncMarks_
@@ -266,6 +266,7 @@ function style_() {
       .setHelpText('The teacher who runs this student\'s test: a name from the Teachers tab.').build());
   st.getRange(2, S_.REMOVED + 1, sr, 1).setFontColor(MUTE);
   st.hideColumns(S_.ID + 1);
+  styleAbsent_(st);
   questionSheets_().forEach(styleQuestions_);
   styleMarks_(marksCtx_());
   [t, st].forEach(s => s.setTabColor(INK));
@@ -672,6 +673,17 @@ function slot_(v, shown) {
   if (m && time_(m[1]) && time_(m[2])) return { time: time_(m[1]), end: time_(m[2]) };
   return { time: time_(v, shown), end: '' };
 }
+/** Students: the Absent column is a checkbox, and a ticked row turns grey with its name struck through. */
+function styleAbsent_(st) {
+  const sr = st.getMaxRows() - 1, col = S_.ABSENT + 1, L = String.fromCharCode(64 + col);
+  st.getRange(1, col).setValue('Absent').setNote('Tick when the student did not come to their test. The row turns grey; Grades shows them as Absent and does not count them as remaining.');
+  st.getRange(2, col, sr, 1).setHorizontalAlignment('center').setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().setAllowInvalid(true).build());
+  st.setColumnWidth(col, 80);
+  const rules = st.getConditionalFormatRules().filter(r => { try { return String(r.getBooleanCondition().getCriteriaValues()[0]).indexOf('$' + L + '2') < 0; } catch (e) { return true; } });
+  rules.push(SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$' + L + '2=TRUE')
+    .setBackground('#d9dce3').setFontColor('#6b7280').setStrikethrough(true).setRanges([st.getRange(2, 1, sr, col - 2)]).build());
+  st.setConditionalFormatRules(rules);
+}
 function mins_(hm) { const p = String(hm).split(':'); return +p[0] * 60 + +p[1]; }
 function hm_(m) { m = ((m % 1440) + 1440) % 1440; return pad2_(Math.floor(m / 60)) + ':' + pad2_(m % 60); }
 
@@ -959,14 +971,14 @@ function teachers_() {
 
 // ─────────────────────────────────────────────────────────────── data
 
-const S_ = { DAY: 0, TIME: 1, NAME: 2, CAP: 3, STUDIO: 4, TEACHER: 5, REMOVED: 6, ID: 7 };
+const S_ = { DAY: 0, TIME: 1, NAME: 2, CAP: 3, STUDIO: 4, TEACHER: 5, REMOVED: 6, ID: 7, ABSENT: 8 };
 
 function students_() {
   const sh = sheet_(SHEETS.STUDENTS), n = sh.getLastRow() - 1;
   if (n < 1) return [];
   const range = sh.getRange(2, 1, n, SHEETS.STUDENTS.header.length), rows = range.getValues(), shown = range.getDisplayValues();
   return rows.map((r, i) => ({ row: i + 2, id: String(r[S_.ID] || ''), day: day_(r[S_.DAY]), ...slot_(r[S_.TIME], shown[i][S_.TIME]),
-    name: String(r[S_.NAME] || '').trim(), cap: String(r[S_.CAP] || '').trim(), studio: String(r[S_.STUDIO] || ''), teacher: String(r[S_.TEACHER] || '').trim(), removed: !!r[S_.REMOVED] }))
+    name: String(r[S_.NAME] || '').trim(), cap: String(r[S_.CAP] || '').trim(), studio: String(r[S_.STUDIO] || ''), teacher: String(r[S_.TEACHER] || '').trim(), removed: !!r[S_.REMOVED], absent: r[S_.ABSENT] === true }))
     .filter(s => s.id && s.name && s.day);
 }
 /** Test date, then test time (students without one last), then name. */
@@ -1000,7 +1012,7 @@ function state_(me) {
   students.forEach(s => { if (studentFrozen_(s.id)) qsets[s.id] = questionsFor_(s.day, s.teacher, sets, s.id); });   // graded students: the questions they were graded on
   const questions = sets[norm_(me.name)] || sets[''];
   return { ok: true, me: { name: me.name, role: me.role },
-    students: students.map(s => ({ id: s.id, day: s.day, time: s.time, end: s.end, name: s.name, cap: s.cap, studio: s.studio, teacher: s.teacher })),
+    students: students.map(s => ({ id: s.id, day: s.day, time: s.time, end: s.end, name: s.name, cap: s.cap, studio: s.studio, teacher: s.teacher, absent: s.absent })),
     entries, teachers: teachers_().map(t => t.name), questions, qlive, qsets };
 }
 
@@ -1531,7 +1543,7 @@ function gradesAll_() {
   const r = { teacherOrder: teachers_().map(t => t.name), students: gradeList_().list.map(({ s, qs, g }) => {
     const stages = [];
     qs.forEach(q => { if (!stages.some(x => x.name === q.stage)) stages.push({ name: q.stage, pct: q.stage in g.stages ? g.stages[q.stage] : null }); });
-    return { id: s.id, day: s.day, time: s.time, end: s.end, name: s.name, cap: s.cap, studio: s.studio, teacher: s.teacher, marked: g.marked, total: qs.length,
+    return { id: s.id, day: s.day, time: s.time, end: s.end, name: s.name, cap: s.cap, studio: s.studio, teacher: s.teacher, absent: s.absent, marked: g.marked, total: qs.length,
       score: g.score === null ? null : Math.round(g.score), final: g.final === null ? null : Math.round(g.final),
       errors: g.errors, coreFails: g.coreFails, complete: g.complete, grade: g.band ? g.band[0] : null, teachers: g.teachers, stages };
   }) };
@@ -1612,8 +1624,8 @@ function buildGrades_() {
   let prevDay = '', prevTeacher = null;
   list.forEach(({ s, qs, g }) => {
     const N = qs.length;
-    const label = !g.marked ? 'Not started' : g.complete ? g.band[0] : 'Remaining';
-    if (g.complete) counts[g.band[0]]++; else counts.Remaining++;
+    const label = !g.marked ? (s.absent ? 'Absent' : 'Not started') : g.complete ? g.band[0] : 'Remaining';
+    if (g.complete) counts[g.band[0]]++; else if (!(s.absent && !g.marked)) counts.Remaining++;   // an absent student is not waiting for a test
     const tk = rank(s);
     if (tk !== prevTeacher) {
       // a band naming the teacher and how far their students are
@@ -1706,7 +1718,7 @@ function buildGrades_() {
     sh.setConditionalFormatRules((nS ? [heat(sh.getRange(top, C.STAGE, values.length, nS))] : []).concat([
       heat(sh.getRange(top, C.SCORE, values.length, 1)),
       text('Grade A', BANDS[0][3], BANDS[0][2]), text(BANDS[1][0], BANDS[1][3], INK), text('Resit', BANDS[2][3], BANDS[2][2]),
-      text('Remaining', PAPER, MUTE), text('Not started', '#ffffff', '#9aa3b5'),
+      text('Remaining', PAPER, MUTE), text('Not started', '#ffffff', '#9aa3b5'), text('Absent', '#d9dce3', '#6b7280'),
       SpreadsheetApp.newConditionalFormatRule().whenNumberGreaterThan(0).setFontColor(BANDS[2][2]).setBold(true).setRanges([sh.getRange(top, C.ERR, values.length, 1)]).build(),
     ]));
   } else {
@@ -1760,15 +1772,16 @@ function migrateStudents_() {
     };
     add('Teacher', 'Studio');
     add('CAP', 'Student');
+    add('Absent', 'ID');
     return;
   }
   let rows;
   if (o.head[0] === 'Test date') {
     // v2 layout: Test date | Student | Studio | Added by | Added at | Removed | ID
-    rows = o.rows.filter(r => r[1] || r[6]).map(r => [r[0], '', r[1], '', r[2], '', r[5] || '', r[6]]);
+    rows = o.rows.filter(r => r[1] || r[6]).map(r => [r[0], '', r[1], '', r[2], '', r[5] || '', r[6], false]);
   } else {
     // v1 layout: ID | Test date | Student | Studio | Added by | Added at | Deleted
-    rows = o.rows.filter(r => r[0]).map(r => [toDate_(day_(r[1])), '', r[2], '', r[3], '', r[6] || '', r[0]]);
+    rows = o.rows.filter(r => r[0]).map(r => [toDate_(day_(r[1])), '', r[2], '', r[3], '', r[6] || '', r[0], false]);
   }
   try { o.sh.showColumns(1, o.sh.getMaxColumns()); o.sh.getRange(1, 1, o.sh.getMaxRows(), o.sh.getMaxColumns()).clearDataValidations(); } catch (e) {}
   o.sh.clear(); const W = SHEETS.STUDENTS.header.length;
