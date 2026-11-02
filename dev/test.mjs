@@ -886,5 +886,32 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(st.qsets[id('Top')].find(q => q.id === B.id).bonus, 1);
   ok('the page gets the bonus flag only for students graded with it');
 }
+// 29. Grades keeps the column widths and alignment someone set by hand, through every rebuild.
+{
+  const { g, book } = loadScript();
+  g.setup(); g.setTeacher_('Gunni', 'admin'); g.setTeamPassword_('catalyst'); g.setAdminPin_('2468');
+  const gt = call(g, { action: 'login', name: 'Gunni', password: 'catalyst', pin: '2468' }).token;
+  call(g, { action: 'addStudents', token: gt, studio: 'K4', day: '2026-11-02', teacher: 'Gunni', names: ['Kai', 'Lea'] });
+  g.buildGrades_();
+  const gs = g.SpreadsheetApp.getActive().getSheetByName('Grades'), sheet = book.sheets.find(x => x.name === 'Grades');
+  const head = () => tab(book, 'Grades').data[2], col = h => head().indexOf(h) + 1;
+  // by hand: Teachers narrow and centred, Studio centred, Score % wider
+  gs.setColumnWidth(col('Teachers'), 68); gs.setColumnWidth(col('Score %'), 90);
+  gs.getRange(4, col('Teachers'), 3, 1).setHorizontalAlignment('center'); gs.getRange(4, col('Studio'), 3, 1).setHorizontalAlignment('center');
+  const before = ['Teachers', 'Studio', 'Score %', 'Power'].map(h => sheet.getColumnWidth(col(h)));
+  call(g, { action: 'saveEntry', token: gt, sid: call(g, { action: 'state', token: gt }).students[0].id, patch: { marks: { p1: 'y' } } });
+  g.buildGrades_();   // what a sync does
+  assert.deepEqual(['Teachers', 'Studio', 'Score %', 'Power'].map(h => sheet.getColumnWidth(col(h))), before);
+  assert.equal(sheet.getColumnWidth(col('Teachers')), 68);
+  const lea = tab(book, 'Grades').data.findIndex(r => r[1] === 'Lea') + 1;
+  assert.equal(gs.getRange(lea, col('Teachers')).getHorizontalAlignments()[0][0], 'center');
+  assert.equal(gs.getRange(lea, col('Studio')).getHorizontalAlignments()[0][0], 'center');
+  ok('a rebuild (every sync) keeps the column widths and alignment set by hand in Grades');
+  // the tab cleared completely: the saved copy puts the layout back
+  sheet.data = []; sheet.align = {}; sheet.widths = {};
+  g.buildGrades_();
+  assert.equal(sheet.getColumnWidth(col('Teachers')), 68); assert.equal(sheet.getColumnWidth(col('Score %')), 90);
+  ok('a Grades tab rebuilt from nothing gets the same layout back');
+}
 
 console.log(`\n${n} checks passed`);

@@ -1454,6 +1454,30 @@ function grades_(me) {
   }) };
 }
 
+/* The Grades tab keeps the column widths and alignment set by hand. Before every rebuild they are read (by column heading,
+   the alignment from a student row) and put back after it; a copy in the script's storage covers a tab rebuilt from nothing. */
+function gradesLayout_(sh) {
+  const out = { w: {}, a: {} };
+  try {
+    const n = Math.min(sh.getLastRow(), 12);
+    const hr = n ? sh.getRange(1, 1, n, 1).getValues().map(r => String(r[0])).indexOf('Test date') + 1 : 0;
+    if (!hr) return savedGradesLayout_();
+    const w = sh.getLastColumn(), head = sh.getRange(hr, 1, 1, w).getValues()[0].map(String);
+    // a student row: a teacher's band has nothing in column B
+    let dr = 0;
+    const last = Math.min(sh.getLastRow(), hr + 60);
+    if (last > hr) { const i = sh.getRange(hr + 1, 2, last - hr, 1).getValues().findIndex(r => String(r[0]).trim()); if (i >= 0) dr = hr + 1 + i; }
+    const al = dr ? sh.getRange(dr, 1, 1, w).getHorizontalAlignments()[0] : [];
+    head.forEach((h, i) => {
+      out.w[h] = sh.getColumnWidth(i + 1);
+      const a = String(al[i] || '').toLowerCase();
+      if (a === 'left' || a === 'center' || a === 'right') out.a[h] = a;   // only an alignment someone chose ('general' is the default)
+    });
+    return out;
+  } catch (e) { return savedGradesLayout_(); }
+}
+function savedGradesLayout_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('grades_layout') || 'null'); } catch (e) { return null; } }
+
 /** Rewrites the Grades tab: a summary per grade at the top, then one row per student with bars and colours. */
 function buildGrades_() {
   const ss = SpreadsheetApp.getActive();
@@ -1500,6 +1524,7 @@ function buildGrades_() {
                g.final === null ? '' : '=SPARKLINE(' + Math.round(g.final) + ',{"charttype","bar";"max",100;"color1","' + col + '"})']);
   });
 
+  const layout = gradesLayout_(sh);   // the widths and alignment as they are now, put back below
   sh.clear();
   try { sh.getBandings().forEach(b => b.remove()); } catch (e) {}
   sh.setConditionalFormatRules([]);
@@ -1568,6 +1593,14 @@ function buildGrades_() {
     sh.getRange(top, 1).setValue('No students yet. Add them in the Students tab or on the page.').setFontColor(MUTE);
   }
   [110, 170, 150, 56, 70].concat(stageNames.map(() => 66)).concat([58, 110, 104, 300, 86, 110]).forEach((w, i) => sh.setColumnWidth(i + 1, w));
+  // a width or alignment someone set by hand wins over the ones above: each column keeps its own, matched by its heading
+  if (layout) {
+    head.forEach((h, i) => {
+      if (layout.w[h]) sh.setColumnWidth(i + 1, layout.w[h]);
+      if (layout.a[h] && values.length) sh.getRange(top, i + 1, values.length, 1).setHorizontalAlignment(layout.a[h]);
+    });
+    try { PropertiesService.getScriptProperties().setProperty('grades_layout', JSON.stringify(layout)); } catch (e) {}
+  }
   // a column added or removed moves the others along: show everything, then hide Marked and Progress again
   try { sh.showColumns(1, sh.getMaxColumns()); sh.hideColumns(C.MARKED, 2); } catch (e) {}
   sh.setFrozenRows(top - 1); sh.setFrozenColumns(2);
