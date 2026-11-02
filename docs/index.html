@@ -582,6 +582,19 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .gdist{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--sunk);margin-top:14px}
 .gdist i{display:block;height:100%}
 .gv-sum{margin-top:10px}
+.ggraph{margin-top:12px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:7px}
+.gg-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:2px}
+.gg-h b{font-size:14px;font-weight:800}.gg-h span{font-family:var(--mono);font-size:11px;color:var(--mute)}
+.gg-row{display:grid;grid-template-columns:84px 1fr 42px;align-items:center;gap:10px;padding:2px 0;border-radius:6px}
+.gg-row:hover{background:var(--sunk)}
+.gg-l{font-family:var(--mono);font-size:11.5px;color:var(--mute);white-space:nowrap}
+.gg-t{position:relative;height:12px;background:var(--sunk);border-radius:4px;overflow:hidden}
+.gg-t i{position:absolute;inset:0 auto 0 0;background:var(--led);border-radius:0 4px 4px 0}
+.gg-t u{position:absolute;top:0;bottom:0;width:1px;background:var(--line);text-decoration:none}
+.gg-v{font-family:var(--mono);font-size:12px;font-weight:700;text-align:right;color:var(--ink)}
+.gg-row.weak .gg-t i{background:var(--hint)}.gg-row.weak .gg-l{color:var(--ink);font-weight:700}
+.gg-note{font-size:12.5px;color:var(--mute);margin-top:4px;display:flex;flex-wrap:wrap;gap:4px 12px}
+.gg-note b{color:var(--ink)}.gg-note span{font-family:var(--mono);font-size:10.5px;margin-left:auto}
 .gv-list{margin-top:14px}
 .gcols{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:14px;margin-top:14px;align-items:start}
 .gcol{display:flex;flex-direction:column;gap:10px;min-width:0}
@@ -1002,7 +1015,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793653834';
+const BUILD='1793655325';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1498,6 +1511,22 @@ function demoGrades(){return allTests().map(t=>{const g=gradeOf(t);
   return {id:t.id,day:t.day,time:t.time||'',end:t.end||'',name:t.name,cap:t.cap||'',studio:t.studio,teacher:t.teacher||'',marked:g.marked,total:g.total,score:g.marked?Math.round(g.score):null,final:g.marked?Math.round(g.final):null,
     errors:g.errors,coreFails:g.coreFails.map(c=>c.t),complete:g.complete,grade:g.marked?g.grade.l:null,teachers:g.teachers,
     stages:stagesFor(t).map(s=>{const xs=g.per.filter(x=>x.c.s===s.id&&x.avg!==null);return {name:s.short,pct:xs.length?Math.round(xs.reduce((a,x)=>a+x.avg,0)/xs.length*100):null}})}})}
+/* The graph under the progress bar: each test stage's average over every student shown who has marks in it,
+   so it is plain where the group as a whole does well or badly. The weakest stage is picked out (in words too). */
+function stageGraph(list){
+  const by={},order=[];let who=0;
+  for(const x of list){if(!x.marked)continue;let any=false;
+    for(const st of x.stages||[]){if(st.pct==null)continue;any=true;if(!by[st.name]){by[st.name]={sum:0,n:0};order.push(st.name)}by[st.name].sum+=st.pct;by[st.name].n++}
+    if(any)who++}
+  if(!order.length)return '';
+  const rows=order.map(name=>({name,n:by[name].n,avg:Math.round(by[name].sum/by[name].n)}));
+  const lo=rows.reduce((a,r)=>r.avg<a.avg?r:a),hi=rows.reduce((a,r)=>r.avg>a.avg?r:a),spread=rows.length>1&&hi.avg>lo.avg;
+  return `<section class="ggraph" aria-label="Average score per test stage">
+    <div class="gg-h"><b>Per stage</b><span>average of ${who} student${who===1?'':'s'} with marks</span></div>
+    ${rows.map(r=>`<div class="gg-row${spread&&r.avg===lo.avg?' weak':''}" title="${esc(r.name)}: ${r.avg}% on average · ${r.n} student${r.n===1?'':'s'}">
+      <span class="gg-l">${esc(r.name)}</span><span class="gg-t"><i style="width:${Math.max(2,r.avg)}%"></i><u style="left:40%"></u><u style="left:85%"></u></span><span class="gg-v">${r.avg}%</span></div>`).join('')}
+    ${spread?`<div class="gg-note">Weakest <b>${rows.filter(r=>r.avg===lo.avg).map(r=>esc(r.name)).join(', ')}</b> ${lo.avg}% · Strongest <b>${rows.filter(r=>r.avg===hi.avg).map(r=>esc(r.name)).join(', ')}</b> ${hi.avg}%<span>Lines at 40% (Eligible) and 85% (Grade A)</span></div>`:''}
+  </section>`}
 /* An admin's switch for the view-only link (for supervisors): make it, copy it, switch it off. */
 function shareUrl(){return location.origin+location.pathname+'?view='+G.share}
 function shareBox(){
@@ -1550,6 +1579,7 @@ function renderGrades(){
    ${admin?`<div class="seg whoseg" id="gWho" role="group" aria-label="Whose students"><button type="button" data-mine="1" aria-pressed="${mineOnly}">My students · ${dayMine.length}</button><button type="button" data-mine="0" aria-pressed="${!mineOnly}">Everyone · ${dayAll.length}</button></div>`:''}
    ${days.length>1&&!S.viewOnly?`<div class="chips" id="gDays" role="group" aria-label="Test day">${days.map(d=>`<button type="button" data-gday="${d}" aria-pressed="${d===day}">${fmtDay(d)}</button>`).join('')}<button type="button" data-gday="all" aria-pressed="${day==='all'}">All</button></div>`:''}
    ${list.length?`<div class="gdist" aria-hidden="true">${order.filter(k=>n[k]).map(k=>`<i style="width:${n[k]/list.length*100}%;background:var(--${GK[k].col==='mute'?'line':GK[k].col})"></i>`).join('')}</div>`:''}
+   ${stageGraph(list)}
    <div class="modal-sum gv-sum">${order.filter(k=>n[k]||k==='Grade A'||k==='Eligible'||k==='Resit').map(k=>`<span style="--c:var(--${GK[k].col})"><b>${n[k]}</b>${esc(GK[k].l||k)}</span>`).join('')}</div>
    ${cols?`<div class="gcols" style="--n:${cols.length}">${cols.map(c=>`<section class="gcol"><div class="gcol-h"><b>${esc(c.name)}</b><span>${c.list.length} student${c.list.length===1?'':'s'} · ${c.list.filter(x=>x.complete&&x.grade).length} graded</span></div><div class="gcol-list">${c.list.map(card).join('')}</div></section>`).join('')}</div>`:''}
    <div class="gcards gv-list"${cols?' hidden':''}>${cols?'':list.length?list.map(card).join(''):(mineOnly&&dayAll.length?'<div class="empty"><b>None of your students here</b>Tap Everyone to see all students.</div>':'<div class="empty"><b>No students yet</b>Add students on the main page or in the Sheet.</div>')}</div>
