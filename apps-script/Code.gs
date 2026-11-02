@@ -796,7 +796,11 @@ function route_(req) {
     case 'batch':          return withLock_(() => batch_(me, req));   // a whole test (or several) in one call
     case 'myQuestions':    return myQuestions_(me, req);
     case 'saveQuestions':  return withLock_(() => saveQuestions_(me, req));
-    case 'tidy':           return withLock_(() => { migrateFreezes_(); ensureStudentIds_(); ensureTeacherQuestionTabs_(); ensureQuestionIds_(); syncMarks_(); maybeBuildGrades_(); return { ok: true }; });
+    case 'tidy': {
+      const r = withLock_(() => { migrateFreezes_(); ensureStudentIds_(); ensureTeacherQuestionTabs_(); ensureQuestionIds_(); syncMarks_(); maybeBuildGrades_(); return { ok: true }; });
+      try { gradesAll_(); } catch (e) {}   // after the lock: the overview is worked out now, in the background, so opening it is quick
+      return r;
+    }
     case 'addStudents':    return withLock_(() => addStudents_(me, req));
     case 'updateStudent':  return withLock_(() => updateStudent_(me, req));
     case 'saveEntry':      return withLock_(() => saveEntry_(me, req));
