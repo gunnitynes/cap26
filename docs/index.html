@@ -1002,7 +1002,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793652002';
+const BUILD='1793653834';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1523,7 +1523,8 @@ function renderGrades(){
       :`<div class="loader" role="status"><span class="spin" aria-hidden="true"></span><b>Loading the overview…</b><span>Combining every teacher's marks from the Sheet.</span></div>`;
     $('#gRetry')?.addEventListener('click',async()=>{G.err='';renderGrades();await loadGrades(true);renderGrades()});return}
   const days=[...new Set(G.list.map(x=>x.day))].sort();
-  const day=G.day&&(G.day==='all'||days.includes(G.day))?G.day:days.includes(S.day)?S.day:(days.filter(d=>d<=today()).pop()||days[0]||'all');
+  // the supervisors' view always shows every student, from every test day
+  const day=S.viewOnly?'all':G.day&&(G.day==='all'||days.includes(G.day))?G.day:days.includes(S.day)?S.day:(days.filter(d=>d<=today()).pop()||days[0]||'all');
   // an admin chooses between their own students and everyone; a teacher only ever gets their own
   const admin=S.role==='admin'||S.demo,mineOnly=admin&&G.mine&&G.list.some(isMine);   // no students of your own: everyone
   const dayAll=G.list.filter(x=>day==='all'||x.day===day),dayMine=dayAll.filter(isMine);
@@ -1545,9 +1546,9 @@ function renderGrades(){
       ${x.errors.length?`<div class="gc-flag">Critical: ${esc(x.errors.join('; '))}</div>`:''}`}
     </article>`};
   app.innerHTML=`
-   <div class="gv-head"><span class="eyebrow">Overview</span><h2>${day==='all'?'All test days':fmtDay(day)}</h2></div>
+   <div class="gv-head"><span class="eyebrow">Overview</span><h2>${S.viewOnly?'All students':day==='all'?'All test days':fmtDay(day)}</h2></div>
    ${admin?`<div class="seg whoseg" id="gWho" role="group" aria-label="Whose students"><button type="button" data-mine="1" aria-pressed="${mineOnly}">My students · ${dayMine.length}</button><button type="button" data-mine="0" aria-pressed="${!mineOnly}">Everyone · ${dayAll.length}</button></div>`:''}
-   ${days.length>1?`<div class="chips" id="gDays" role="group" aria-label="Test day">${days.map(d=>`<button type="button" data-gday="${d}" aria-pressed="${d===day}">${fmtDay(d)}</button>`).join('')}<button type="button" data-gday="all" aria-pressed="${day==='all'}">All</button></div>`:''}
+   ${days.length>1&&!S.viewOnly?`<div class="chips" id="gDays" role="group" aria-label="Test day">${days.map(d=>`<button type="button" data-gday="${d}" aria-pressed="${d===day}">${fmtDay(d)}</button>`).join('')}<button type="button" data-gday="all" aria-pressed="${day==='all'}">All</button></div>`:''}
    ${list.length?`<div class="gdist" aria-hidden="true">${order.filter(k=>n[k]).map(k=>`<i style="width:${n[k]/list.length*100}%;background:var(--${GK[k].col==='mute'?'line':GK[k].col})"></i>`).join('')}</div>`:''}
    <div class="modal-sum gv-sum">${order.filter(k=>n[k]||k==='Grade A'||k==='Eligible'||k==='Resit').map(k=>`<span style="--c:var(--${GK[k].col})"><b>${n[k]}</b>${esc(GK[k].l||k)}</span>`).join('')}</div>
    ${cols?`<div class="gcols" style="--n:${cols.length}">${cols.map(c=>`<section class="gcol"><div class="gcol-h"><b>${esc(c.name)}</b><span>${c.list.length} student${c.list.length===1?'':'s'} · ${c.list.filter(x=>x.complete&&x.grade).length} graded</span></div><div class="gcol-list">${c.list.map(card).join('')}</div></section>`).join('')}</div>`:''}

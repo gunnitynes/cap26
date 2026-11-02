@@ -231,7 +231,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(head.indexOf('In the app'), -1);
   ok('Perfect 100 · Pass 80 · Hint 65 · Got there 50: Grade A from 85, "got there" on everything still passes');
   ok('any critical error is a Resit, even with every skill Perfect');
-  assert.deepEqual(d[0].slice(0, 9), ['Grades', '5 students', '1  Grade A', '', '2  Eligible', '', '1  Resit', '', '1  Remaining']);   // all in row 1, two columns each
+  assert.deepEqual(d[0].slice(0, 9), ['Grades', '', '1  Grade A', '', '2  Eligible', '', '1  Resit', '', '1  Remaining']);   // no link made: B1 empty   // all in row 1, two columns each
   ok('the summary counts each grade');
   const mk = tab(book, 'Marks').data, mh = mk[0];
   assert.equal(mk.find(r => r[1] === 'Kim')[mh.indexOf('Power-up order')], 'Perfect');
@@ -933,9 +933,13 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(r.students[0].id, undefined); assert.equal(r.students[0].teachers, undefined);
   assert.deepEqual(JSON.parse(JSON.stringify(r.teacherOrder)), ['Gunni', 'Isuru']);
   ok('the view-only link shows the overview with its key only, and only an admin can make it');
+  const b1 = () => String(g.SpreadsheetApp.getActive().getSheetByName('Grades').getRange('B1').getValue());
+  assert.ok(b1().startsWith('=HYPERLINK("https://gunnitynes.github.io/cap26/?view=' + key + '"'));
+  ok('the Grades tab gets the supervisors\' link in B1 as soon as it is made');
   call(g, { action: 'shareLink', token: gt, off: 1 });
   assert.equal(call(g, { action: 'sharedGrades', key }).code, 'noshare');
-  ok('switching the link off stops it at once');
+  assert.equal(b1(), '');
+  ok('switching the link off stops it at once, and takes it out of Grades');
 }
 
 console.log(`\n${n} checks passed`);

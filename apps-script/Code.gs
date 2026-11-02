@@ -802,7 +802,7 @@ function route_(req) {
     case 'saveEntry':      return withLock_(() => saveEntry_(me, req));
     case 'publishResults': return withLock_(() => publishResults_(me, req));
     case 'grades':         return grades_(me);
-    case 'shareLink':      return admin_(me) || shareLink_(req);
+    case 'shareLink':      return admin_(me) || withLock_(() => shareLink_(req));
     case 'logout':         PropertiesService.getScriptProperties().deleteProperty('s_' + req.token); return { ok: true };
     case 'listTeachers':   return admin_(me) || { ok: true, teachers: teachers_().map(t => ({ name: t.name, role: t.role })) };
     case 'addTeacher':     return admin_(me) || withLock_(() => setTeacher_(req.name, req.role === 'admin' ? 'admin' : 'teacher'));
@@ -1459,11 +1459,13 @@ function grades_(me) {
 /* The view-only Overview for supervisors: one secret link, made and switched off by an admin on the Overview page.
    Whoever has the link sees what the Overview shows (each student's combined result) and nothing else: no single teacher's
    marks, no notes, no changes. Switching it off (or making a new one) stops the old link at once. */
+function shareUrl_() { const k = shareKey_(); return k ? PAGE_URL + '?view=' + k : ''; }
 function shareKey_() { return PropertiesService.getScriptProperties().getProperty('share_key') || ''; }
 function shareLink_(req) {
   const props = PropertiesService.getScriptProperties();
   if (req.off) props.deleteProperty('share_key');
   else if (req.make && !shareKey_()) props.setProperty('share_key', (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').slice(0, 40));
+  if (req.make || req.off) buildGrades_();   // the link at the top of Grades follows at once
   return { ok: true, key: shareKey_() };
 }
 function sharedGrades_(key) {
@@ -1558,9 +1560,13 @@ function buildGrades_() {
   try { sh.getRange(1, 1, 2, sh.getMaxColumns()).breakApart(); } catch (e) {}
   const names = ['Grade A', 'Eligible', 'Resit', 'Remaining'], cols = [3, 5, 7, 9];
   const colours = [BANDS[0], BANDS[1], BANDS[2], ['', 0, '#9aa3b5', PAPER]];
-  sh.getRange(1, 1, 1, 2).setValues([['Grades', students.length + (students.length === 1 ? ' student' : ' students')]]).setVerticalAlignment('middle');
+  sh.getRange(1, 1).setValue('Grades').setVerticalAlignment('middle');
   sh.getRange('A1').setFontSize(16).setFontWeight('bold').setFontColor(BLUE);
-  sh.getRange('B1').setFontColor(MUTE);
+  // B1: the supervisors' view (every student, read only, always up to date), when an admin has made the link in the app
+  const url = shareUrl_();
+  if (url) sh.getRange('B1').setFormula('=HYPERLINK("' + url + '","Supervisors’ view  ↗")').setFontWeight('bold').setFontColor('#ffffff').setBackground(BLUE)
+    .setHorizontalAlignment('center').setVerticalAlignment('middle').setFontSize(11)
+    .setNote('Opens the overview of every student, read only and always up to date. Click the cell, then the link that pops up.');
   names.forEach((n, i) => {
     const c = cols[i], fg = colours[i][2], txt = counts[n] + '  ' + n, cell = sh.getRange(1, c);
     try { sh.getRange(1, c, 1, 2).merge(); } catch (e) {}
