@@ -554,8 +554,8 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.deepEqual(JSON.parse(JSON.stringify(qs[1].studios)), ['K3']);
   ok('a tab with a deleted column is read by its headings: an empty Ask stays empty (no "true")');
   g.setup();
-  assert.deepEqual(tab(book, 'Questions · Gunni').data[0], ['Stage', 'Stage heading', 'Question', 'Ask out loud (optional)', 'Studio', 'Column name', 'ID']);
-  assert.deepEqual(tab(book, 'Questions · Gunni').data[2], ['Power', '', 'Mute before console connections', '', 'K3', 'CR mute', 'p2']);
+  assert.deepEqual(tab(book, 'Questions · Gunni').data[0], ['Stage', 'Stage heading', 'Question', 'Ask out loud (optional)', 'Studio', 'Column name', 'ID', 'Bonus']);
+  assert.deepEqual(tab(book, 'Questions · Gunni').data[2], ['Power', '', 'Mute before console connections', '', 'K3', 'CR mute', 'p2', false]);
   ok('setup puts the tab back in the standard columns, keeping every question, studio, column name and ID (Core is gone)');
 }
 // 18. Moving, replacing and rewording questions: marks stay with their question.
@@ -838,6 +838,53 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   cell.setValue('Patching'); g.onEdit({ range: cell, oldValue: 'Connections' });
   assert.equal(g.questions_().find(q => q.id === 'm4').stage, 'Patching');
   ok('typing a new stage name on Start here renames it in every tab (dropdowns enforced)');
+}
+// 28. Bonus questions: they can only help, need no mark, and a student graded before keeps the old scoring.
+{
+  const { g, book } = loadScript();
+  g.setup(); g.setTeacher_('Gunni', 'admin'); g.setTeamPassword_('catalyst'); g.setAdminPin_('2468'); g.ensureTeacherQuestionTabs_();
+  const ss = g.SpreadsheetApp.getActive();
+  // a tab from before the Bonus column (7 columns) only gets the heading: nothing else is rewritten
+  const gq = ss.getSheetByName('Questions · Gunni'), before = JSON.stringify(gq.getRange(2, 1, gq.getLastRow() - 1, 7).getValues());
+  gq.getRange(1, 8).setValue('');
+  g.normalizeQuestionTab_(gq);
+  assert.equal(tab(book, 'Questions · Gunni').data[0][7], 'Bonus');
+  assert.equal(JSON.stringify(gq.getRange(2, 1, gq.getLastRow() - 1, 7).getValues()), before);
+  ok('an older questions tab only gets the Bonus heading added; its questions are not touched');
+  const gt = call(g, { action: 'login', name: 'Gunni', password: 'catalyst', pin: '2468' }).token;
+  call(g, { action: 'addStudents', token: gt, studio: 'K3', day: '2026-11-02', teacher: 'Gunni', names: ['Early', 'Top', 'Low', 'Skip', 'Open'] });
+  let st = call(g, { action: 'state', token: gt });
+  const id = n => st.students.find(s => s.name === n).id, qs = st.qlive.gunni.filter(q => !q.studios || q.studios.includes('K3')), B = qs.find(q => q.stage === 'Route') || qs[5];
+  const allBut = (v, b) => Object.fromEntries(qs.map(q => [q.id, q.id === B.id ? b : v]));
+  const grade = n => { const d = tab(book, 'Grades').data, h = d.find(r => r[0] === 'Test date'); const r = d.find(x => x[1] === n); return [r[h.indexOf('Score %')], r[h.indexOf('Grade')]]; };
+  const result = n => { const m = tab(book, 'Marks').data, h = m[0]; return m.find(r => r[1] === n)[h.indexOf('Result')]; };
+  // graded before the question becomes a bonus: Failed on it counts against them, and keeps counting
+  call(g, { action: 'saveEntry', token: gt, sid: id('Early'), patch: { marks: allBut('y', 'n'), ended: Date.now() } });
+  call(g, { action: 'tidy', token: gt }); g.buildGrades_();
+  const early = grade('Early');
+  assert.ok(early[0] < 80);
+  // the teacher ticks Bonus in My questions
+  const mq = call(g, { action: 'myQuestions', token: gt });
+  const saved = call(g, { action: 'saveQuestions', token: gt, v: mq.v, questions: mq.questions.map(q => ({ ...q, bonus: q.id === B.id })) });
+  assert.equal(saved.questions.find(q => q.id === B.id).bonus, true);
+  assert.equal(saved.questions.filter(q => q.bonus).length, 1);
+  ok('a question is made a bonus question in My questions, and the Sheet keeps the tick');
+  call(g, { action: 'saveEntry', token: gt, sid: id('Top'), patch: { marks: allBut('y', 'p'), ended: Date.now() } });   // bonus helps
+  call(g, { action: 'saveEntry', token: gt, sid: id('Low'), patch: { marks: allBut('y', 'n'), ended: Date.now() } });   // bonus ignored
+  const skip = allBut('y', null); delete skip[B.id];
+  call(g, { action: 'saveEntry', token: gt, sid: id('Skip'), patch: { marks: skip, ended: Date.now() } });              // never marked
+  call(g, { action: 'saveEntry', token: gt, sid: id('Open'), patch: { marks: skip } });                                 // all but the bonus, not ended
+  call(g, { action: 'tidy', token: gt }); g.buildGrades_();
+  assert.deepEqual(grade('Early'), early);
+  ok('a student graded before keeps their score: the question is not a bonus for them');
+  assert.ok(grade('Top')[0] > 80); assert.equal(grade('Low')[0], 80); assert.equal(grade('Skip')[0], 80);
+  ok('a bonus question can only help: Perfect lifts the score, Failed or no mark leaves it as it was');
+  assert.equal(grade('Skip')[1], 'Eligible'); assert.equal(grade('Open')[1], 'Eligible'); assert.equal(result('Open'), 'Eligible');
+  ok('a test is complete without the bonus question being marked');
+  st = call(g, { action: 'state', token: gt });
+  assert.equal(st.qsets[id('Early')].find(q => q.id === B.id).bonus, undefined);
+  assert.equal(st.qsets[id('Top')].find(q => q.id === B.id).bonus, 1);
+  ok('the page gets the bonus flag only for students graded with it');
 }
 
 console.log(`\n${n} checks passed`);

@@ -226,6 +226,8 @@ details.guide[open] summary::after{content:"–"}
 .crit-top h3{font-size:15px;font-weight:700;line-height:1.3}
 .tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
 .tags:empty{display:none}
+.tag.bonus{color:var(--ok);border-color:var(--ok)}
+.qno .bonus{margin-left:8px;color:var(--ok)}
 .tag{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-radius:4px;padding:1px 5px;border:1px solid var(--line);color:var(--mute)}
 .tag.core{color:var(--led);border-color:var(--led)}
 .tag.safety{color:var(--no);border-color:var(--no)}
@@ -699,11 +701,15 @@ const skillsFor=t=>(QSETS[t.id]||QLIVE[tkey(t)]||QLIVE['']||QNOW).filter(c=>!c.s
 const stagesFor=t=>{const out=[];for(const c of skillsFor(t))if(!out.some(x=>x.id===c.s))out.push({id:c.s,short:c.stage,name:c.heading||c.stage});return out};
 const bandOf=p=>GRADES.find(g=>p>=g.min*100-1e-9);
 // one teacher's own progress and score; shown next to the combined result, never used for it
+// a bonus question can only help: it counts when it raises the score, and it does not have to be marked
+const needed=skills=>skills.filter(c=>!(c.c||c).bonus);
+const withBonus=(skills,val)=>{const avg=l=>{const v=l.map(val).filter(x=>x!==null);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null};
+  const base=avg(needed(skills)),all=skills.some(c=>(c.c||c).bonus)?avg(skills):base;return all!==null&&(base===null||all>base)?all:base};
 function scoreOf(e,t){
-  const skills=t?skillsFor(t):QNOW,m=e.marks||{};let pts=0,n=0;
-  for(const c of skills){const v=m[c.id];if(v in POINTS){n++;pts+=POINTS[v]}}
+  const skills=t?skillsFor(t):QNOW,m=e.marks||{},need=needed(skills);
+  const n=skills.filter(c=>m[c.id] in POINTS).length,nNeed=need.filter(c=>m[c.id] in POINTS).length;
   const inc=[...new Set(Object.values(e.safety||{}).filter(Boolean).map(i=>i.text))];
-  return {pct:n?pts/n:0,n,total:skills.length,left:skills.length-n,complete:n===skills.length,inc};
+  return {pct:withBonus(skills,c=>m[c.id] in POINTS?POINTS[m[c.id]]:null)||0,n,total:skills.length,left:need.length-nNeed,complete:nNeed===need.length,inc};
 }
 /* The combined grade is the same sum for every student and every teacher:
    1. each skill's mark is the average of every teacher's mark on it
@@ -714,12 +720,12 @@ function gradeOf(t){
   const skills=skillsFor(t),es=entries(t),uids=Object.keys(es);
   const per=skills.map(c=>{const v=uids.map(u=>es[u].marks?.[c.id]).filter(x=>x in POINTS).map(x=>POINTS[x]);return {c,n:v.length,avg:v.length?v.reduce((a,b)=>a+b,0)/v.length:null}});
   const marked=per.filter(x=>x.avg!==null);
-  const score=marked.length?marked.reduce((a,x)=>a+x.avg,0)/marked.length*100:0;
+  const score=(withBonus(per,x=>x.avg)||0)*100;
   const errors=[...new Set(uids.flatMap(u=>Object.values(es[u].safety||{}).filter(Boolean).map(i=>i.text)))];
   const deduction=0,final=score;
   const coreFails=[];
   const grade=errors.length?GRADES[GRADES.length-1]:bandOf(final);
-  return {skills,per,marked:marked.length,total:skills.length,complete:marked.length===skills.length,score,errors,deduction,final,coreFails,grade,teachers:uids.filter(u=>Object.values(es[u].marks||{}).some(v=>v in POINTS))};
+  return {skills,per,marked:marked.length,total:skills.length,complete:per.every(x=>x.c.bonus||x.avg!==null),score,errors,deduction,final,coreFails,grade,teachers:uids.filter(u=>Object.values(es[u].marks||{}).some(v=>v in POINTS))};
 }
 // The app is for marking only. Grades are worked out later, by the teachers, in the Sheet's Grades tab.
 function statusOf(t){
@@ -929,7 +935,7 @@ function showDone(t,wasEnded){
     <svg class="donetick" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="29"/><path d="M19 33.5 28 42l17-19"/></svg>
     <span class="eyebrow">${wasEnded?'Changes saved':'Test ended'}</span>
     <b id="doneT">${esc(t.name)}</b>
-    <span class="done-sub">${wasEnded?'The grade is updated.':'This student is graded.'} ${sc.n} of ${sc.total} skills marked${errs?` · <span class="crit-n">${errs} critical error${errs>1?'s':''}</span>`:''}</span>
+    <span class="done-sub">${wasEnded?'The grade is updated.':'This student is graded.'} ${sc.n===sc.total?'All '+sc.total+' skills marked':sc.complete?'All skills marked · bonus not marked':sc.n+' of '+sc.total+' skills marked'}${errs?` · <span class="crit-n">${errs} critical error${errs>1?'s':''}</span>`:''}</span>
     <span class="done-sync" id="doneSync"></span>
     <button class="primary" id="doneOk" type="button">Back to students</button></div>`;
   document.body.appendChild(el);doneSync();navigator.vibrate?.([12,60,12]);
@@ -975,7 +981,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793641172';
+const BUILD='1793646432';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1137,7 +1143,7 @@ function go(v,id){if(S.view==='test'&&v!=='test')flushSoon(0);   // leaving a st
   if(v==='questions'&&S.view!=='questions'){Q.dirty=false;Q.list=null}
   S.view=v;S.open=id||null;renderBar();render();scrollTo(0,0);wake(v==='test')}
 // the open sheet is rebuilt only when its questions changed (someone edited the Questions tab), otherwise synced in place
-const sheetSig=t=>JSON.stringify(skillsFor(t).map(c=>[c.id,c.t,c.ask,c.s,c.heading]));
+const sheetSig=t=>JSON.stringify(skillsFor(t).map(c=>[c.id,c.t,c.ask,c.s,c.heading,c.bonus]));
 function refresh(){if(S.view==='test'){const raw=view(S.open);if(raw&&!raw.deleted&&sheetSig({id:S.open,...raw})!==S.sheetSig)renderSheet();else syncSheet()}else if(S.view==='roster')render();else if(S.view==='account')renderAccount(true);else if(S.view==='questions'||S.view==='add'){}else if(S.view==='grades')loadGrades().then(()=>{if(S.view==='grades')renderGrades()})}
 function render(){
   if(!S.demo&&S.view!=='login'&&!S.ready){renderLoading();return}
@@ -1324,7 +1330,7 @@ function renderQuestions(){
     return}
   const y=scrollY,admin=S.role==='admin',SB=['Both','K3','K4'];
   const qcard=(q,i,arr)=>`<article class="qcard" data-k="${q.k}">
-      <span class="qno">Question ${i+1}</span>
+      <span class="qno">Question ${i+1}${q.bonus?'<span class="bonus">· Bonus</span>':''}</span>
       <textarea class="qt" rows="2" aria-label="Question ${i+1}" placeholder="What the teacher marks">${esc(q.t)}</textarea>
       <div class="qtools"><button type="button" class="qb" data-act="up" aria-label="Move up"${i?'':' disabled'}>↑</button><button type="button" class="qb" data-act="down" aria-label="Move down"${i<arr.length-1?'':' disabled'}>↓</button>
         <button type="button" class="qb wide" data-act="more" aria-expanded="${!!q.open}">${q.open?'Less':'Details'}</button><button type="button" class="qb del" data-act="del">Delete</button></div>
@@ -1333,6 +1339,8 @@ function renderQuestions(){
         <div class="field"><label>Column name in Marks</label><input type="text" class="ql" value="${esc(q.label||'')}" placeholder="Short name (made from the question if left empty)"></div>
         <div class="pair"><div class="field"><label>Studio</label><div class="seg qstudio">${SB.map(x=>`<button type="button" data-studio="${x}" aria-pressed="${(q.studio||'Both')===x}">${x}</button>`).join('')}</div></div>
           <div class="field"><label>Stage</label><select class="qs">${Q.stages.map(st=>`<option${st===q.stage?' selected':''}>${esc(st)}</option>`).join('')}</select></div></div>
+        <div class="field"><label>Bonus question</label><div class="seg qbonus"><button type="button" data-bonus="0" aria-pressed="${!q.bonus}">Normal</button><button type="button" data-bonus="1" aria-pressed="${!!q.bonus}">Bonus</button></div>
+          <span class="readout" style="font-size:12px">A bonus question can only help: it counts when it raises the score, and the test can be ended without it.</span></div>
       </div></article>`;
   app.innerHTML=`<div class="qed">
     <section class="card qintro"><span class="eyebrow">${admin?'Edit questions':'My questions'}</span>
@@ -1361,6 +1369,8 @@ function renderQuestions(){
     const add=e.target.closest('[data-add]');
     if(add){const q={k:++Q.seq,id:'',stage:add.dataset.add,heading:'',t:'',ask:'',studio:'Both',label:'',open:false};Q.list.push(q);qDirty();renderQuestions();
       const ta=app.querySelector(`.qcard[data-k="${q.k}"] .qt`);ta?.scrollIntoView({block:'center'});ta?.focus();return}
+    const bb=e.target.closest('[data-bonus]');
+    if(bb){const q=byK(cardOf(bb).dataset.k);q.bonus=bb.dataset.bonus==='1';qDirty();renderQuestions();return}
     const sb=e.target.closest('[data-studio]');
     if(sb){const q=byK(cardOf(sb).dataset.k);q.studio=sb.dataset.studio;sb.parentElement.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b===sb));qDirty();return}
     const b=e.target.closest('[data-act]');if(!b)return;const q=byK(cardOf(b).dataset.k),same=Q.list.filter(x=>x.stage===q.stage),i=same.indexOf(q);
@@ -1371,7 +1381,7 @@ function renderQuestions(){
     const a=Q.list.indexOf(q),o=Q.list.indexOf(same[j]);[Q.list[a],Q.list[o]]=[Q.list[o],Q.list[a]];qDirty();renderQuestions()};
   $('#qUndo').onclick=()=>{if(!Q.dirty)return;if(confirm('Undo all changes since the last save?'))loadQuestions(Q.who)};
   $('#qSave').onclick=async()=>{
-    if(Q.busy)return;const list=[];Q.stages.forEach(st=>Q.list.filter(q=>q.stage===st&&q.t.trim()).forEach((q,i)=>list.push({id:q.id,stage:st,heading:i?'':(Q.head[st]||''),t:q.t,ask:q.ask,studio:q.studio,label:q.label})));
+    if(Q.busy)return;const list=[];Q.stages.forEach(st=>Q.list.filter(q=>q.stage===st&&q.t.trim()).forEach((q,i)=>list.push({id:q.id,stage:st,heading:i?'':(Q.head[st]||''),t:q.t,ask:q.ask,studio:q.studio,label:q.label,bonus:!!q.bonus})));
     if(!list.length){toast('Keep at least one question');return}
     Q.busy=true;const btn=$('#qSave');btn.disabled=true;btn.textContent='Saving…';
     const j=await api('saveQuestions',{v:Q.v,questions:list,...(admin?{teacher:Q.who}:{})});
@@ -1569,7 +1579,7 @@ function renderSheet(){
        ${skillsFor(t).filter(c=>c.s===s.id).map(c=>`
        <article class="crit" data-crit="${c.id}">
          <div class="crit-top"><div class="t"><h3>${esc(c.t)}</h3>
-           <div class="tags">${c.ask?'<span class="tag">Ask</span>':''}</div></div>
+           <div class="tags">${c.bonus?'<span class="tag bonus">Bonus</span>':''}${c.ask?'<span class="tag">Ask</span>':''}</div></div>
            <button class="more" type="button" data-addnote="${c.id}">+ Note</button></div>
          ${c.ask?`<div class="detail"><div class="ask">${esc(c.ask)}</div></div>`:''}
          ${markBtns('crit',c.id,['p','y','h','g','n'])}
@@ -1618,7 +1628,7 @@ function renderSheet(){
      the first one and outline every one. A second tap ends the test anyway. A graded test can still be changed later. */
   let saveArm=0;
   $('#doneBtn').onclick=()=>{
-    const t={id:S.open,...view(S.open)},e=mine(t),m=e.marks||{},missing=skillsFor(t).filter(c=>!(m[c.id] in POINTS));
+    const t={id:S.open,...view(S.open)},e=mine(t),m=e.marks||{},missing=needed(skillsFor(t)).filter(c=>!(m[c.id] in POINTS));
     const label=e.ended?'Save changes':'End test and grade';
     if(missing.length&&canMark()&&Date.now()-saveArm>8000){
       saveArm=Date.now();
@@ -1664,15 +1674,16 @@ function syncSheet(first){
   app.querySelectorAll('.marks').forEach(g=>{const v=e.marks?.[g.dataset.crit];g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===v));swipeShow(g,v);const a=g.closest('.crit');a.dataset.m=v||'';if(v)a.classList.remove('missing')});
   app.querySelectorAll('[data-note]').forEach(n=>{const v=e.notes?.[n.dataset.note]||'';if(document.activeElement!==n&&n.value!==v){n.value=v}if(v){n.hidden=false;const ab=app.querySelector(`[data-addnote="${n.dataset.note}"]`);if(ab)ab.hidden=true}if(!n.hidden)autosize(n)});
   const sm=$('#summary');if(document.activeElement!==sm&&sm.value!==(e.summary||''))sm.value=e.summary||'';
-  if($('#endBar')&&!$('#endBar').hidden){const m=e.marks||{},left=skillsFor(t).filter(c=>!(m[c.id] in POINTS)),bar=$('#endBar'),was=+bar.dataset.n||0;endBar(left.length);bar.dataset.n=left.length;
+  if($('#endBar')&&!$('#endBar').hidden){const m=e.marks||{},left=needed(skillsFor(t)).filter(c=>!(m[c.id] in POINTS)),bar=$('#endBar'),was=+bar.dataset.n||0;endBar(left.length);bar.dataset.n=left.length;
     // one more marked and some still missing: after a moment (so the mark is seen), on to the next missing skill
     if(left.length&&left.length<was){const nx=app.querySelector(`article.crit[data-crit="${left[0].id}"]`);clearTimeout(endBar.jump);endBar.jump=setTimeout(()=>nx?.scrollIntoView({behavior:'smooth',block:'center'}),450)}
     app.querySelectorAll('article.crit.missing').forEach(a=>{if(m[a.dataset.crit] in POINTS)a.classList.remove('missing')})}
   const nh=$('#notesHint');if(nh)nh.textContent=(e.summary||'').trim()?'':'optional';
   stagesFor(t).forEach(s=>{const cs=skillsFor(t).filter(c=>c.s===s.id);if(!cs.length||!app.querySelector(`[data-count="${s.id}"]`))return;
-    const vals=cs.map(c=>e.marks?.[c.id]);const done=vals.filter(Boolean).length;
+    // a bonus question is not counted: the stage is done without it, and a Failed on it costs nothing
+    const vals=needed(cs).map(c=>e.marks?.[c.id]);const done=vals.filter(Boolean).length;
     app.querySelector(`[data-count="${s.id}"]`).textContent=`${done}/${vals.length}`;
-    const flag=cs.some(c=>e.marks?.[c.id]==='n');   // a stage with a Failed mark is flagged
+    const flag=needed(cs).some(c=>e.marks?.[c.id]==='n');   // a stage with a Failed mark is flagged
     app.querySelector(`.stagenav [data-st="${s.id}"]`).dataset.s=flag?'flag':done===vals.length?'done':done?'part':''});
   const inc=Object.entries(e.safety||{}).filter(([,v])=>v).sort((a,b)=>a[1].t-b[1].t);
   const on=new Set(inc.map(([,i])=>i.text)),chips=[...QUICK,...[...on].filter(x=>!QUICK.includes(x))];

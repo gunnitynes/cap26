@@ -65,7 +65,7 @@ const DEFAULT_QUESTIONS = [
   ['', '', 'Leaves the studio as it was found', '', 'Both', 'Left as found', 's2'],
 ];
 // the standard column order of a questions tab; tabs are READ by their headings, so a moved or deleted column cannot scramble them
-const Q_ = { STAGE: 0, HEADING: 1, TEXT: 2, ASK: 3, STUDIO: 4, LABEL: 5, ID: 6 };
+const Q_ = { STAGE: 0, HEADING: 1, TEXT: 2, ASK: 3, STUDIO: 4, LABEL: 5, ID: 6, BONUS: 7 };
 /* Marks, one row per student per teacher:
      MARKS_HEAD | one % column per test stage | MARKS_MID | every skill (a folded column group) | MARKS_END
    The stage columns are the same for every teacher, so the rows line up whoever asked which questions. */
@@ -87,8 +87,8 @@ const SHEETS = {
   TEACHERS: { name: 'Teachers', header: ['Name', 'Role', 'Last sign-in'], widths: [220, 120, 170] },
   STUDENTS: { name: 'Students', header: ['Test date', 'Test time', 'Student', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID'],
               widths: [110, 110, 220, 110, 90, 140, 220, 110] },
-  QUESTIONS:{ name: 'Questions', header: ['Stage', 'Stage heading', 'Question', 'Ask out loud (optional)', 'Studio', 'Column name', 'ID'],
-              widths: [110, 220, 380, 320, 80, 220, 90] },
+  QUESTIONS:{ name: 'Questions', header: ['Stage', 'Stage heading', 'Question', 'Ask out loud (optional)', 'Studio', 'Column name', 'ID', 'Bonus'],
+              widths: [110, 220, 380, 320, 80, 220, 90, 70] },
   MARKS:    { name: 'Marks', header: [] },   // its skill columns follow the questions: see syncMarks_
   GRADES:   { name: 'Grades', header: [] },
 };
@@ -257,14 +257,14 @@ function qcols_(sh) {
   const w = Math.max(1, sh.getLastColumn()), head = sh.getRange(1, 1, 1, w).getValues()[0].map(h => String(h || '').trim().toLowerCase());
   const at = (...names) => head.findIndex(h => names.some(n => h === n || h.indexOf(n) === 0));
   return { stage: head.indexOf('stage'), heading: at('stage heading'), text: at('question'),
-           ask: at('ask'), studio: at('studio'), label: at('column name'), id: head.indexOf('id'), width: w };
+           ask: at('ask'), studio: at('studio'), label: at('column name'), id: head.indexOf('id'), bonus: at('bonus'), width: w };
 }
 /** A questions tab's rows in the standard column order, whatever order its columns are in now. */
 function rowsStd_(sh) {
   if (!sh || sh.getLastRow() < 2) return [];
   const c = qcols_(sh), raw = sh.getRange(2, 1, sh.getLastRow() - 1, c.width).getValues();
   const get = (r, i) => i < 0 ? '' : (typeof r[i] === 'boolean' ? '' : r[i]);
-  return raw.map(r => [get(r, c.stage), get(r, c.heading), get(r, c.text), get(r, c.ask), get(r, c.studio), get(r, c.label), get(r, c.id)]);
+  return raw.map(r => [get(r, c.stage), get(r, c.heading), get(r, c.text), get(r, c.ask), get(r, c.studio), get(r, c.label), get(r, c.id), c.bonus < 0 ? false : yes_(r[c.bonus])]);
 }
 /** Puts a questions tab back into the standard columns (Stage … ID) when someone has moved, added or deleted a column.
  *  Every question, ask text, studio, column name and ID is kept; a Core column (no longer used) is dropped. */
@@ -273,6 +273,9 @@ function normalizeQuestionTab_(sh) {
   const want = SHEETS.QUESTIONS.header, w = Math.max(1, sh.getLastColumn());
   const head = sh.getRange(1, 1, 1, w).getValues()[0].map(h => String(h || '').trim());
   if (head.slice(0, want.length).join('|') === want.join('|') && head.slice(want.length).every(h => !h)) return;
+  // a tab from before the Bonus column: only the heading is added, nothing else is touched
+  if (head.slice(0, want.length - 1).join('|') === want.slice(0, -1).join('|') && head.slice(want.length - 1).every(h => !h)) {
+    sh.getRange(1, want.length).setValue(want[want.length - 1]); return; }
   const rows = rowsStd_(sh);
   try { sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).clearDataValidations(); sh.showColumns(1, sh.getMaxColumns()); } catch (e) {}
   sh.clear();
@@ -415,13 +418,16 @@ function styleQuestions_(q) {
   q.getRange(2, Q_.STUDIO + 1, qr, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['Both'].concat(STUDIO_LIST), true)
     .setAllowInvalid(true).setHelpText('Both, or a studio: a K3 question is only asked of students tested in K3.').build());
   q.getRange(2, Q_.LABEL + 1, qr, 1).setFontColor(MUTE);
+  q.getRange(2, Q_.BONUS + 1, qr, 1).setHorizontalAlignment('center').setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox()
+    .setAllowInvalid(true).setHelpText('Ticked: a bonus question. It can only help: it counts when it raises the score, and it does not have to be marked.').build());
   [['The stage this question belongs to: pick it from the dropdown (the stages are the same for every teacher; the test organiser keeps the list on Start here). Every row has one; repeats show faint. A new row left blank takes the stage of the row above.'],
    ['The heading over the stage on the page. Needed on one row of the stage.'],
    ['What the teacher marks. One row per question, in the order of the test. Delete the row to remove the question.'],
    ['Optional: a question the teacher reads out loud, shown under the question. Leave it empty for none.'],
    ['Both, K3 or K4. A K3 question only shows for students tested in K3.'],
    ['Optional: a short name, the column heading in Marks. Questions with the same name in different teachers\' tabs share a column. Cleared by itself when you type a different question over this row.'],
-   ['Given by the sheet. Keeps marks attached to this question when you move it (drag, sort, copy or retype) or reword it a little.']]
+   ['Given by the sheet. Keeps marks attached to this question when you move it (drag, sort, copy or retype) or reword it a little.'],
+   ['Tick for a bonus question: it can only help. It counts when it raises the score and is left out when it would lower it, and the test can be ended without marking it. Students already graded keep the questions as they were.']]
     .forEach((n, i) => q.getRange(1, i + 1).setNote(n[0]));
   q.hideColumns(Q_.ID + 1);
   q.setTabColor(own ? '#7c8db5' : BLUE);
@@ -993,7 +999,7 @@ function questionRows_(sh) {
   return rowsStd_(sh).map(r => {
     if (clean_(r[Q_.STAGE], 40)) stage = stageName_(clean_(r[Q_.STAGE], 40));
     return { id: clean_(r[Q_.ID], 40), stage, heading: clean_(r[Q_.HEADING], 80), t: String(r[Q_.TEXT] || '').trim().slice(0, 300),
-      ask: String(r[Q_.ASK] || '').trim().slice(0, 300), studio: studioWord_(r[Q_.STUDIO]), label: clean_(r[Q_.LABEL], 40) };
+      ask: String(r[Q_.ASK] || '').trim().slice(0, 300), studio: studioWord_(r[Q_.STUDIO]), label: clean_(r[Q_.LABEL], 40), bonus: !!r[Q_.BONUS] };
   }).filter(q => q.t);
 }
 function studioWord_(v) { const s = studios_(v); return s ? s.join(', ') : 'Both'; }
@@ -1012,7 +1018,7 @@ function saveQuestions_(me, req) {
     return { ok: false, code: 'changed', error: 'These questions were changed in the Sheet while you were editing. Your edits are not saved yet: load the new version first.' };
   const list = (Array.isArray(req.questions) ? req.questions : []).slice(0, 120).map(q => ({
     id: clean_(q.id, 40), stage: stageName_(clean_(q.stage, 40)), heading: clean_(q.heading, 80), t: String(q.t || '').replace(/\s+/g, ' ').trim().slice(0, 300),
-    ask: String(q.ask || '').replace(/\s+/g, ' ').trim().slice(0, 300), studio: studioWord_(q.studio), label: clean_(q.label, 40) })).filter(q => q.t);
+    ask: String(q.ask || '').replace(/\s+/g, ' ').trim().slice(0, 300), studio: studioWord_(q.studio), label: clean_(q.label, 40), bonus: !!q.bonus })).filter(q => q.t);
   if (!list.length) return { ok: false, error: 'Keep at least one question.' };
   if (list.some(q => !q.stage)) return { ok: false, error: 'Every question needs a stage.' };
   // the registry learns each kept question's new wording, so the ID check below keeps every ID where the page put it
@@ -1024,7 +1030,7 @@ function saveQuestions_(me, req) {
   // one heading per stage, on its first row (as typed in the Sheet)
   const headed = {};
   const rows = list.map(q => { const h = !headed[q.stage] && q.heading ? q.heading : ''; if (h) headed[q.stage] = 1;
-    return [q.stage, h, q.t, q.ask, q.studio, q.label, q.id]; });
+    return [q.stage, h, q.t, q.ask, q.studio, q.label, q.id, q.bonus]; });
   const W = SHEETS.QUESTIONS.header.length, last = sh.getLastRow();
   if (last > 1) sh.getRange(2, 1, last - 1, W).clearContent();
   if (sh.getMaxRows() < rows.length + 1) sh.insertRowsAfter(sh.getMaxRows(), rows.length + 1 - sh.getMaxRows());
@@ -1129,7 +1135,9 @@ function marksRow_(s, teacher, data, ctx, updated) {
   const marked = ids.filter(id => m[id] in POINTS);
   const sc = stageScores_(qs, q => m[q.id] in POINTS ? POINTS[m[q.id]] : null);
   const errors = Object.keys(data.safety || {}).map(k => data.safety[k]).filter(Boolean).map(x => x.text);
-  const result = resultOf_(sc.score, errors, marked.length, ids.length, !!data.ended);
+  const need = qs.filter(q => !q.bonus).map(q => q.id);   // a bonus question does not have to be marked
+  const done = need.filter(id => m[id] in POINTS).length;
+  const result = resultOf_(sc.score, errors, marked.length ? Math.max(done, 1) : 0, need.length, !!data.ended);
   // the notes: the teacher's own, then any note on a single skill
   const notes = [data.summary || ''].concat(qs.filter(q => data.notes && data.notes[q.id]).map(q => q.label + ': ' + data.notes[q.id])).filter(x => String(x).trim()).join('\n');
   return [s.day ? toDate_(s.day) : '', s.name, teacher, result, sc.score === null ? '' : Math.round(sc.score), marked.length + '/' + ids.length]
@@ -1141,11 +1149,17 @@ function marksRow_(s, teacher, data, ctx, updated) {
 /** One stage list for every teacher's scoring. val(q) is a question's points 0..1, or null when it is not marked.
  *  Each stage: the average of its marked questions, as a %. Score: the average of those stages. */
 function stageScores_(qs, val) {
-  const by = {};
-  qs.forEach(q => { const v = val(q); if (v !== null && v !== undefined) (by[q.stage] = by[q.stage] || []).push(v); });
-  const stages = {}; Object.keys(by).forEach(k => stages[k] = by[k].reduce((a, b) => a + b, 0) / by[k].length * 100);
-  const ks = Object.keys(stages);
-  return { stages, score: ks.length ? ks.reduce((a, k) => a + stages[k], 0) / ks.length : null };
+  const run = list => {
+    const by = {};
+    list.forEach(q => { const v = val(q); if (v !== null && v !== undefined) (by[q.stage] = by[q.stage] || []).push(v); });
+    const stages = {}; Object.keys(by).forEach(k => stages[k] = by[k].reduce((a, b) => a + b, 0) / by[k].length * 100);
+    const ks = Object.keys(stages);
+    return { stages, score: ks.length ? ks.reduce((a, k) => a + stages[k], 0) / ks.length : null };
+  };
+  // a bonus question can only help: the score with it, when that is higher, otherwise the score without it
+  if (!qs.some(q => q.bonus)) return run(qs);
+  const base = run(qs.filter(q => !q.bonus)), all = run(qs);
+  return all.score !== null && (base.score === null || all.score > base.score) ? all : base;
 }
 /** In words: Grade A / Pass / Resit once every skill is marked or the test was ended; before that In progress or Not started. */
 function resultOf_(score, errors, marked, total, ended) {
@@ -1256,7 +1270,7 @@ function readQuestions_(sh) {
     if (!t || !id || seen[id]) return;
     seen[id] = 1;
     out.push({ id, stage: stage || 'Test', t, ask: clean_(r[Q_.ASK], 300), core: 0,
-      studios: studios_(r[Q_.STUDIO]), label: clean_(r[Q_.LABEL], 40) || shorten_(t) });
+      studios: studios_(r[Q_.STUDIO]), label: clean_(r[Q_.LABEL], 40) || shorten_(t), ...(r[Q_.BONUS] ? { bonus: 1 } : {}) });
   });
   out.forEach(q => q.heading = heading[q.stage] || q.stage);
   return out;
@@ -1344,8 +1358,8 @@ function studentFreezeKeys_() { return Object.keys(PropertiesService.getScriptPr
 function freezeStudent_(sid, qs) {
   if (!sid || studentFrozen_(sid) || !qs || !qs.length) return;
   let s = JSON.stringify(qs);   // a script property holds 9 KB: drop the long text first, it comes from the tab anyway
-  if (s.length > 8500) s = JSON.stringify(qs.map(q => ({ id: q.id, stage: q.stage, t: q.t.slice(0, 60), core: q.core, studios: q.studios, label: q.label })));
-  if (s.length > 8500) s = JSON.stringify(qs.map(q => ({ id: q.id, core: q.core, studios: q.studios })));
+  if (s.length > 8500) s = JSON.stringify(qs.map(q => ({ id: q.id, stage: q.stage, t: q.t.slice(0, 60), core: q.core, studios: q.studios, label: q.label, bonus: q.bonus })));
+  if (s.length > 8500) s = JSON.stringify(qs.map(q => ({ id: q.id, core: q.core, studios: q.studios, bonus: q.bonus })));
   PropertiesService.getScriptProperties().setProperty('qs_' + sid, s);
 }
 function unfreezeStudent_(sid) { PropertiesService.getScriptProperties().deleteProperty('qs_' + sid); }
@@ -1408,7 +1422,8 @@ function gradeOf_(byTeacher, qs) {
   Object.keys(byTeacher).forEach(u => Object.keys(byTeacher[u].safety || {}).forEach(k => { const e = byTeacher[u].safety[k]; if (e && errors.indexOf(e.text) < 0) errors.push(e.text); }));
   const final = score;   // no points off: a critical error decides the grade on its own (below)
   const coreFails = [];   // (Core skills are no longer used: every question counts the same)
-  const complete = qs.length > 0 && marked.length === qs.length;
+  const need = per.filter(x => !x.q.bonus);   // a bonus question does not have to be marked
+  const complete = need.length > 0 && need.every(x => x.avg !== null);
   const band = final === null ? null : errors.length ? BANDS[BANDS.length - 1] : BANDS.find(b => final >= b[1] - 1e-9);
   const stages = {}; Object.keys(sc.stages).forEach(k => stages[k] = Math.round(sc.stages[k]));
   return { teachers, marked: marked.length, score, errors, final, coreFails, complete, band, stages };
