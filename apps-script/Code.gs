@@ -1454,7 +1454,7 @@ function buildGrades_() {
   const list = g0.list.slice().sort((a, b) => rank(a.s) - rank(b.s) || byTestTime_(a.s, b.s)), students = list.map(x => x.s);
   const stageNames = [];
   stages_().concat(live.concat(...list.map(x => x.qs)).map(q => q.stage)).forEach(n => { if (stageNames.indexOf(n) < 0) stageNames.push(n); });
-  const nS = stageNames.length, top = 8;
+  const nS = stageNames.length, top = 3;   // row 1 the summary, row 2 the headings, students from row 3
   // Marked and Progress sit last and are hidden (still there for anyone who unhides them)
   const head = ['Test date', 'Student', 'Teachers', 'Studio', 'Score %'].concat(stageNames)
     .concat(['Errors', '', 'Grade', 'Critical errors', 'Marked', 'Progress']);
@@ -1489,27 +1489,28 @@ function buildGrades_() {
   try { sh.getBandings().forEach(b => b.remove()); } catch (e) {}
   sh.setConditionalFormatRules([]);
   const total = students.length || 1;
-  sh.getRange(1, 1).setValue('Grades');
-  sh.getRange('A1').setFontSize(22).setFontWeight('bold').setFontColor(BLUE);
-  sh.setRowHeights(1, top - 1, 21);                    // reset the heights a previous layout may have left
-  sh.setRowHeight(2, 8);                                // a thin gap under the title
-  // the summary: one block per grade, with a bar showing its share of all students
-  // Grade A, Eligible, Resit and Remaining side by side, from column C
+  // the summary, all in row 1 so the students get the screen: the title, how many students, then one coloured box per grade
+  // (Grade A, Eligible, Resit and Remaining from column C), each its count and its name
   const names = ['Grade A', 'Eligible', 'Resit', 'Remaining'], cols = [3, 4, 5, 6];
   const colours = [BANDS[0], BANDS[1], BANDS[2], ['', 0, '#9aa3b5', PAPER]];
-  sh.getRange(3, 1, 2, 1).setValues([['Overview'], [students.length + (students.length === 1 ? ' student' : ' students')]]);
-  sh.getRange('A3').setFontWeight('bold'); sh.getRange('A4').setFontColor(MUTE);
+  sh.getRange(1, 1, 1, 2).setValues([['Grades', students.length + (students.length === 1 ? ' student' : ' students')]]).setVerticalAlignment('middle');
+  sh.getRange('A1').setFontSize(16).setFontWeight('bold').setFontColor(BLUE);
+  sh.getRange('B1').setFontColor(MUTE);
   names.forEach((n, i) => {
-    const c = cols[i];
-    sh.getRange(3, c).setValue(n).setFontWeight('bold').setFontColor(colours[i][2]);
-    sh.getRange(4, c).setValue(counts[n]).setFontSize(24).setFontWeight('bold').setFontColor(colours[i][2]).setHorizontalAlignment('left');
-    sh.getRange(5, c).setFormula('=SPARKLINE(' + counts[n] + ',{"charttype","bar";"max",' + total + ';"color1","' + colours[i][2] + '"})');
-    sh.getRange(3, c, 3, 1).setBackground(colours[i][3]);
+    const c = cols[i], fg = colours[i][2], txt = counts[n] + '  ' + n, cell = sh.getRange(1, c);
+    cell.setValue(txt).setFontWeight('bold').setFontColor(fg).setBackground(colours[i][3]).setVerticalAlignment('middle').setHorizontalAlignment('left');
+    // the count larger than the name, where the Sheet allows it
+    try {
+      const k = String(counts[n]).length;
+      cell.setRichTextValue(SpreadsheetApp.newRichTextValue().setText(txt)
+        .setTextStyle(0, k, SpreadsheetApp.newTextStyle().setFontSize(15).setBold(true).setForegroundColor(fg).build())
+        .setTextStyle(k, txt.length, SpreadsheetApp.newTextStyle().setFontSize(10).setBold(true).setForegroundColor(fg).build()).build());
+    } catch (e) {}
   });
-  sh.setRowHeight(4, 40);
+  sh.setRowHeight(1, 32);
 
   sh.getRange(top - 1, 1, 1, W).setValues([head]).setFontWeight('bold').setFontColor('#ffffff').setBackground(BLUE).setVerticalAlignment('middle').setWrap(true);
-  sh.setRowHeight(top - 1, 36);
+  sh.setRowHeight(top - 1, 32);
   if (values.length) {
     sh.getRange(top, 1, values.length, W).setValues(values).setFontFamily('Arial').setFontSize(10).setVerticalAlignment('middle');
     sh.getRange(top, C.PROG, bars.length, 1).setFormulas(bars.map(b => [b[0]]));
