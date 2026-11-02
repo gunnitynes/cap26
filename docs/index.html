@@ -87,6 +87,14 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .menu-big span{color:var(--mute);font-size:18px;line-height:1}
 .menu-big:hover{border-color:var(--led)}
 .menu-note{font-size:12px;color:var(--mute);line-height:1.35}
+.menu-ov{display:flex;align-items:center;gap:12px;width:100%;border:0;border-radius:12px;padding:12px 14px;font:inherit;text-align:left;color:#fff;
+  background:linear-gradient(135deg,var(--led),color-mix(in srgb,var(--led) 55%,#7a3cff));box-shadow:0 6px 18px -8px var(--led)}
+.menu-ov svg{flex:none;width:26px;height:26px;fill:#fff;opacity:.95}
+.menu-ov .ov-t{display:flex;flex-direction:column;flex:1;min-width:0}
+.menu-ov b{font-size:16px;font-weight:800;letter-spacing:.01em}
+.menu-ov small{font-size:12px;opacity:.85}
+.menu-ov .ov-go{font-size:20px;line-height:1}
+.menu-ov:active{transform:scale(.98)}
 .menu-i{border:0;background:transparent;text-align:left;padding:12px;border-radius:9px;font:inherit;font-weight:600;font-size:15px;color:var(--ink)}
 .menu-i:hover{background:var(--sunk)}
 .menu-i.danger{color:var(--no);border-top:1px solid var(--line);border-radius:0 0 9px 9px;margin-top:4px}
@@ -981,7 +989,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793646432';
+const BUILD='1793650255';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1105,27 +1113,28 @@ function whoMenu(){const st=markStyle();
       <button class="menu-big" type="button" role="menuitem" data-go="questions">${S.role==='admin'?'Edit questions':'My questions'}<span aria-hidden="true">›</span></button></div>
     <div class="menu-sec"><span class="menu-l" id="mDay"></span>
       <div class="menu-stats"><div><b id="mN"></b><small>Students</small></div><div><b id="mDone"></b><small>Graded</small></div><div><b id="mLeft"></b><small>Remaining</small></div></div>
-      <button class="menu-big" type="button" role="menuitem" id="menuOverview">Overview<span aria-hidden="true">›</span></button></div>
+      <button class="menu-ov" type="button" role="menuitem" id="menuOverview"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="17" y="3" width="4" height="17" rx="1"/></svg><span class="ov-t"><b>Overview</b><small>All grades and results</small></span><span class="ov-go" aria-hidden="true">→</span></button></div>
     <div class="menu-sec"><span class="menu-l">Students</span>
       <button class="menu-big" type="button" role="menuitem" data-go="add">Add students<span aria-hidden="true">›</span></button></div>
     <div class="menu-sec">
       <button class="menu-sync" id="menuSync" type="button" role="menuitem"><span class="sync" id="sync" data-c="ok"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 0 1-13.2 4.9M4.5 12a7.5 7.5 0 0 1 13.2-4.9"/><path d="M18.4 3.6v3.7h-3.7M5.6 20.4v-3.7h3.7"/></svg></span><span class="ms-t"><b id="msTitle"></b><small id="msSub"></small></span></button></div>
-    <div class="menu-sec"><span class="menu-l">Safety copy</span>
-      <button class="menu-big" type="button" role="menuitem" id="menuExport">Export my marks<span aria-hidden="true">↓</span></button>
-      <span class="menu-note" id="mBk"></span></div>
     <div class="menu-sec"><span class="menu-l">Appearance</span>
       <div class="seg" role="group" aria-label="Appearance">${[['auto','Auto'],['light','Light'],['dark','Dark']].map(([k,l])=>`<button type="button" role="menuitemradio" data-theme-pick="${k}" aria-pressed="${themeNow()===k}">${l}</button>`).join('')}</div></div>
     <div class="menu-sec"><span class="menu-l">How you mark</span>
       <div class="seg" role="group" aria-label="How you mark"><button type="button" role="menuitemradio" data-style="buttons" aria-pressed="${st==='buttons'}">Buttons</button><button type="button" role="menuitemradio" data-style="swipe" aria-pressed="${st==='swipe'}">Scale</button></div></div>
+    <div class="menu-sec"><span class="menu-l">Export</span>
+      <button class="menu-big" type="button" role="menuitem" id="menuExport">Export my marks<span aria-hidden="true">↓</span></button></div>
     <button class="menu-i danger" type="button" role="menuitem" id="menuOut">Sign out</button>
   </div>`}
 function menuCounts(){const c=dayCounts(),set=(id,v)=>{const el=$(id);if(el)el.textContent=v};
-  set('#mDay',fmtDay(S.day)+(S.day===today()?' · today':''));set('#mN',c.n);set('#mDone',c.done);set('#mLeft',c.left);
-  const n=S.demo?0:exportRows().length;set('#mBk',n?'Every mark is also kept on this phone ('+n+' student'+(n===1?'':'s')+'), even if the Sheet can\'t be reached.':'Every mark is also kept on this phone, even if the Sheet can\'t be reached.')}
+  set('#mDay',fmtDay(S.day)+(S.day===today()?' · today':''));set('#mN',c.n);set('#mDone',c.done);set('#mLeft',c.left)}
 function bindWhoMenu(){
   const b=$('#whoBtn'),m=$('#whoMenu');if(!b||!m)return;
   const show=on=>{m.hidden=!on;b.setAttribute('aria-expanded',on);if(on){menuCounts();document.addEventListener('pointerdown',away,true);document.addEventListener('keydown',esc_)}else{document.removeEventListener('pointerdown',away,true);document.removeEventListener('keydown',esc_)}};
-  const away=e=>{if(!e.target.closest('.who'))show(false)},esc_=e=>{if(e.key==='Escape'){show(false);b.focus()}};
+  // a tap outside the menu only closes it: the tap does not also open a student or press a button underneath
+  const away=e=>{if(e.target.closest('.who'))return;show(false);
+    const swallow=ev=>{ev.preventDefault();ev.stopPropagation()};document.addEventListener('click',swallow,{capture:true,once:true});
+    setTimeout(()=>document.removeEventListener('click',swallow,true),700)},esc_=e=>{if(e.key==='Escape'){show(false);b.focus()}};
   b.onclick=()=>show(m.hidden);
   m.onclick=e=>{if(e.target.closest('#menuSync')){syncNow();return}
     if(e.target.closest('#menuExport')){show(false);exportMarks();return}
