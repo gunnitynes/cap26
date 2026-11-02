@@ -222,24 +222,24 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const d = tab(book, 'Grades').data, head = d[6];
   const row = name => d.find(r => r[1] === name), col = (name, c) => row(name)[head.indexOf(c)];
   // Polina: Pass 80 on 17 skills, m4 (Hint 65 + Pass 80)/2 → 79.6 → Pass
-  assert.equal(col('Polina', 'Score %'), 80); assert.equal(col('Polina', 'Grade'), 'Passed'); assert.equal(col('Polina', 'Teachers'), 'Gunni, Anna');
+  assert.equal(col('Polina', 'Score %'), 80); assert.equal(col('Polina', 'Grade'), 'Eligible'); assert.equal(col('Polina', 'Teachers'), 'Gunni, Anna');
   assert.equal(col('Polina', 'Mic'), 78);   // (80+80+80+72.5)/4
   assert.equal(col('Kim', 'Score %'), 100); assert.equal(col('Kim', 'Errors'), 1); assert.equal(col('Kim', 'Grade'), 'Resit');
   assert.equal(col('Lior', 'Score %'), 98); assert.equal(col('Lior', 'Grade'), 'Grade A');
-  assert.equal(col('Ida', 'Score %'), 50); assert.equal(col('Ida', 'Grade'), 'Passed');
+  assert.equal(col('Ida', 'Score %'), 50); assert.equal(col('Ida', 'Grade'), 'Eligible');
   assert.equal(col('Paul', 'Grade'), 'Remaining'); assert.equal(head.indexOf('Core skill under 50%'), -1);
   assert.equal(head.indexOf('In the app'), -1);
   ok('Perfect 100 · Pass 80 · Hint 65 · Got there 50: Grade A from 85, "got there" on everything still passes');
   ok('any critical error is a Resit, even with every skill Perfect');
-  assert.deepEqual([d[2][2], d[2][3], d[2][4], d[2][5]], ['Grade A', 'Passed', 'Resit', 'Remaining']);
-  assert.deepEqual([d[3][2], d[3][3], d[3][4], d[3][5]], [1, 2, 1, 1]);   // Grade A, Passed, Resit, Remaining from column C
+  assert.deepEqual([d[2][2], d[2][3], d[2][4], d[2][5]], ['Grade A', 'Eligible', 'Resit', 'Remaining']);
+  assert.deepEqual([d[3][2], d[3][3], d[3][4], d[3][5]], [1, 2, 1, 1]);   // Grade A, Eligible, Resit, Remaining from column C
   assert.equal((d[1] || []).join(''), '');   // row 2 stays empty: no subtitle line
   ok('the summary counts each grade');
   const mk = tab(book, 'Marks').data, mh = mk[0];
   assert.equal(mk.find(r => r[1] === 'Kim')[mh.indexOf('Power-up order')], 'Perfect');
   ok('Marks shows Perfect in words');
   const gr = call(g, { action: 'grades', token: at }).students, gp = gr.find(x => x.name === 'Polina'), gq = gr.find(x => x.name === 'Paul'), gk = gr.find(x => x.name === 'Kim');
-  assert.equal(gp.grade, 'Passed'); assert.equal(gp.final, 80); assert.equal(gp.score, 80); assert.equal(gp.errors.length, 0); assert.equal(gp.complete, true);
+  assert.equal(gp.grade, 'Eligible'); assert.equal(gp.final, 80); assert.equal(gp.score, 80); assert.equal(gp.errors.length, 0); assert.equal(gp.complete, true);
   assert.equal(gk.grade, 'Resit'); assert.equal(gk.errors.length, 1);
   assert.equal(gp.stages.find(x => x.name === 'Mic').pct, 78); assert.deepEqual(gp.teachers, ['Gunni', 'Anna']);
   assert.equal(gq.complete, false); assert.equal(gq.marked, 2); assert.deepEqual(gq.coreFails, []);
@@ -517,7 +517,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const marks = f => ({ T: { marks: Object.fromEntries(qs.map(q => [q.id, f(q)])) } });
   const three = nonCore.slice(0, 3), five = nonCore.slice(0, 5);
   const a = g.gradeOf_(marks(q => three.includes(q.id) ? 'n' : 'g'), qs), b = g.gradeOf_(marks(q => five.includes(q.id) ? 'n' : 'g'), qs);
-  assert.equal(Math.round(a.score), 42); assert.equal(a.band[0], 'Passed');
+  assert.equal(Math.round(a.score), 42); assert.equal(a.band[0], 'Eligible');
   assert.equal(Math.round(b.score), 38); assert.equal(b.band[0], 'Resit');   // stages: Power 0, Mic 25, four at 50
   ok('Pass from 40: "got there" with three failed skills passes (42), with five it is a Resit (38)');
 }
@@ -684,7 +684,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   g.buildGrades_();
   const gh = tab(book, 'Grades').data[6];
   assert.equal(gh.filter(h => /^recording$/i.test(String(h).trim())).length, 1);
-  assert.deepEqual(JSON.parse(JSON.stringify(gh.slice(6, 12))), ['Power', 'Mic', 'Route', 'Recording', 'Cue', 'Shut down']);
+  assert.deepEqual(JSON.parse(JSON.stringify(gh.slice(5, 11))), ['Power', 'Mic', 'Route', 'Recording', 'Cue', 'Shut down']);
   ok('Grades has one column per listed stage, in list order, whatever capitals or spaces a teacher typed');
   // a new row left without a stage takes the stage above
   const after = rowOf(routeIds[2]);
@@ -729,7 +729,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const kim = m.find(r => r[1] === 'Kim');
   assert.equal(kim[h.indexOf('Marked')], q.length + '/' + q.length);
   assert.equal(kim[h.indexOf('Notes')], 'Clean run');
-  assert.equal(kim[h.indexOf('Result')], 'Passed'); assert.equal(kim[h.indexOf('Score %')], 80);
+  assert.equal(kim[h.indexOf('Result')], 'Eligible'); assert.equal(kim[h.indexOf('Score %')], 80);
   const lou = m.find(r => r[1] === 'Lou');
   assert.equal(lou[h.indexOf('Result')], 'In progress');
   ok('the ended test is in Marks with every skill and the feedback');
@@ -793,7 +793,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const grade = () => { const d = tab(book, 'Grades').data, h = d[6]; const r = d.find(x => x[1] === 'Edo'); return r[h.indexOf('Grade')]; };
   raw(g, { action: 'batch', token: it, steps: [['saveEntry', { sid: id, patch: { marks: Object.fromEntries(qs.map(q => [q, 'y'])), ended: 1 } }]] });
   raw(g, { action: 'tidy', token: it });
-  assert.equal(grade(), 'Passed');
+  assert.equal(grade(), 'Eligible');
   raw(g, { action: 'batch', token: it, steps: [['saveEntry', { sid: id, patch: { marks: Object.fromEntries(qs.map(q => [q, null])), summary: '', ended: null } }]] });
   raw(g, { action: 'tidy', token: it });   // straight after the last rebuild
   assert.equal(grade(), 'Not started');

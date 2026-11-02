@@ -75,8 +75,8 @@ const MARKS_END = ['Student ID', 'Page data (do not edit)'];
 const NOT_ASKED = '–';   // in Marks: this question is not part of that student's test (another teacher's own question)
 // The score: each stage's marks averaged (a %), then the average of the stages, so every stage counts the same and a
 // teacher with 3 questions in a stage weighs the same as one with 5.
-// Grade A from 85 (needs Perfects), Passed from 40 (the grade; "Pass" is only a mark on one skill). Any critical error is a Resit whatever the score.
-const BANDS = [['Grade A', 85, '#0f7a57', '#d8f1e6'], ['Passed', 40, '#5a6276', '#eef0f4'], ['Resit', 0, '#bf2b2b', '#fbe0e0']];
+// Grade A from 85 (needs Perfects), Eligible from 40 (the grade; "Pass" is only a mark on one skill). Any critical error is a Resit whatever the score.
+const BANDS = [['Grade A', 85, '#0f7a57', '#d8f1e6'], ['Eligible', 40, '#5a6276', '#eef0f4'], ['Resit', 0, '#bf2b2b', '#fbe0e0']];
 
 const STUDIO_LIST = ['K3', 'K4'];   // the studios a test can be in
 const CAP_LIST = ['CAP 26A', 'CAP 26B', 'CAP 26C', 'TRANSFER'];   // the CAP groups, a dropdown in the Students tab; TRANSFER = a student from outside the class
@@ -169,7 +169,7 @@ function buildStart_() {
     ['Marks', 'One row per student per teacher: result, score and a % per test stage, the same columns for every teacher. Every single skill is folded away on the right (press + above the Updated column). The last column is the page\'s own copy; leave it alone.'],
     ['Grades', 'The overview: every student\'s grade, progress, a colour per test stage and their critical errors. Kept up to date by itself.'],
     ['', ''],
-    ['How the grade works', 'Each mark is worth: Perfect 100 · Pass 80 · Hint 65 · Got there 50 · Failed 0. Each test stage gets the average of its questions (each skill averaged over every teacher who marked it), and the score is the average of the stages, so every stage counts the same however many questions a teacher put in it. Grade A from 85%, Passed from 40%. Any critical error means Resit.'],
+    ['How the grade works', 'Each mark is worth: Perfect 100 · Pass 80 · Hint 65 · Got there 50 · Failed 0. Each test stage gets the average of its questions (each skill averaged over every teacher who marked it), and the score is the average of the stages, so every stage counts the same however many questions a teacher put in it. Grade A from 85%, Eligible from 40%. Any critical error means Resit.'],
   ];
   sh.getRange(1, 1, rows.length, 2).setValues(rows);
   sh.setColumnWidth(1, 190); sh.setColumnWidth(2, 640);
@@ -1455,11 +1455,12 @@ function buildGrades_() {
   const stageNames = [];
   stages_().concat(live.concat(...list.map(x => x.qs)).map(q => q.stage)).forEach(n => { if (stageNames.indexOf(n) < 0) stageNames.push(n); });
   const nS = stageNames.length, top = 8;
-  const head = ['Test date', 'Student', 'Studio', 'Teachers', 'Marked', 'Progress'].concat(stageNames)
-    .concat(['Score %', 'Errors', '', 'Grade', 'Critical errors']);
-  const W = head.length, C = { STAGE: 7, SCORE: 7 + nS, ERR: 8 + nS, BAR: 9 + nS, GRADE: 10 + nS };
+  // Marked and Progress sit last and are hidden (still there for anyone who unhides them)
+  const head = ['Test date', 'Student', 'Teachers', 'Studio', 'Score %'].concat(stageNames)
+    .concat(['Errors', '', 'Grade', 'Critical errors', 'Marked', 'Progress']);
+  const W = head.length, C = { SCORE: 5, STAGE: 6, ERR: 6 + nS, BAR: 7 + nS, GRADE: 8 + nS, MARKED: 10 + nS, PROG: 11 + nS };
 
-  const counts = { 'Grade A': 0, Passed: 0, Resit: 0, Remaining: 0 };
+  const counts = { 'Grade A': 0, Eligible: 0, Resit: 0, Remaining: 0 };
   const values = [], bars = [], groupStarts = [], bandRows = [];
   let prevDay = '', prevTeacher = null;
   list.forEach(({ s, qs, g }) => {
@@ -1476,9 +1477,9 @@ function buildGrades_() {
       prevTeacher = tk; prevDay = '';
     }
     if (s.day !== prevDay) { if (prevDay) groupStarts.push(top + values.length); prevDay = s.day; }
-    values.push([toDate_(s.day), s.name, s.studio, g.teachers.join(', '), g.marked + '/' + N, '']
+    values.push([toDate_(s.day), s.name, g.teachers.join(', '), s.studio, g.score === null ? '' : Math.round(g.score)]
       .concat(stageNames.map(n => n in g.stages ? g.stages[n] : ''))
-      .concat([g.score === null ? '' : Math.round(g.score), g.errors.length || '', '', label, g.errors.join('; ')]));
+      .concat([g.errors.length || '', '', label, g.errors.join('; '), g.marked + '/' + N, '']));
     const col = g.complete ? g.band[2] : '#9aa3b5';
     bars.push(['=SPARKLINE(' + g.marked + ',{"charttype","bar";"max",' + Math.max(1, N) + ';"color1","' + BLUE + '"})',
                g.final === null ? '' : '=SPARKLINE(' + Math.round(g.final) + ',{"charttype","bar";"max",100;"color1","' + col + '"})']);
@@ -1493,8 +1494,8 @@ function buildGrades_() {
   sh.setRowHeights(1, top - 1, 21);                    // reset the heights a previous layout may have left
   sh.setRowHeight(2, 8);                                // a thin gap under the title
   // the summary: one block per grade, with a bar showing its share of all students
-  // Grade A, Passed, Resit and Remaining side by side, from column C
-  const names = ['Grade A', 'Passed', 'Resit', 'Remaining'], cols = [3, 4, 5, 6];
+  // Grade A, Eligible, Resit and Remaining side by side, from column C
+  const names = ['Grade A', 'Eligible', 'Resit', 'Remaining'], cols = [3, 4, 5, 6];
   const colours = [BANDS[0], BANDS[1], BANDS[2], ['', 0, '#9aa3b5', PAPER]];
   sh.getRange(3, 1, 2, 1).setValues([['Overview'], [students.length + (students.length === 1 ? ' student' : ' students')]]);
   sh.getRange('A3').setFontWeight('bold'); sh.getRange('A4').setFontColor(MUTE);
@@ -1511,12 +1512,14 @@ function buildGrades_() {
   sh.setRowHeight(top - 1, 36);
   if (values.length) {
     sh.getRange(top, 1, values.length, W).setValues(values).setFontFamily('Arial').setFontSize(10).setVerticalAlignment('middle');
-    sh.getRange(top, 6, bars.length, 1).setFormulas(bars.map(b => [b[0]]));
+    sh.getRange(top, C.PROG, bars.length, 1).setFormulas(bars.map(b => [b[0]]));
     sh.getRange(top, C.BAR, bars.length, 1).setFormulas(bars.map(b => [b[1]]));
     sh.getRange(top, 1, values.length, 1).setNumberFormat(DATE_FMT).setHorizontalAlignment('left');
     sh.getRange(top, 2, values.length, 1).setFontWeight('bold');
     if (nS) sh.getRange(top, C.STAGE, values.length, nS).setHorizontalAlignment('center').setNumberFormat('0');
-    sh.getRange(top, C.SCORE, values.length, 2).setHorizontalAlignment('center').setNumberFormat('0');
+    sh.getRange(top, C.SCORE, values.length, 1).setHorizontalAlignment('center').setNumberFormat('0');
+    sh.getRange(top, C.ERR, values.length, 1).setHorizontalAlignment('center').setNumberFormat('0');
+    sh.getRange(top, C.MARKED, values.length, 1).setHorizontalAlignment('center');
     sh.getRange(top, C.SCORE, values.length, 1).setFontWeight('bold').setFontSize(12);
     sh.getRange(top, C.GRADE, values.length, 1).setHorizontalAlignment('center').setFontWeight('bold');
     sh.getRange(top, C.GRADE + 1, values.length, 1).setFontColor(MUTE).setWrap(true);
@@ -1543,7 +1546,9 @@ function buildGrades_() {
   } else {
     sh.getRange(top, 1).setValue('No students yet. Add them in the Students tab or on the page.').setFontColor(MUTE);
   }
-  [110, 170, 90, 150, 86, 110].concat(stageNames.map(() => 66)).concat([70, 58, 110, 104, 300]).forEach((w, i) => sh.setColumnWidth(i + 1, w));
+  [110, 170, 150, 90, 70].concat(stageNames.map(() => 66)).concat([58, 110, 104, 300, 86, 110]).forEach((w, i) => sh.setColumnWidth(i + 1, w));
+  // a column added or removed moves the others along: show everything, then hide Marked and Progress again
+  try { sh.showColumns(1, sh.getMaxColumns()); sh.hideColumns(C.MARKED, 2); } catch (e) {}
   sh.setFrozenRows(top - 1); sh.setFrozenColumns(2);
   sh.setHiddenGridlines(true);
   sh.setTabColor(BLUE);
