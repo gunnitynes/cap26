@@ -583,6 +583,17 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .gdist i{display:block;height:100%}
 .gv-sum{margin-top:10px}
 .gv-list{margin-top:14px}
+.gcols{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:14px;margin-top:14px;align-items:start}
+.gcol{display:flex;flex-direction:column;gap:10px;min-width:0}
+.gcol-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:8px 12px;border-radius:10px;background:var(--ink);color:var(--bg)}
+.gcol-h b{font-size:16px;font-weight:800}.gcol-h span{font-family:var(--mono);font-size:11px;opacity:.75;white-space:nowrap}
+.gcol-list{display:flex;flex-direction:column;gap:10px}
+@media (max-width:640px){.gcols{grid-template-columns:1fr;gap:20px}}
+body.wide .wrap{max-width:1080px}
+.card.share{margin-top:18px;display:flex;flex-direction:column;gap:10px}
+.card.share .readout{margin:0}
+.card.share input{width:100%;font-family:var(--mono);font-size:12px}
+.share-b{display:flex;gap:8px;flex-wrap:wrap}.share-b>*{flex:1;text-align:center;text-decoration:none}
 .gcard.g-a{border-left:4px solid var(--ok)}.gcard.g-pass{border-left:4px solid var(--ink)}.gcard.g-resit{border-left:4px solid var(--no)}.gcard.g-open{border-left:4px solid var(--led)}
 .gcard.g-todo{opacity:.75}
 .st-n{font-family:var(--mono);font-size:10.5px;font-weight:700}
@@ -692,6 +703,8 @@ function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor
 /* ------------------------------------------------------------------ state */
 // the back end address comes from config.js (or ?api=… while testing); without one the page runs as a preview
 const API=new URLSearchParams(location.search).get('api')||window.OPS_API||'';
+// ?view=<key>: the view-only Overview for supervisors (no sign-in, nothing to change); the key comes from an admin's Overview page
+const VIEWKEY=(new URLSearchParams(location.search).get('view')||'').replace(/[^a-z0-9]/gi,'').slice(0,64);
 const S={token:ls.get('ops.token',''),me:ls.get('ops.me',''),role:ls.get('ops.role',''),demo:!API,tests:{},teachers:{},pending:ls.get('ops.pending',{}),view:'roster',open:null,day:ls.get('ops.day',null)||today(),all:false,days:{},dayWant:{},confirm:null,cal:null,sync:'ok',ready:false,loading:false,published:{},dayPicked:false,loadErr:'',stale:false,offline:false,mine:ls.get('ops.mine',true)};
 if(ls.get('ops.q',null))setQuestions(ls.get('ops.q'),ls.get('ops.qlive',{}),ls.get('ops.qsets',{}));
 
@@ -989,7 +1002,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793650255';
+const BUILD='1793652002';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1004,6 +1017,7 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 
 /* ------------------------------------------------------------------ boot */
 async function boot(){
+  if(VIEWKEY&&!S.demo){startShared();return}
   if(S.demo){startDemo();return}
   checkUpdate();
   if(!S.token){S.view='login';renderBar();render();return}
@@ -1013,6 +1027,16 @@ async function boot(){
   renderBar();render();
   await load();
   flushSoon(10);
+}
+/* The view-only Overview: nobody is signed in (a teacher's own sign-in on this phone is left alone and not used),
+   it shows everyone, split by teacher, and refreshes itself every minute. */
+function startShared(){
+  S.viewOnly=true;S.token='';S.me='';S.role='';S.view='grades';S.ready=true;G.mine=false;
+  document.title='Operation Test · Overview';
+  renderBar();renderGrades();
+  const pull=async()=>{await loadGrades(true);if(S.view==='grades')renderGrades()};
+  pull();setInterval(()=>{if(document.visibilityState==='visible')pull()},60000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')pull()});
 }
 function signOut(msg){
   // marks still waiting belong to this teacher: never drop them or let the next person send them
@@ -1068,7 +1092,7 @@ addEventListener('resize',fitName);
 function renderBar(){
   const t=S.view==='test'&&view(S.open);
   const nm=S.view==='login'?'':S.me;
-  $('#barInner').innerHTML=`<div class="barrow"><div class="bar-l">${S.view==='test'||S.view==='account'||S.view==='grades'||S.view==='questions'||S.view==='add'?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
+  $('#barInner').innerHTML=`<div class="barrow"><div class="bar-l">${!S.viewOnly&&(S.view==='test'||S.view==='account'||S.view==='grades'||S.view==='questions'||S.view==='add')?`<button class="iconbtn" id="back" aria-label="Back to students">←</button>`:''}
    ${S.me&&nm?`<div class="who"><button class="whobtn" id="whoBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="${esc(nm)}: menu"><span class="av" aria-hidden="true">${esc(nm.trim().charAt(0).toUpperCase())}</span><span class="wn">${esc(nm)}</span><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>${whoMenu()}</div>`:''}</div>
    <div class="brand">${S.view==='test'&&t?`<b class="sname" title="${esc(t.name)}"><span id="sName">${esc(firstName(t.name))}</span></b>`:'<svg class="clogo" viewBox="0 0 114 46" aria-hidden="true"><path d="M33.9 12.3A16 16 0 1 0 33.9 33.7" fill="none" stroke="currentColor" stroke-width="11.5"/><path d="M62 2h6.2L52.2 44H46zM84 2h6.2L74.2 44H68zM106 2h6.2L96.2 44H90z" fill="currentColor"/></svg><b class="ttl">OPERATION TEST</b>'}</div><div class="bar-r">
    ${S.view==='test'&&t&&timerOf(S.open)?`<button class="tm-pill" data-timer="${S.open}" id="tmPill" type="button" aria-label="Timer running. Tap twice to reset"><span class="tm-num">${timerOf(S.open).txt}</span></button>`:''}
@@ -1467,13 +1491,27 @@ const G={list:null,at:0,busy:false,day:null,err:'',mine:ls.get('ops.ovMine',true
 async function loadGrades(force){
   if(S.demo){G.list=demoGrades();return}
   if(G.busy||(!force&&Date.now()-G.at<8000))return;
-  G.busy=true;const j=await api('grades');G.busy=false;
-  if(j.ok){G.list=j.students;G.at=Date.now();G.err=''}else G.err=j.error||'The grades could not be loaded.';
+  G.busy=true;const j=S.viewOnly?await api('sharedGrades',{key:VIEWKEY}):await api('grades');G.busy=false;
+  if(j.ok){G.list=j.students;G.order=j.teacherOrder||[];G.at=Date.now();G.err=''}else{G.err=j.error||'The grades could not be loaded.';if(j.code==='noshare')G.list=null}
 }
 function demoGrades(){return allTests().map(t=>{const g=gradeOf(t);
   return {id:t.id,day:t.day,time:t.time||'',end:t.end||'',name:t.name,cap:t.cap||'',studio:t.studio,teacher:t.teacher||'',marked:g.marked,total:g.total,score:g.marked?Math.round(g.score):null,final:g.marked?Math.round(g.final):null,
     errors:g.errors,coreFails:g.coreFails.map(c=>c.t),complete:g.complete,grade:g.marked?g.grade.l:null,teachers:g.teachers,
     stages:stagesFor(t).map(s=>{const xs=g.per.filter(x=>x.c.s===s.id&&x.avg!==null);return {name:s.short,pct:xs.length?Math.round(xs.reduce((a,x)=>a+x.avg,0)/xs.length*100):null}})}})}
+/* An admin's switch for the view-only link (for supervisors): make it, copy it, switch it off. */
+function shareUrl(){return location.origin+location.pathname+'?view='+G.share}
+function shareBox(){
+  if(G.share===undefined){api('shareLink',{}).then(j=>{if(j.ok){G.share=j.key||'';if(S.view==='grades')renderGrades()}});return ''}
+  return `<section class="card share"><span class="eyebrow">View-only link</span>
+    <p class="readout">${G.share?'Anyone with this link sees this overview (everyone, split by teacher), and nothing else. It updates itself.':'A link for supervisors: they see this overview of everyone, split by teacher, without signing in and without being able to change anything.'}</p>
+    ${G.share?`<input type="text" id="shareUrl" readonly value="${esc(shareUrl())}"><div class="share-b"><button class="primary" id="shareCopy" type="button">Copy link</button><a class="ghost" href="${esc(shareUrl())}" target="_blank" rel="noopener">Open</a><button class="ghost danger" id="shareOff" type="button">Switch off</button></div>`
+      :`<div class="share-b"><button class="primary" id="shareMake" type="button">Make a link</button></div>`}</section>`}
+function bindShare(){
+  $('#shareMake')?.addEventListener('click',async()=>{const j=await api('shareLink',{make:1});if(j.ok){G.share=j.key;renderGrades()}else toast(j.error||'Could not make the link')});
+  $('#shareCopy')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(shareUrl());toast('Link copied')}catch(e){$('#shareUrl').select();toast('Select and copy the link')}});
+  $('#shareOff')?.addEventListener('click',async e=>{const b=e.currentTarget;if(b.dataset.arm!=='1'){b.dataset.arm='1';b.textContent='Tap again: old link stops';setTimeout(()=>{if(b.isConnected){b.dataset.arm='';b.textContent='Switch off'}},4000);return}
+    const j=await api('shareLink',{off:1});if(j.ok){G.share='';renderGrades();toast('The link is switched off')}});
+}
 async function openGrades(){G.day=null;go('grades');await loadGrades(true);if(S.view==='grades')renderGrades()}
 const GK={'Grade A':{cls:'a',pill:'merit',col:'ok'},Eligible:{cls:'pass',pill:'passg',col:'ink'},Resit:{cls:'resit',pill:'resitg',col:'no'},
   open:{cls:'open',pill:'live',col:'led',l:'Remaining'},todo:{cls:'todo',pill:'todo',col:'mute',l:'Not started'}};
@@ -1492,13 +1530,17 @@ function renderGrades(){
   const list=(mineOnly?dayMine:dayAll).sort(byTime);
   const n={};for(const k in GK)n[k]=0;list.forEach(x=>n[gkey(x)]++);
   const order=['Grade A','Eligible','Resit','open','todo'];
+  // everyone: one column per teacher (in the Teachers tab's order, students without a teacher last); one teacher: one list
+  const tk=x=>String(x.teacher||'').trim().toLowerCase(),names=[...new Set(list.map(tk))];
+  const rank=k=>{const i=(G.order||[]).findIndex(n=>n.trim().toLowerCase()===k);return k===''?1e9:i<0?1e6:i};
+  const cols=!mineOnly&&list.length&&(names.length>1||S.viewOnly)?names.sort((a,b)=>rank(a)-rank(b)).map(k=>({name:k?list.find(x=>tk(x)===k).teacher:'No teacher yet',list:list.filter(x=>tk(x)===k)})):null;
+  document.body.classList.toggle('wide',!!cols&&cols.length>2);   // three or more teachers: the page gets wider on a computer
   const card=x=>{const k=gkey(x),c=GK[k],col=c.col;
     return `<article class="gcard g-${c.cls}">
       <div class="gc-top"><b>${x.time?`<span class="at">${x.time}${x.end?'–'+x.end:''}</span>`:''}${esc(x.name)}</b><span class="pill ${c.pill}">${esc(c.l||k)}</span></div>
-      <div class="gc-sub">${[day==='all'?fmtDay(x.day):'',capTag(x),esc(x.studio),x.teacher?'Teacher '+esc(x.teacher):'',x.teachers.length?'marked by '+esc(x.teachers.join(', ')):''].filter(Boolean).join(' · ')}</div>
+      <div class="gc-sub">${[day==='all'?fmtDay(x.day):'',capTag(x),esc(x.studio)].filter(Boolean).join(' · ')}</div>
       ${!x.marked?'<div class="gc-prog">No marks yet.</div>':`
       <div class="gc-final"><span class="gc-num" style="color:var(--${col})">${x.final}<small style="font-size:15px;opacity:.7">%</small></span><span class="track" aria-hidden="true"><i style="width:${x.final}%;background:var(--${col})"></i><u style="left:40%"></u><u style="left:85%"></u></span></div>
-      <div class="gc-prog">${x.complete?'':'So far · '}${x.score}% of ${x.total} questions · ${x.marked}/${x.total} marked${x.errors.length?` · <b style="color:var(--no)">critical error: Resit</b>`:''}</div>
       <div class="gc-stages" style="grid-template-columns:repeat(${Math.max(1,x.stages.length)},1fr)">${x.stages.map(s=>`<span class="st" title="${esc(s.name)}: ${s.pct==null?'not marked':s.pct+'%'}"><span class="st-n">${s.pct==null?'–':s.pct}</span><span class="st-col">${s.pct==null?'':`<i style="height:${Math.max(6,s.pct)}%;background:var(--${s.pct>=75?'ok':s.pct>=60?'hint':'no'})"></i>`}</span><small>${esc(s.name)}</small></span>`).join('')}</div>
       ${x.errors.length?`<div class="gc-flag">Critical: ${esc(x.errors.join('; '))}</div>`:''}`}
     </article>`};
@@ -1508,8 +1550,11 @@ function renderGrades(){
    ${days.length>1?`<div class="chips" id="gDays" role="group" aria-label="Test day">${days.map(d=>`<button type="button" data-gday="${d}" aria-pressed="${d===day}">${fmtDay(d)}</button>`).join('')}<button type="button" data-gday="all" aria-pressed="${day==='all'}">All</button></div>`:''}
    ${list.length?`<div class="gdist" aria-hidden="true">${order.filter(k=>n[k]).map(k=>`<i style="width:${n[k]/list.length*100}%;background:var(--${GK[k].col==='mute'?'line':GK[k].col})"></i>`).join('')}</div>`:''}
    <div class="modal-sum gv-sum">${order.filter(k=>n[k]||k==='Grade A'||k==='Eligible'||k==='Resit').map(k=>`<span style="--c:var(--${GK[k].col})"><b>${n[k]}</b>${esc(GK[k].l||k)}</span>`).join('')}</div>
-   <div class="gcards gv-list">${list.length?list.map(card).join(''):(mineOnly&&dayAll.length?'<div class="empty"><b>None of your students here</b>Tap Everyone to see all students.</div>':'<div class="empty"><b>No students yet</b>Add students on the main page or in the Sheet.</div>')}</div>
+   ${cols?`<div class="gcols" style="--n:${cols.length}">${cols.map(c=>`<section class="gcol"><div class="gcol-h"><b>${esc(c.name)}</b><span>${c.list.length} student${c.list.length===1?'':'s'} · ${c.list.filter(x=>x.complete&&x.grade).length} graded</span></div><div class="gcol-list">${c.list.map(card).join('')}</div></section>`).join('')}</div>`:''}
+   <div class="gcards gv-list"${cols?' hidden':''}>${cols?'':list.length?list.map(card).join(''):(mineOnly&&dayAll.length?'<div class="empty"><b>None of your students here</b>Tap Everyone to see all students.</div>':'<div class="empty"><b>No students yet</b>Add students on the main page or in the Sheet.</div>')}</div>
+   ${admin&&!S.demo?shareBox():''}
    <div style="height:32px"></div>`;
+  bindShare();
   app.querySelectorAll('[data-gday]').forEach(b=>b.onclick=()=>{G.day=b.dataset.gday;renderGrades()});
   $('#gWho')?.addEventListener('click',e=>{const b=e.target.closest('[data-mine]');if(!b)return;G.mine=b.dataset.mine==='1';ls.set('ops.ovMine',G.mine);renderGrades()});
 }

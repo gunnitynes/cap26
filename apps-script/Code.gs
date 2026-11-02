@@ -782,6 +782,7 @@ function route_(req) {
   const a = String(req.action || '');
   if (a === 'ping') return { ok: true };
   if (a === 'teachers') return { ok: true, teachers: teachers_().map(t => t.name) };   // the names on the sign-in page
+  if (a === 'sharedGrades') return sharedGrades_(req.key);   // the view-only overview link: no sign-in, only with the link's key
   if (a === 'login') {
     // the students and questions come back with the sign-in, so the page needs no second trip before it shows them
     const r = withLock_(() => login_(req.name, req.password, req.pin));
@@ -801,6 +802,7 @@ function route_(req) {
     case 'saveEntry':      return withLock_(() => saveEntry_(me, req));
     case 'publishResults': return withLock_(() => publishResults_(me, req));
     case 'grades':         return grades_(me);
+    case 'shareLink':      return admin_(me) || shareLink_(req);
     case 'logout':         PropertiesService.getScriptProperties().deleteProperty('s_' + req.token); return { ok: true };
     case 'listTeachers':   return admin_(me) || { ok: true, teachers: teachers_().map(t => ({ name: t.name, role: t.role })) };
     case 'addTeacher':     return admin_(me) || withLock_(() => setTeacher_(req.name, req.role === 'admin' ? 'admin' : 'teacher'));
@@ -1451,7 +1453,25 @@ function grades_(me) {
     return { id: s.id, day: s.day, time: s.time, end: s.end, name: s.name, cap: s.cap, studio: s.studio, teacher: s.teacher, marked: g.marked, total: qs.length,
       score: g.score === null ? null : Math.round(g.score), final: g.final === null ? null : Math.round(g.final),
       errors: g.errors, coreFails: g.coreFails, complete: g.complete, grade: g.band ? g.band[0] : null, teachers: g.teachers, stages };
-  }) };
+  }), teacherOrder: teachers_().map(t => t.name) };
+}
+
+/* The view-only Overview for supervisors: one secret link, made and switched off by an admin on the Overview page.
+   Whoever has the link sees what the Overview shows (each student's combined result) and nothing else: no single teacher's
+   marks, no notes, no changes. Switching it off (or making a new one) stops the old link at once. */
+function shareKey_() { return PropertiesService.getScriptProperties().getProperty('share_key') || ''; }
+function shareLink_(req) {
+  const props = PropertiesService.getScriptProperties();
+  if (req.off) props.deleteProperty('share_key');
+  else if (req.make && !shareKey_()) props.setProperty('share_key', (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').slice(0, 40));
+  return { ok: true, key: shareKey_() };
+}
+function sharedGrades_(key) {
+  const k = shareKey_();
+  if (!k || String(key || '') !== k) return { ok: false, code: 'noshare', error: 'This link is switched off. Ask the test organiser for a new one.' };
+  const r = grades_({ name: '', role: 'admin' });
+  r.students.forEach(x => { delete x.teachers; delete x.coreFails; delete x.id; });
+  return r;
 }
 
 /* The Grades tab keeps the column widths and alignment set by hand. Before every rebuild they are read (by column heading,

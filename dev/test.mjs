@@ -916,5 +916,26 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(sheet.getColumnWidth(col('Teachers')), 68); assert.equal(sheet.getColumnWidth(col('Score %')), 90);
   ok('a Grades tab rebuilt from nothing gets the same layout back');
 }
+// 30. The view-only Overview link: off until an admin makes it, nothing without the right key, stops when switched off.
+{
+  const { g } = loadScript();
+  g.setup(); g.setTeacher_('Gunni', 'admin'); g.setTeacher_('Isuru', 'teacher'); g.setTeamPassword_('catalyst'); g.setAdminPin_('2468');
+  const gt = call(g, { action: 'login', name: 'Gunni', password: 'catalyst', pin: '2468' }).token, it = call(g, { action: 'login', name: 'Isuru', password: 'catalyst' }).token;
+  call(g, { action: 'addStudents', token: gt, studio: 'K3', day: '2026-11-03', teacher: 'Isuru', names: ['Mo'] });
+  assert.equal(call(g, { action: 'sharedGrades', key: '' }).ok, false);
+  assert.equal(call(g, { action: 'shareLink', token: it, make: 1 }).ok, false);   // a teacher cannot make one
+  const key = call(g, { action: 'shareLink', token: gt, make: 1 }).key;
+  assert.ok(key && key.length >= 32);
+  assert.equal(call(g, { action: 'shareLink', token: gt, make: 1 }).key, key);   // asking again keeps the same link
+  assert.equal(call(g, { action: 'sharedGrades', key: key.slice(0, -1) + 'x' }).ok, false);
+  const r = call(g, { action: 'sharedGrades', key });
+  assert.equal(r.ok, true); assert.equal(r.students[0].name, 'Mo'); assert.equal(r.students[0].teacher, 'Isuru');
+  assert.equal(r.students[0].id, undefined); assert.equal(r.students[0].teachers, undefined);
+  assert.deepEqual(JSON.parse(JSON.stringify(r.teacherOrder)), ['Gunni', 'Isuru']);
+  ok('the view-only link shows the overview with its key only, and only an admin can make it');
+  call(g, { action: 'shareLink', token: gt, off: 1 });
+  assert.equal(call(g, { action: 'sharedGrades', key }).code, 'noshare');
+  ok('switching the link off stops it at once');
+}
 
 console.log(`\n${n} checks passed`);
