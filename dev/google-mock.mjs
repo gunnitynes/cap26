@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import vm from 'node:vm';
 const root = path.join(path.dirname(new URL(import.meta.url).pathname), '..');
 
-export function loadScript() {
+export function loadScript(file) {
   // ---- a small in-memory spreadsheet. Formatting calls (colours, widths, validation…) are accepted and ignored.
   const chain = () => new Proxy(function () {}, { get: (t, k) => k === 'build' ? () => ({}) : () => chain() });
   const lenient = obj => new Proxy(obj, { get: (t, k) => k in t ? t[k] : (typeof k === 'string' ? () => lenient(t) : undefined) });
@@ -93,7 +93,7 @@ export function loadScript() {
     console,
   };
   vm.createContext(g);
-  vm.runInContext(fs.readFileSync(path.join(root, 'apps-script/Code.gs'), 'utf8'), g);
+  vm.runInContext(fs.readFileSync(file || path.join(root, 'apps-script/Code.gs'), 'utf8'), g);
   return { g, book , mock };
   g.setup();
   g.setTeacher_('Gunnar', 'catalyst', 'admin');

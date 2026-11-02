@@ -655,8 +655,8 @@ const MARK={p:'Perfect',y:'Pass',h:'Hint',g:'Got there',n:'Failed'};
 const POINTS={p:1,y:.8,h:.65,g:.5,n:0};
 const QUICK=['Speakers switched with level up','Phantom switched with fader up','Control-room level dangerously loud while patching'];
 // the score is the share of all the teacher's questions, each worth the same, as a percentage;
-// Grade A from 85, Pass from 40; any critical error is a Resit whatever the score
-const GRADES=[{k:'merit',l:'Grade A',min:.85,col:'ok'},{k:'passg',l:'Qualified',min:.4,col:'ink'},{k:'resitg',l:'Resit',min:0,col:'no'}];
+// Grade A from 85, Passed from 40; any critical error is a Resit whatever the score
+const GRADES=[{k:'merit',l:'Grade A',min:.85,col:'ok'},{k:'passg',l:'Passed',min:.4,col:'ink'},{k:'resitg',l:'Resit',min:0,col:'no'}];
 
 /* ------------------------------------------------------------------ helpers */
 const $=s=>document.querySelector(s);
@@ -975,7 +975,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793558459';
+const BUILD='1793627589';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1456,7 +1456,7 @@ function demoGrades(){return allTests().map(t=>{const g=gradeOf(t);
     errors:g.errors,coreFails:g.coreFails.map(c=>c.t),complete:g.complete,grade:g.marked?g.grade.l:null,teachers:g.teachers,
     stages:stagesFor(t).map(s=>{const xs=g.per.filter(x=>x.c.s===s.id&&x.avg!==null);return {name:s.short,pct:xs.length?Math.round(xs.reduce((a,x)=>a+x.avg,0)/xs.length*100):null}})}})}
 async function openGrades(){G.day=null;go('grades');await loadGrades(true);if(S.view==='grades')renderGrades()}
-const GK={'Grade A':{cls:'a',pill:'merit',col:'ok'},Qualified:{cls:'pass',pill:'passg',col:'ink'},Resit:{cls:'resit',pill:'resitg',col:'no'},
+const GK={'Grade A':{cls:'a',pill:'merit',col:'ok'},Passed:{cls:'pass',pill:'passg',col:'ink'},Resit:{cls:'resit',pill:'resitg',col:'no'},
   open:{cls:'open',pill:'live',col:'led',l:'Remaining'},todo:{cls:'todo',pill:'todo',col:'mute',l:'Not started'}};
 const gkey=x=>!x.marked?'todo':x.complete&&GK[x.grade]?x.grade:'open';
 function renderGrades(){
@@ -1472,7 +1472,7 @@ function renderGrades(){
   const dayAll=G.list.filter(x=>day==='all'||x.day===day),dayMine=dayAll.filter(isMine);
   const list=(mineOnly?dayMine:dayAll).sort(byTime);
   const n={};for(const k in GK)n[k]=0;list.forEach(x=>n[gkey(x)]++);
-  const order=['Grade A','Qualified','Resit','open','todo'];
+  const order=['Grade A','Passed','Resit','open','todo'];
   const card=x=>{const k=gkey(x),c=GK[k],col=c.col;
     return `<article class="gcard g-${c.cls}">
       <div class="gc-top"><b>${x.time?`<span class="at">${x.time}${x.end?'–'+x.end:''}</span>`:''}${esc(x.name)}</b><span class="pill ${c.pill}">${esc(c.l||k)}</span></div>
@@ -1488,7 +1488,7 @@ function renderGrades(){
    ${admin?`<div class="seg whoseg" id="gWho" role="group" aria-label="Whose students"><button type="button" data-mine="1" aria-pressed="${mineOnly}">My students · ${dayMine.length}</button><button type="button" data-mine="0" aria-pressed="${!mineOnly}">Everyone · ${dayAll.length}</button></div>`:''}
    ${days.length>1?`<div class="chips" id="gDays" role="group" aria-label="Test day">${days.map(d=>`<button type="button" data-gday="${d}" aria-pressed="${d===day}">${fmtDay(d)}</button>`).join('')}<button type="button" data-gday="all" aria-pressed="${day==='all'}">All</button></div>`:''}
    ${list.length?`<div class="gdist" aria-hidden="true">${order.filter(k=>n[k]).map(k=>`<i style="width:${n[k]/list.length*100}%;background:var(--${GK[k].col==='mute'?'line':GK[k].col})"></i>`).join('')}</div>`:''}
-   <div class="modal-sum gv-sum">${order.filter(k=>n[k]||k==='Grade A'||k==='Qualified'||k==='Resit').map(k=>`<span style="--c:var(--${GK[k].col})"><b>${n[k]}</b>${esc(GK[k].l||k)}</span>`).join('')}</div>
+   <div class="modal-sum gv-sum">${order.filter(k=>n[k]||k==='Grade A'||k==='Passed'||k==='Resit').map(k=>`<span style="--c:var(--${GK[k].col})"><b>${n[k]}</b>${esc(GK[k].l||k)}</span>`).join('')}</div>
    <div class="gcards gv-list">${list.length?list.map(card).join(''):(mineOnly&&dayAll.length?'<div class="empty"><b>None of your students here</b>Tap Everyone to see all students.</div>':'<div class="empty"><b>No students yet</b>Add students on the main page or in the Sheet.</div>')}</div>
    <div style="height:32px"></div>`;
   app.querySelectorAll('[data-gday]').forEach(b=>b.onclick=()=>{G.day=b.dataset.gday;renderGrades()});

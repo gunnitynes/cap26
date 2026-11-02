@@ -75,8 +75,8 @@ const MARKS_END = ['Student ID', 'Page data (do not edit)'];
 const NOT_ASKED = '–';   // in Marks: this question is not part of that student's test (another teacher's own question)
 // The score: each stage's marks averaged (a %), then the average of the stages, so every stage counts the same and a
 // teacher with 3 questions in a stage weighs the same as one with 5.
-// Grade A from 85 (needs Perfects), Qualified from 40 (the grade; "Pass" is only a mark on one skill). Any critical error is a Resit whatever the score.
-const BANDS = [['Grade A', 85, '#0f7a57', '#d8f1e6'], ['Qualified', 40, '#5a6276', '#eef0f4'], ['Resit', 0, '#bf2b2b', '#fbe0e0']];
+// Grade A from 85 (needs Perfects), Passed from 40 (the grade; "Pass" is only a mark on one skill). Any critical error is a Resit whatever the score.
+const BANDS = [['Grade A', 85, '#0f7a57', '#d8f1e6'], ['Passed', 40, '#5a6276', '#eef0f4'], ['Resit', 0, '#bf2b2b', '#fbe0e0']];
 
 const STUDIO_LIST = ['K3', 'K4'];   // the studios a test can be in
 const CAP_LIST = ['CAP 26A', 'CAP 26B', 'CAP 26C', 'TRANSFER'];   // the CAP groups, a dropdown in the Students tab; TRANSFER = a student from outside the class
@@ -169,7 +169,7 @@ function buildStart_() {
     ['Marks', 'One row per student per teacher: result, score and a % per test stage, the same columns for every teacher. Every single skill is folded away on the right (press + above the Updated column). The last column is the page\'s own copy; leave it alone.'],
     ['Grades', 'The overview: every student\'s grade, progress, a colour per test stage and their critical errors. Kept up to date by itself.'],
     ['', ''],
-    ['How the grade works', 'Each mark is worth: Perfect 100 · Pass 80 · Hint 65 · Got there 50 · Failed 0. Each test stage gets the average of its questions (each skill averaged over every teacher who marked it), and the score is the average of the stages, so every stage counts the same however many questions a teacher put in it. Grade A from 85%, Qualified from 40%. Any critical error means Resit.'],
+    ['How the grade works', 'Each mark is worth: Perfect 100 · Pass 80 · Hint 65 · Got there 50 · Failed 0. Each test stage gets the average of its questions (each skill averaged over every teacher who marked it), and the score is the average of the stages, so every stage counts the same however many questions a teacher put in it. Grade A from 85%, Passed from 40%. Any critical error means Resit.'],
   ];
   sh.getRange(1, 1, rows.length, 2).setValues(rows);
   sh.setColumnWidth(1, 190); sh.setColumnWidth(2, 640);
@@ -1459,7 +1459,7 @@ function buildGrades_() {
     .concat(['Score %', 'Errors', '', 'Grade', 'Critical errors']);
   const W = head.length, C = { STAGE: 7, SCORE: 7 + nS, ERR: 8 + nS, BAR: 9 + nS, GRADE: 10 + nS };
 
-  const counts = { 'Grade A': 0, Qualified: 0, Resit: 0, Remaining: 0 };
+  const counts = { 'Grade A': 0, Passed: 0, Resit: 0, Remaining: 0 };
   const values = [], bars = [], groupStarts = [], bandRows = [];
   let prevDay = '', prevTeacher = null;
   list.forEach(({ s, qs, g }) => {
@@ -1493,8 +1493,8 @@ function buildGrades_() {
   sh.setRowHeights(1, top - 1, 21);                    // reset the heights a previous layout may have left
   sh.setRowHeight(2, 8);                                // a thin gap under the title
   // the summary: one block per grade, with a bar showing its share of all students
-  // Qualified, Resit and Remaining side by side, Grade A on its own further right (column F)
-  const names = ['Grade A', 'Qualified', 'Resit', 'Remaining'], cols = [6, 3, 4, 5];
+  // Grade A, Passed, Resit and Remaining side by side, from column C
+  const names = ['Grade A', 'Passed', 'Resit', 'Remaining'], cols = [3, 4, 5, 6];
   const colours = [BANDS[0], BANDS[1], BANDS[2], ['', 0, '#9aa3b5', PAPER]];
   sh.getRange(3, 1, 2, 1).setValues([['Overview'], [students.length + (students.length === 1 ? ' student' : ' students')]]);
   sh.getRange('A3').setFontWeight('bold'); sh.getRange('A4').setFontColor(MUTE);
