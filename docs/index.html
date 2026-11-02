@@ -586,8 +586,13 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .ggraph .gg-row+.gg-row{margin-top:7px}
 .ggraph summary{display:flex;align-items:baseline;gap:10px;cursor:pointer;list-style:none;padding:2px 0}
 .ggraph summary::-webkit-details-marker{display:none}
-.ggraph summary::before{content:"+";font-family:var(--mono);font-weight:700;color:var(--mute);width:12px}
-.ggraph[open] summary::before{content:"–"}
+.ggraph summary{align-items:center}
+/* a clear Show / Hide pill on the right, so it reads as something to open */
+.ggraph summary::after{content:"Show ▾";flex:none;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--led);background:var(--led-soft);border:1px solid var(--led);border-radius:999px;padding:4px 10px}
+.ggraph[open] summary::after{content:"Hide ▴"}
+.ggraph summary:hover::after{background:var(--led);color:#fff}
+.ggraph:not([open]):hover{border-color:var(--led)}
 .ggraph summary b{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
 .ggraph summary span{font-family:var(--mono);font-size:11px;color:var(--mute);margin-left:auto}
 .ggraph[open] summary{margin-bottom:6px}
@@ -1021,7 +1026,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793655685';
+const BUILD='1793655965';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
