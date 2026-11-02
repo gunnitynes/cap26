@@ -605,7 +605,7 @@ input[type=password]{background:var(--sunk);border:1px solid var(--line);border-
 .gg-t i{position:absolute;inset:0 auto 0 0;background:var(--led);border-radius:0 4px 4px 0}
 .gg-t u{position:absolute;top:0;bottom:0;width:1px;background:var(--line);text-decoration:none}
 .gg-v{font-family:var(--mono);font-size:12px;font-weight:700;text-align:right;color:var(--ink)}
-.gg-row.weak .gg-t i{background:var(--hint)}.gg-row.weak .gg-l{color:var(--ink);font-weight:700}
+.gg-row.weak .gg-l{color:var(--ink);font-weight:700}
 .gg-note{font-size:12.5px;color:var(--mute);margin-top:4px;display:flex;flex-wrap:wrap;gap:4px 12px}
 .gg-note b{color:var(--ink)}
 .gg-foot{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}.gg-foot .gv-sum{margin-top:0}.gg-note span{font-family:var(--mono);font-size:10.5px;margin-left:auto}
@@ -1029,7 +1029,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793656667';
+const BUILD='1793662483';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1532,6 +1532,10 @@ function demoGrades(){return allTests().map(t=>{const g=gradeOf(t);
     stages:stagesFor(t).map(s=>{const xs=g.per.filter(x=>x.c.s===s.id&&x.avg!==null);return {name:s.short,pct:xs.length?Math.round(xs.reduce((a,x)=>a+x.avg,0)/xs.length*100):null}})}})}
 /* The graph under the progress bar: each test stage's average over every student shown who has marks in it,
    so it is plain where the group as a whole does well or badly. The weakest stage is picked out (in words too). */
+/* The score colours of the Sheet (Score % and the stages): red at 0, amber at 60, green at 100, every score its own shade. */
+const HEAT=[[0,[232,131,122]],[60,[255,214,102]],[100,[92,191,143]]];
+function heat(v){v=Math.max(0,Math.min(100,+v||0));const i=v<=HEAT[1][0]?0:1,[a,ca]=HEAT[i],[b,cb]=HEAT[i+1],t=(v-a)/(b-a);
+  return 'rgb('+ca.map((c,k)=>Math.round(c+(cb[k]-c)*t)).join(',')+')'}
 function stageGraph(list,foot){
   const by={},order=[];let who=0;
   for(const x of list){if(!x.marked)continue;let any=false;
@@ -1543,7 +1547,7 @@ function stageGraph(list,foot){
   // folded away by default; stays open through the refreshes once someone opens it
   return `<details class="ggraph" id="gGraph"${G.graphOpen?' open':''}><summary><b>Comparison</b><span>${who} student${who===1?'':'s'}</span></summary>
     ${rows.map(r=>`<div class="gg-row${spread&&r.avg===lo.avg?' weak':''}" title="${esc(r.name)}: ${r.avg}% on average · ${r.n} student${r.n===1?'':'s'}">
-      <span class="gg-l">${esc(r.name)}</span><span class="gg-t"><i style="width:${Math.max(2,r.avg)}%"></i><u style="left:40%"></u><u style="left:85%"></u></span><span class="gg-v">${r.avg}%</span></div>`).join('')}
+      <span class="gg-l">${esc(r.name)}</span><span class="gg-t"><i style="width:${Math.max(2,r.avg)}%;background:${heat(r.avg)}"></i><u style="left:40%"></u><u style="left:85%"></u></span><span class="gg-v">${r.avg}%</span></div>`).join('')}
     <div class="gg-note"><span>Lines at 40% (Eligible) and 85% (Grade A)</span></div>
     ${foot?`<div class="gg-foot">${foot}</div>`:''}
   </details>`}
@@ -1595,8 +1599,8 @@ function renderGrades(){
       <div class="gc-top"><b>${x.time?`<span class="at">${x.time}${x.end?'–'+x.end:''}</span>`:''}${esc(x.name)}</b><span class="pill ${c.pill}">${esc(c.l||k)}</span></div>
       <div class="gc-sub">${[day==='all'?fmtDay(x.day):'',capTag(x),esc(x.studio)].filter(Boolean).join(' · ')}</div>
       ${!x.marked?'<div class="gc-prog">No marks yet.</div>':`
-      <div class="gc-final"><span class="gc-num" style="color:var(--${col})">${x.final}<small style="font-size:15px;opacity:.7">%</small></span><span class="track" aria-hidden="true"><i style="width:${x.final}%;background:var(--${col})"></i><u style="left:40%"></u><u style="left:85%"></u></span></div>
-      <div class="gc-stages" style="grid-template-columns:repeat(${Math.max(1,x.stages.length)},1fr)">${x.stages.map(s=>`<span class="st" title="${esc(s.name)}: ${s.pct==null?'not marked':s.pct+'%'}"><span class="st-n">${s.pct==null?'–':s.pct}</span><span class="st-col">${s.pct==null?'':`<i style="height:${Math.max(6,s.pct)}%;background:var(--${s.pct>=75?'ok':s.pct>=60?'hint':'no'})"></i>`}</span><small>${esc(s.name)}</small></span>`).join('')}</div>
+      <div class="gc-final"><span class="gc-num" style="color:var(--${col})">${x.final}<small style="font-size:15px;opacity:.7">%</small></span><span class="track" aria-hidden="true"><i style="width:${x.final}%;background:${x.complete?heat(x.final):`var(--${col})`}"></i><u style="left:40%"></u><u style="left:85%"></u></span></div>
+      <div class="gc-stages" style="grid-template-columns:repeat(${Math.max(1,x.stages.length)},1fr)">${x.stages.map(s=>`<span class="st" title="${esc(s.name)}: ${s.pct==null?'not marked':s.pct+'%'}"><span class="st-n">${s.pct==null?'–':s.pct}</span><span class="st-col">${s.pct==null?'':`<i style="height:${Math.max(6,s.pct)}%;background:${heat(s.pct)}"></i>`}</span><small>${esc(s.name)}</small></span>`).join('')}</div>
       ${x.errors.length?`<div class="gc-flag">Critical: ${esc(x.errors.join('; '))}</div>`:''}`}
     </article>`};
   app.innerHTML=`
