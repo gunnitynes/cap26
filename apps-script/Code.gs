@@ -1467,11 +1467,14 @@ function gradesLayout_(sh) {
     let dr = 0;
     const last = Math.min(sh.getLastRow(), hr + 60);
     if (last > hr) { const i = sh.getRange(hr + 1, 2, last - hr, 1).getValues().findIndex(r => String(r[0]).trim()); if (i >= 0) dr = hr + 1 + i; }
-    const al = dr ? sh.getRange(dr, 1, 1, w).getHorizontalAlignments()[0] : [];
+    const al = dr ? sh.getRange(dr, 1, 1, w).getHorizontalAlignments()[0] : [], ha = sh.getRange(hr, 1, 1, w).getHorizontalAlignments()[0];
+    out.h = {};
     head.forEach((h, i) => {
       out.w[h] = sh.getColumnWidth(i + 1);
       const a = String(al[i] || '').toLowerCase();
       if (a === 'left' || a === 'center' || a === 'right') out.a[h] = a;   // only an alignment someone chose ('general' is the default)
+      const b = String(ha[i] || '').toLowerCase();
+      if (b === 'left' || b === 'center' || b === 'right') out.h[h] = b;   // the heading's own alignment
     });
     return out;
   } catch (e) { return savedGradesLayout_(); }
@@ -1555,6 +1558,7 @@ function buildGrades_() {
   sh.getRange(2, 1, 1, W).setBackground(INK); sh.setRowHeight(2, 4);
 
   sh.getRange(top - 1, 1, 1, W).setValues([head]).setFontWeight('bold').setFontColor('#ffffff').setBackground(BLUE).setVerticalAlignment('middle').setWrap(true);
+  sh.getRange(top - 1, 3, 1, C.ERR - 2).setHorizontalAlignment('center');   // Teachers … Errors: headings centred over their columns
   sh.setRowHeight(top - 1, 32);
   if (values.length) {
     sh.getRange(top, 1, values.length, W).setValues(values).setFontFamily('Arial').setFontSize(10).setVerticalAlignment('middle');
@@ -1598,6 +1602,7 @@ function buildGrades_() {
     head.forEach((h, i) => {
       if (layout.w[h]) sh.setColumnWidth(i + 1, layout.w[h]);
       if (layout.a[h] && values.length) sh.getRange(top, i + 1, values.length, 1).setHorizontalAlignment(layout.a[h]);
+      if (layout.h && layout.h[h] && !(i + 1 >= 3 && i + 1 <= C.ERR)) sh.getRange(top - 1, i + 1).setHorizontalAlignment(layout.h[h]);   // Teachers … Errors stay centred
     });
     try { PropertiesService.getScriptProperties().setProperty('grades_layout', JSON.stringify(layout)); } catch (e) {}
   }

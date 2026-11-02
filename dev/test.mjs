@@ -907,6 +907,9 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(gs.getRange(lea, col('Teachers')).getHorizontalAlignments()[0][0], 'center');
   assert.equal(gs.getRange(lea, col('Studio')).getHorizontalAlignments()[0][0], 'center');
   ok('a rebuild (every sync) keeps the column widths and alignment set by hand in Grades');
+  const ha = gs.getRange(3, 1, 1, head().length).getHorizontalAlignments()[0], hc = h => ha[col(h) - 1];
+  assert.deepEqual(['Teachers', 'Studio', 'Score %', 'Power', 'Shut down', 'Errors'].map(hc), Array(6).fill('center'));
+  ok('the headings Teachers … Errors are centred after every rebuild');
   // the tab cleared completely: the saved copy puts the layout back
   sheet.data = []; sheet.align = {}; sheet.widths = {};
   g.buildGrades_();
