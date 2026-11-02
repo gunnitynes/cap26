@@ -76,7 +76,23 @@ const NOT_ASKED = '–';   // in Marks: this question is not part of that studen
 // The score: each stage's marks averaged (a %), then the average of the stages, so every stage counts the same and a
 // teacher with 3 questions in a stage weighs the same as one with 5.
 // Grade A from 85 (needs Perfects), Eligible from 40 (the grade; "Pass" is only a mark on one skill). Any critical error is a Resit whatever the score.
-const BANDS = [['Grade A', 85, '#0f7a57', '#d8f1e6'], ['Eligible', 40, '#5a6276', '#eef0f4'], ['Resit', 0, '#bf2b2b', '#fbe0e0']];
+const BANDS = [['Grade A', 85, '#0b6b4b', '#bfe6d2'], ['Eligible', 40, '#4a5266', '#dfe3ec'], ['Resit', 0, '#b02323', '#f6cdcd']];
+// the score colours (Score %, every stage, and the names in Students): red at 0, amber at 60, green at 100
+const HEAT = [[0, '#e8837a'], [60, '#ffd666'], [100, '#5cbf8f']];
+/** The colour HEAT gives a score, as the Sheet's own gradient draws it. */
+function heat_(v) {
+  v = Math.max(0, Math.min(100, Number(v)));
+  const i = v <= HEAT[1][0] ? 0 : 1, [a, ca] = HEAT[i], [b, cb] = HEAT[i + 1], t = (v - a) / (b - a);
+  const ch = (c, k) => parseInt(c.substr(1 + 2 * k, 2), 16);
+  return '#' + [0, 1, 2].map(k => Math.round(ch(ca, k) + (ch(cb, k) - ch(ca, k)) * t).toString(16).padStart(2, '0')).join('');
+}
+/** Students tab: the name of every student whose test is complete takes the colour of their score; the rest stay plain. */
+function colourStudentNames_(list) {
+  const sh = sheet_(SHEETS.STUDENTS), n = sh.getLastRow() - 1;
+  if (n < 1) return;
+  const by = {}; list.forEach(({ s, g }) => { if (g.complete && g.final !== null) by[s.row] = heat_(g.final); });
+  sh.getRange(2, S_.NAME + 1, n, 1).setBackgrounds(Array.from({ length: n }, (_, i) => [by[i + 2] || null]));
+}
 
 const STUDIO_LIST = ['K3', 'K4'];   // the studios a test can be in
 const CAP_LIST = ['CAP 26A', 'CAP 26B', 'CAP 26C', 'TRANSFER'];   // the CAP groups, a dropdown in the Students tab; TRANSFER = a student from outside the class
@@ -477,9 +493,9 @@ function styleMarks_(ctx) {
   try { m.getRange(1, M0 - nS, 1, 1).setNote('Each stage: the average of its questions (Perfect 100 · Pass 80 · Hint 65 · Got there 50 · Failed 0). Score %: the average of the stages, so every stage counts the same however many questions a teacher asks in it.'); } catch (e) {}
   const result = m.getRange(2, 4, rows, 1), text = (t, bg, fg) => SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(t).setBackground(bg).setFontColor(fg).setBold(true).setRanges([result]).build();
   const heat = SpreadsheetApp.newConditionalFormatRule()
-    .setGradientMinpointWithValue('#f4c7c3', SpreadsheetApp.InterpolationType.NUMBER, '0')
-    .setGradientMidpointWithValue('#fce8b2', SpreadsheetApp.InterpolationType.NUMBER, '60')
-    .setGradientMaxpointWithValue('#b7e1cd', SpreadsheetApp.InterpolationType.NUMBER, '100').setRanges([m.getRange(2, 5, rows, 1)].concat(nS ? [m.getRange(2, S0, rows, nS)] : [])).build();
+    .setGradientMinpointWithValue(HEAT[0][1], SpreadsheetApp.InterpolationType.NUMBER, '0')
+    .setGradientMidpointWithValue(HEAT[1][1], SpreadsheetApp.InterpolationType.NUMBER, '60')
+    .setGradientMaxpointWithValue(HEAT[2][1], SpreadsheetApp.InterpolationType.NUMBER, '100').setRanges([m.getRange(2, 5, rows, 1)].concat(nS ? [m.getRange(2, S0, rows, nS)] : [])).build();
   const rules = [heat, text('Grade A', BANDS[0][3], BANDS[0][2]), text(BANDS[1][0], BANDS[1][3], INK), text('Resit', BANDS[2][3], BANDS[2][2]),
     text('In progress', PAPER, MUTE), text('Not started', '#ffffff', '#9aa3b5')];
   if (nD) {
@@ -1573,6 +1589,7 @@ function buildGrades_() {
   });
 
   const layout = gradesLayout_(sh);   // the widths and alignment as they are now, put back below
+  try { colourStudentNames_(list); } catch (e) {}
   sh.clear();
   try { sh.getBandings().forEach(b => b.remove()); } catch (e) {}
   sh.setConditionalFormatRules([]);
@@ -1637,9 +1654,9 @@ function buildGrades_() {
       sh.setRowHeight(r, 30);
     } catch (e) {} });
     const heat = range => SpreadsheetApp.newConditionalFormatRule()
-      .setGradientMinpointWithValue('#f4c7c3', SpreadsheetApp.InterpolationType.NUMBER, '0')
-      .setGradientMidpointWithValue('#fce8b2', SpreadsheetApp.InterpolationType.NUMBER, '60')
-      .setGradientMaxpointWithValue('#b7e1cd', SpreadsheetApp.InterpolationType.NUMBER, '100').setRanges([range]).build();
+      .setGradientMinpointWithValue(HEAT[0][1], SpreadsheetApp.InterpolationType.NUMBER, '0')
+      .setGradientMidpointWithValue(HEAT[1][1], SpreadsheetApp.InterpolationType.NUMBER, '60')
+      .setGradientMaxpointWithValue(HEAT[2][1], SpreadsheetApp.InterpolationType.NUMBER, '100').setRanges([range]).build();
     const gradeCol = sh.getRange(top, C.GRADE, values.length, 1);
     const text = (t, bg, fg) => SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(t).setBackground(bg).setFontColor(fg).setBold(true).setRanges([gradeCol]).build();
     sh.setConditionalFormatRules((nS ? [heat(sh.getRange(top, C.STAGE, values.length, nS))] : []).concat([

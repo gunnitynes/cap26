@@ -29,11 +29,13 @@ export function loadScript(file) {
     setFormula(f) { this.sh.set(this.r, this.c, f); return lenient(this); }
     // horizontal alignment per cell, as Google keeps it ('general' when never set)
     setHorizontalAlignment(a) { for (let i = 0; i < this.nr; i++) for (let j = 0; j < this.nc; j++) this.sh.align[(this.r + i) + ',' + (this.c + j)] = a; return lenient(this); }
+    setBackgrounds(g) { g.forEach((row, i) => row.forEach((x, j) => this.sh.bg[(this.r + i) + ',' + (this.c + j)] = x || null)); return lenient(this); }
+    getBackgrounds() { const out = []; for (let i = 0; i < this.nr; i++) { const row = []; for (let j = 0; j < this.nc; j++) row.push(this.sh.bg[(this.r + i) + ',' + (this.c + j)] || '#ffffff'); out.push(row); } return out; }
     getHorizontalAlignments() { const out = []; for (let i = 0; i < this.nr; i++) { const row = []; for (let j = 0; j < this.nc; j++) row.push(this.sh.align[(this.r + i) + ',' + (this.c + j)] || 'general'); out.push(row); } return out; }
     getRow() { return this.r; } getNumRows() { return this.nr; } getColumn() { return this.c; } getNumColumns() { return this.nc; } getSheet() { return this.sh; }
   }
   class Sheet {
-    constructor(name) { this.name = name; this.data = []; this.rules = []; this.align = {}; this.widths = {}; }
+    constructor(name) { this.name = name; this.data = []; this.rules = []; this.align = {}; this.widths = {}; this.bg = {}; }
     setColumnWidth(c, w) { this.widths[c] = w; return this; }
     getColumnWidth(c) { return this.widths[c] || 100; }
     check(r, c, x) { if (!mock.strict || x === '' || x == null) return; const q = this.rules.find(q => r >= q.r && r < q.r + q.nr && c >= q.c && c < q.c + q.nc);

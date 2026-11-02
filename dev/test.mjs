@@ -959,5 +959,21 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   ok('a save makes the overview work it out again at once: never stale');
   g.gradeListNow_ = real;
 }
+// 32. Students tab: a student whose test is complete has their name coloured like their Score %; the others stay plain.
+{
+  const { g } = loadScript();
+  g.setup(); g.setTeacher_('Gunni', 'admin'); g.setTeamPassword_('catalyst'); g.setAdminPin_('2468');
+  const gt = call(g, { action: 'login', name: 'Gunni', password: 'catalyst', pin: '2468' }).token;
+  call(g, { action: 'addStudents', token: gt, studio: 'K3', day: '2026-11-03', teacher: 'Gunni', names: ['Top', 'Half', 'Open'] });
+  const st = call(g, { action: 'state', token: gt }), id = n => st.students.find(s => s.name === n).id, qs = st.qlive.gunni.filter(q => !q.studios || q.studios.includes('K3'));
+  call(g, { action: 'saveEntry', token: gt, sid: id('Top'), patch: { marks: Object.fromEntries(qs.map(q => [q.id, 'p'])), ended: 1 } });
+  call(g, { action: 'saveEntry', token: gt, sid: id('Half'), patch: { marks: Object.fromEntries(qs.map(q => [q.id, 'g'])), ended: 1 } });
+  call(g, { action: 'saveEntry', token: gt, sid: id('Open'), patch: { marks: { [qs[0].id]: 'p' } } });
+  g.buildGrades_();
+  const sh = g.SpreadsheetApp.getActive().getSheetByName('Students'), names = sh.getRange(2, 3, 3, 1).getValues().map(r => r[0]);
+  const bg = sh.getRange(2, 3, 3, 1).getBackgrounds().map(r => r[0]), of = n => bg[names.indexOf(n)];
+  assert.equal(of('Top'), g.heat_(100)); assert.equal(of('Half'), g.heat_(50)); assert.equal(of('Open'), '#ffffff');
+  ok('Students: a completed test colours the name like its Score %, an open one stays plain');
+}
 
 console.log(`\n${n} checks passed`);
