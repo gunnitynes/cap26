@@ -1454,7 +1454,7 @@ function buildGrades_() {
   const list = g0.list.slice().sort((a, b) => rank(a.s) - rank(b.s) || byTestTime_(a.s, b.s)), students = list.map(x => x.s);
   const stageNames = [];
   stages_().concat(live.concat(...list.map(x => x.qs)).map(q => q.stage)).forEach(n => { if (stageNames.indexOf(n) < 0) stageNames.push(n); });
-  const nS = stageNames.length, top = 3;   // row 1 the summary, row 2 the headings, students from row 3
+  const nS = stageNames.length, top = 4;   // row 1 the summary, row 2 a dark rule, row 3 the headings, students from row 4
   // Marked and Progress sit last and are hidden (still there for anyone who unhides them)
   const head = ['Test date', 'Student', 'Teachers', 'Studio', 'Score %'].concat(stageNames)
     .concat(['Errors', '', 'Grade', 'Critical errors', 'Marked', 'Progress']);
@@ -1490,15 +1490,19 @@ function buildGrades_() {
   sh.setConditionalFormatRules([]);
   const total = students.length || 1;
   // the summary, all in row 1 so the students get the screen: the title, how many students, then one coloured box per grade
-  // (Grade A, Eligible, Resit and Remaining from column C), each its count and its name
-  const names = ['Grade A', 'Eligible', 'Resit', 'Remaining'], cols = [3, 4, 5, 6];
+  // (Grade A, Eligible, Resit and Remaining), each its count and its name. Each box spans two columns, so none reads as the
+  // label of the column under it, and a dark rule in row 2 keeps the summary apart from the headings.
+  try { sh.getRange(1, 1, 2, sh.getMaxColumns()).breakApart(); } catch (e) {}
+  const names = ['Grade A', 'Eligible', 'Resit', 'Remaining'], cols = [3, 5, 7, 9];
   const colours = [BANDS[0], BANDS[1], BANDS[2], ['', 0, '#9aa3b5', PAPER]];
   sh.getRange(1, 1, 1, 2).setValues([['Grades', students.length + (students.length === 1 ? ' student' : ' students')]]).setVerticalAlignment('middle');
   sh.getRange('A1').setFontSize(16).setFontWeight('bold').setFontColor(BLUE);
   sh.getRange('B1').setFontColor(MUTE);
   names.forEach((n, i) => {
     const c = cols[i], fg = colours[i][2], txt = counts[n] + '  ' + n, cell = sh.getRange(1, c);
-    cell.setValue(txt).setFontWeight('bold').setFontColor(fg).setBackground(colours[i][3]).setVerticalAlignment('middle').setHorizontalAlignment('left');
+    try { sh.getRange(1, c, 1, 2).merge(); } catch (e) {}
+    sh.getRange(1, c, 1, 2).setBackground(colours[i][3]).setBorder(null, true, null, true, null, null, '#ffffff', SpreadsheetApp.BorderStyle.SOLID_THICK);
+    cell.setValue(txt).setFontWeight('bold').setFontColor(fg).setVerticalAlignment('middle').setHorizontalAlignment('center');
     // the count larger than the name, where the Sheet allows it
     try {
       const k = String(counts[n]).length;
@@ -1508,6 +1512,7 @@ function buildGrades_() {
     } catch (e) {}
   });
   sh.setRowHeight(1, 32);
+  sh.getRange(2, 1, 1, W).setBackground(INK); sh.setRowHeight(2, 4);
 
   sh.getRange(top - 1, 1, 1, W).setValues([head]).setFontWeight('bold').setFontColor('#ffffff').setBackground(BLUE).setVerticalAlignment('middle').setWrap(true);
   sh.setRowHeight(top - 1, 32);
@@ -1547,7 +1552,7 @@ function buildGrades_() {
   } else {
     sh.getRange(top, 1).setValue('No students yet. Add them in the Students tab or on the page.').setFontColor(MUTE);
   }
-  [110, 170, 150, 90, 70].concat(stageNames.map(() => 66)).concat([58, 110, 104, 300, 86, 110]).forEach((w, i) => sh.setColumnWidth(i + 1, w));
+  [110, 170, 150, 56, 70].concat(stageNames.map(() => 66)).concat([58, 110, 104, 300, 86, 110]).forEach((w, i) => sh.setColumnWidth(i + 1, w));
   // a column added or removed moves the others along: show everything, then hide Marked and Progress again
   try { sh.showColumns(1, sh.getMaxColumns()); sh.hideColumns(C.MARKED, 2); } catch (e) {}
   sh.setFrozenRows(top - 1); sh.setFrozenColumns(2);

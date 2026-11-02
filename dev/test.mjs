@@ -219,7 +219,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const tabs = book.sheets.map(s => s.name);
   assert.ok(tabs.includes('Grades') && !tabs.includes('Results') && !tabs.includes('Days'));
   assert.equal(tabs[1], 'Grades');
-  const d = tab(book, 'Grades').data, head = d[1];
+  const d = tab(book, 'Grades').data, head = d[2];
   const row = name => d.find(r => r[1] === name), col = (name, c) => row(name)[head.indexOf(c)];
   // Polina: Pass 80 on 17 skills, m4 (Hint 65 + Pass 80)/2 → 79.6 → Pass
   assert.equal(col('Polina', 'Score %'), 80); assert.equal(col('Polina', 'Grade'), 'Eligible'); assert.equal(col('Polina', 'Teachers'), 'Gunni, Anna');
@@ -231,7 +231,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(head.indexOf('In the app'), -1);
   ok('Perfect 100 · Pass 80 · Hint 65 · Got there 50: Grade A from 85, "got there" on everything still passes');
   ok('any critical error is a Resit, even with every skill Perfect');
-  assert.deepEqual(d[0].slice(0, 6), ['Grades', '5 students', '1  Grade A', '2  Eligible', '1  Resit', '1  Remaining']);   // all in row 1, from column C
+  assert.deepEqual(d[0].slice(0, 9), ['Grades', '5 students', '1  Grade A', '', '2  Eligible', '', '1  Resit', '', '1  Remaining']);   // all in row 1, two columns each
   ok('the summary counts each grade');
   const mk = tab(book, 'Marks').data, mh = mk[0];
   assert.equal(mk.find(r => r[1] === 'Kim')[mh.indexOf('Power-up order')], 'Perfect');
@@ -310,7 +310,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(tq.length, 18); assert.ok(tq.includes(newId) && !tq.includes('s2'));
   call(g, { action: 'saveEntry', token: tok, sid: tal, patch: { marks: Object.fromEntries(tq.map(id => [id, 'p'])), ended: 2 } });
   g.buildGrades_();
-  const gd = tab(book, 'Grades').data, gh = gd[1], gr = n => gd.find(r => r[1] === n);
+  const gd = tab(book, 'Grades').data, gh = gd[2], gr = n => gd.find(r => r[1] === n);
   assert.equal(gr('Polina')[gh.indexOf('Grade')], 'Grade A'); assert.equal(gr('Polina')[gh.indexOf('Marked')], '18/18');
   assert.equal(gr('Tales')[gh.indexOf('Grade')], 'Grade A'); assert.equal(gr('Tales')[gh.indexOf('Marked')], '18/18');
   ok('Grades marks each student out of their own questions');
@@ -318,7 +318,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   g.useCurrentQuestions_('2026-11-04');
   st = call(g, { action: 'state', token: tok });
   assert.equal(st.qsets[pol], undefined);   // today's questions; the page and Grades leave out the K4 one for her
-  const gd2 = tab(book, 'Grades').data, gh2 = gd2[1];
+  const gd2 = tab(book, 'Grades').data, gh2 = gd2[2];
   assert.equal(gd2.find(r => r[1] === 'Polina')[gh2.indexOf('Marked')], '17/17');
   ok('"Use the current questions for a test date" moves that date\'s graded students onto today\'s questions');
 }
@@ -503,7 +503,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   ok('an old day-wide lock is lifted for students not graded: Isuru\'s student gets his Shut down question, Ainsley\'s keeps hers');
   // the Grades tab: one band per teacher, then their students
   g.buildGrades_();
-  const d = tab(book, 'Grades').data.slice(2).map(r => String(r[0]).startsWith('Isuru') || String(r[0]).startsWith('Ainsley') ? 'BAND ' + r[0].split('  ')[0] : r[1]);
+  const d = tab(book, 'Grades').data.slice(3).map(r => String(r[0]).startsWith('Isuru') || String(r[0]).startsWith('Ainsley') ? 'BAND ' + r[0].split('  ')[0] : r[1]);
   assert.deepEqual(d.filter(Boolean), ['BAND Isuru', 'Emiliano', 'BAND Ainsley', 'Faddei']);
   ok('the Grades tab lists each teacher\'s students together under a band with the teacher\'s name');
 }
@@ -680,7 +680,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   q.getRange(rowOf(routeIds[2]), 1).setValue('  recording '); g.onEdit({ range: q.getRange(rowOf(routeIds[2]), 1) });
   assert.equal(stageOf(routeIds[2]), 'Recording');
   g.buildGrades_();
-  const gh = tab(book, 'Grades').data[1];
+  const gh = tab(book, 'Grades').data[2];
   assert.equal(gh.filter(h => /^recording$/i.test(String(h).trim())).length, 1);
   assert.deepEqual(JSON.parse(JSON.stringify(gh.slice(5, 11))), ['Power', 'Mic', 'Route', 'Recording', 'Cue', 'Shut down']);
   ok('Grades has one column per listed stage, in list order, whatever capitals or spaces a teacher typed');
@@ -788,7 +788,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const it = raw(g, { action: 'login', name: 'Isuru', password: 'team-pass-1' }).token;
   const id = raw(g, { action: 'addStudents', token: it, names: ['Edo'], studio: 'K3', day: '2026-11-04' }).ids[0];
   const qs = raw(g, { action: 'state', token: it }).questions.map(q => q.id);
-  const grade = () => { const d = tab(book, 'Grades').data, h = d[1]; const r = d.find(x => x[1] === 'Edo'); return r[h.indexOf('Grade')]; };
+  const grade = () => { const d = tab(book, 'Grades').data, h = d[2]; const r = d.find(x => x[1] === 'Edo'); return r[h.indexOf('Grade')]; };
   raw(g, { action: 'batch', token: it, steps: [['saveEntry', { sid: id, patch: { marks: Object.fromEntries(qs.map(q => [q, 'y'])), ended: 1 } }]] });
   raw(g, { action: 'tidy', token: it });
   assert.equal(grade(), 'Eligible');
