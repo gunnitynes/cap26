@@ -1001,5 +1001,21 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.deepEqual(['Ace', 'Pat', 'Low'].map(n => grade(n).concat(marks(n))), before);
   ok('switching the curve off gives back exactly the plain scores, in Grades and Marks');
 }
+// 34. A stage renamed after students were graded: a question removed since keeps its stored stage, which is renamed too.
+{
+  const { g, book } = loadScript();
+  g.setup(); g.setTeacher_('Gunni', 'admin'); g.setTeamPassword_('catalyst'); g.setAdminPin_('2468');
+  const gt = call(g, { action: 'login', name: 'Gunni', password: 'catalyst', pin: '2468' }).token;
+  call(g, { action: 'addStudents', token: gt, studio: 'K3', day: '2026-11-02', teacher: 'Gunni', names: ['Kim'] });
+  const st = call(g, { action: 'state', token: gt }), sid = st.students[0].id, qs = st.qlive.gunni.filter(q => !q.studios || q.studios.includes('K3'));
+  call(g, { action: 'saveEntry', token: gt, sid, patch: { marks: Object.fromEntries(qs.map(q => [q.id, 'y'])), ended: 1 } });
+  // the teacher removes one Mic question, then the stage is renamed
+  const mq = call(g, { action: 'myQuestions', token: gt }), gone = mq.questions.find(q => q.stage === 'Mic');
+  call(g, { action: 'saveQuestions', token: gt, v: mq.v, questions: mq.questions.filter(q => q.id !== gone.id) });
+  g.renameStage_('Mic', 'In/Out');
+  const stages = g.questionsFor_('', 'Gunni', null, sid).map(q => q.stage);
+  assert.ok(!stages.includes('Mic') && stages.includes('In/Out'));
+  ok('renaming a stage also renames it in the question sets graded students keep (no stage shows twice)');
+}
 
 console.log(`\n${n} checks passed`);

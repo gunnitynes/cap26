@@ -380,6 +380,21 @@ function renameStageEverywhere_(from, to) {
     v.forEach(r => { if (norm_(r[0]) === norm_(from)) { r[0] = to; changed = true; } });
     if (changed) rg.setValues(v);
   });
+  renameFrozenStage_(from, to);
+}
+/* The question sets graded students keep (qs_<id>) hold the stage name too. A question still on a tab takes its stage from
+   there, but one removed since only has the stored name, so a renamed stage would show up twice: rename it there as well. */
+function renameFrozenStage_(from, to) {
+  const props = PropertiesService.getScriptProperties();
+  let n = 0;
+  studentFreezeKeys_().forEach(k => {
+    const qs = frozenRaw_(k);
+    if (!Array.isArray(qs)) return;
+    let changed = false;
+    qs.forEach(q => { if (q && q.stage && norm_(q.stage) === norm_(from)) { q.stage = to; changed = true; } });
+    if (changed) { props.setProperty(k, JSON.stringify(qs)); n++; }
+  });
+  return n;
 }
 /** Renames a stage everywhere at once (as typing over it on Start here does): the list, its cell on Start here, every
  *  questions tab, then Marks and Grades. Run from the script editor, e.g. renameStage_('Mic', 'Connections'). */
