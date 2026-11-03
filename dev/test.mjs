@@ -1075,6 +1075,57 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   ok('the same name twice on one day, or an impossible time, is refused; the teacher sees exactly the students added');
 }
 
+// 38. Marks reads by day, then teacher (Teachers tab order), then test time; rows only move, nothing in them changes.
+{
+  const { g, book } = loadScript();
+  g.setup(); g.setTeacher_('Gunni', 'admin'); g.setTeacher_('Isuru', 'teacher'); g.setTeamPassword_('catalyst'); g.setAdminPin_('2468');
+  const gt = call(g, { action: 'login', name: 'Gunni', password: 'catalyst', pin: '2468' }).token;
+  const it = call(g, { action: 'login', name: 'Isuru', password: 'catalyst' }).token;
+  call(g, { action: 'addStudents', token: gt, studio: 'K3', day: '2026-11-03', teacher: 'Isuru', names: ['10:15 Iz2', '10:00 Iz1'] });
+  call(g, { action: 'addStudents', token: gt, studio: 'K4', day: '2026-11-03', teacher: 'Gunni', names: ['10:00 Gu1'] });
+  call(g, { action: 'addStudents', token: gt, studio: 'K4', day: '2026-11-02', teacher: 'Gunni', names: ['10:00 Old'] });
+  call(g, { action: 'addStudents', token: gt, studio: 'K3', day: '2026-11-02', teacher: 'Isuru', names: ['09:00 IzOld'] });
+  const st = call(g, { action: 'state', token: gt }), id = n => st.students.find(x => x.name === n).id, q = st.qlive.gunni[0].id;
+  // marked in a jumbled order, Gu1 by both teachers' accounts (Gunni as admin sees all)
+  [[it, 'Iz2'], [gt, 'Gu1'], [it, 'IzOld'], [it, 'Iz1'], [gt, 'Old'], [it, 'Iz2'], [gt, 'Iz1']].forEach(([t, n]) => call(g, { action: 'saveEntry', token: t, sid: id(n), patch: { marks: { [q]: 'y' } } }));
+  const m = () => tab(book, 'Marks').data.slice(1).filter(r => r[1]).map(r => r[1] + '/' + r[2]);
+  assert.deepEqual(m(), ['Old/Gunni', 'Gu1/Gunni', 'Iz1/Gunni', 'IzOld/Isuru', 'Iz1/Isuru', 'Iz2/Isuru']);
+  const before = JSON.stringify(tab(book, 'Marks').data.slice(1).map(r => r.slice(0, 3).concat(r.slice(-2))).sort());
+  g.syncMarks_(true);
+  assert.deepEqual(m(), ['Old/Gunni', 'Gu1/Gunni', 'Iz1/Gunni', 'IzOld/Isuru', 'Iz1/Isuru', 'Iz2/Isuru']);
+  assert.equal(JSON.stringify(tab(book, 'Marks').data.slice(1).map(r => r.slice(0, 3).concat(r.slice(-2))).sort()), before);
+  ok('Marks: by teacher (Teachers order), then day and time; rebuilds keep it, data untouched');
+}
+// 39. Critical errors: an editable list on Start here, empty by default; errors already logged stay and still mean Resit.
+{
+  const { g, book } = loadScript();
+  g.setup(); g.setTeacher_('Gunni', 'admin'); g.setTeamPassword_('catalyst'); g.setAdminPin_('2468');
+  const gt = call(g, { action: 'login', name: 'Gunni', password: 'catalyst', pin: '2468' }).token;
+  assert.deepEqual(call(g, { action: 'state', token: gt }).critical, []);
+  const sh = g.SpreadsheetApp.getActive().getSheetByName('Start here'), d = () => tab(book, 'Start here').data, at = () => d().findIndex(r => r[0] === 'Critical errors') + 1;
+  assert.ok(at() > 0 && d().findIndex(r => r[0] === 'Add a teacher') === at() + 8);
+  sh.getRange(at() + 1, 2).setValue(' Phantom left on '); g.onEdit({ range: sh.getRange(at() + 1, 2) });
+  sh.getRange(at(), 2).setValue('Speakers up'); g.onEdit({ range: sh.getRange(at(), 2) });
+  assert.deepEqual(call(g, { action: 'state', token: gt }).critical, ['Speakers up', 'Phantom left on']);
+  ok('critical errors typed on Start here reach the app; the list starts empty');
+  // an older Start here without the rows gets them on open, keeping everything else and the list
+  const before = d().filter(r => r[0] === 'Team password' || r[0] === 'Test stages').length, n = at();
+  g.SpreadsheetApp.getActive().getSheetByName('Start here').deleteRows(n, 9);
+  assert.equal(at(), 0);
+  g.ensureCriticalRows_(); g.ensureCriticalRows_();
+  assert.equal(at(), n); assert.equal(d().filter(r => r[0] === 'Critical errors').length, 1); assert.equal(d()[n - 1][1], 'Speakers up');
+  assert.equal(d().filter(r => r[0] === 'Team password' || r[0] === 'Test stages').length, before);
+  ok('an older Start here tab gets the rows once, above Add a teacher, and nothing else moves');
+  sh.getRange(n, 2, 8, 1).setValues(Array(8).fill([''])); g.onEdit({ range: sh.getRange(n, 2, 8, 1) });
+  assert.deepEqual(call(g, { action: 'state', token: gt }).critical, []);
+  call(g, { action: 'addStudents', token: gt, studio: 'K3', day: '2026-11-03', teacher: 'Gunni', names: ['Kim'] });
+  const st = call(g, { action: 'state', token: gt }), qs = st.qlive.gunni.filter(q => !q.studios || q.studios.includes('K3'));
+  call(g, { action: 'saveEntry', token: gt, sid: st.students[0].id, patch: { marks: Object.fromEntries(qs.map(q => [q.id, 'p'])), safety: { a: { t: 1, text: 'My own error' } }, ended: 1 } });
+  g.buildGrades_();
+  const gd = tab(book, 'Grades').data, h = gd.find(r => r[0] === 'Test date');
+  assert.equal(gd.find(r => r[1] === 'Kim')[h.indexOf('Grade')], 'Resit');
+  ok('with the list empty, an error a teacher types still means Resit');
+}
 // 37. The page itself parses (a name declared twice stops the whole app before it starts).
 {
   const vm = await import('node:vm'), fs = await import('node:fs');

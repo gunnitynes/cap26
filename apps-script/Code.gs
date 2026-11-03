@@ -36,6 +36,9 @@ const RESET_ONE_LABEL = 'Reset a student';
 const RESET_ALL_LABEL = 'Reset everything';
 const STAGES_LABEL = 'Test stages';
 const MAX_STAGES = 8;
+const CRIT_LABEL = 'Critical errors';
+const MAX_CRIT = 8;
+const CRIT_NOTE = 'Optional: common critical errors, one per cell. They show as buttons in the Critical Errors box on the marking screen. Leave empty for none: teachers can always type their own. Any critical error means Resit. Errors already logged on a student stay, whatever you change here.';
 const MIN_PIN = 4;
 // Marks, best first. Tolerant on purpose: "Got there" on everything still passes.
 const POINTS = { p: 1, y: 0.8, h: 0.65, g: 0.5, n: 0 };
@@ -121,6 +124,7 @@ function onOpen() {
     .addItem('Remove a teacher…', 'menuRemoveTeacher')
     .addSeparator()
     .addItem('Refresh the Grades tab', 'buildGrades_')
+    .addItem('Sort the Marks tab', 'menuSortMarks')
     .addItem('Use the current questions for a test date…', 'menuUseCurrentQuestions')
     .addSeparator()
     .addItem('Score curve: on', 'menuCurveOn')
@@ -129,6 +133,7 @@ function onOpen() {
     .addItem('Reset a student\'s test…', 'menuResetStudent')
     .addItem('Reset ALL test results…', 'menuResetAll')
     .addToUi();
+  try { ensureCriticalRows_(); } catch (e) {}
 }
 
 /** Builds every tab, moves older layouts over without losing anything, and styles it all. Safe to run any time. */
@@ -169,6 +174,8 @@ function buildStart_() {
     ['', 'Type RESET in the cell above and press Enter to remove every mark for every student, for example after beta testing. Students, teachers and questions stay.'],
     ...stageSlots_().map((st, i) => [i ? '' : STAGES_LABEL, st]),
     ['', 'The stages of the test, in order, the same for every teacher: the Stage column of every questions tab is a dropdown of these, and Grades has one column per stage. Rename a stage here and it is renamed in every teacher\'s tab. Add one in an empty cell; clear one to take it off the list.'],
+    ...critSlots_().map((c, i) => [i ? '' : CRIT_LABEL, c]),
+    ['', CRIT_NOTE],
     ['Add a teacher', 'Type their name in the Teachers tab. It then appears on the sign-in page: they pick it and type the team password.'],
     ['Add students', 'Open the Students tab. Type the test date, the test time (like 10:30), the student\'s name and the studio, one student per row.'],
     ['', 'Pasting a whole list? Paste the names into the Student column and type the date once at the top: rows below take the date and studio from the row above. Each student keeps their own time.'],
@@ -216,6 +223,7 @@ function buildStart_() {
   sh.getRange(sa, 2, MAX_STAGES, 1).setNumberFormat('@').setBackground('#eaf0ff').setFontWeight('bold').setFontColor(BLUE)
     .setBorder(true, true, true, true, null, true, BLUE, SpreadsheetApp.BorderStyle.SOLID);
   sh.getRange(sa + MAX_STAGES, 2).setFontColor(MUTE);
+  styleCritical_(sh, rows.findIndex(r => r[0] === CRIT_LABEL) + 1);
   rows.forEach((r, i) => { if (r[0] && i > 1) sh.getRange(i + 1, 1).setFontWeight('bold'); });
   const tabsAt = rows.findIndex(r => r[0] === 'What the tabs hold') + 1;   // (row numbers move when rows are added above)
   sh.getRange(tabsAt, 1, 1, 2).setBackground(PAPER);
@@ -352,6 +360,35 @@ function stages_() {
     if (list.length) setStages_(list.slice(0, MAX_STAGES));
   }
   return (STAGES_CACHE_ = list);
+}
+/* The critical errors offered as buttons on the marking screen: typed on Start here, kept in the script's own storage. */
+function critical_() { try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('critical') || '[]'); } catch (e) { return []; } }
+function critSlots_() { const l = critical_(); return Array.from({ length: MAX_CRIT }, (_, i) => l[i] || ''); }
+function critRow_(sh) { return sh.getRange(1, 1, Math.max(1, sh.getLastRow()), 1).getValues().findIndex(r => String(r[0]) === CRIT_LABEL) + 1; }
+function styleCritical_(sh, at) {
+  sh.getRange(at, 2, MAX_CRIT, 1).setNumberFormat('@').setBackground('#eaf0ff').setFontWeight('bold').setFontColor(BLUE)
+    .setBorder(true, true, true, true, null, true, BLUE, SpreadsheetApp.BorderStyle.SOLID);
+  sh.getRange(at, 1).setFontWeight('bold');
+  sh.getRange(at + MAX_CRIT, 2).setFontColor(MUTE);
+}
+/** A Start here tab built before this list existed gets its rows, above "Add a teacher". Nothing else on the tab changes. */
+function ensureCriticalRows_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEETS.START.name);
+  if (!sh || critRow_(sh)) return;
+  const i = sh.getRange(1, 1, Math.max(1, sh.getLastRow()), 1).getValues().findIndex(r => String(r[0]) === 'Add a teacher');
+  const at = i >= 0 ? i + 1 : sh.getLastRow() + 1;
+  if (i >= 0) sh.insertRowsBefore(at, MAX_CRIT + 1);
+  sh.getRange(at, 1, MAX_CRIT + 1, 2).setValues(critSlots_().map((c, k) => [k ? '' : CRIT_LABEL, c]).concat([['', CRIT_NOTE]]));
+  styleCritical_(sh, at);
+}
+function criticalTyped_(e) {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEETS.START.name), rg = e && e.range;
+  if (!sh || !rg) return;
+  const at = critRow_(sh);
+  if (!at || rg.getColumn() > 2 || rg.getLastColumn() < 2 || rg.getLastRow() < at || rg.getRow() > at + MAX_CRIT - 1) return;
+  const list = [];
+  sh.getRange(at, 2, MAX_CRIT, 1).getValues().forEach(r => { const v = clean_(r[0], 200); if (v && !list.some(x => norm_(x) === norm_(v))) list.push(v); });
+  PropertiesService.getScriptProperties().setProperty('critical', JSON.stringify(list));
 }
 function setStages_(list) { STAGES_CACHE_ = list; PropertiesService.getScriptProperties().setProperty('stages', JSON.stringify(list)); }
 function stageSlots_() { const l = stages_(); return Array.from({ length: MAX_STAGES }, (_, i) => l[i] || ''); }
@@ -541,7 +578,7 @@ function onEdit(e) {
     const sh = e && e.range && e.range.getSheet(), name = sh && sh.getName(), r = e.range.getRow();
     if (name === SHEETS.MARKS.name || name === SHEETS.GRADES.name) { typedInOutput_(name); return; }
     if (name === SHEETS.STUDENTS.name && r >= 2) { studentsTyped_(sh, r, e.range.getNumRows()); gradesDirty_(); return; }
-    if (name === SHEETS.START.name) { storeTeamPassword_(); storeAdminPin_(); resetCells_(e.range); stagesTyped_(e); return; }
+    if (name === SHEETS.START.name) { storeTeamPassword_(); storeAdminPin_(); resetCells_(e.range); stagesTyped_(e); criticalTyped_(e); return; }
     if (isQuestionSheet_(name) && r >= 2) { questionsEdited_(sh, e); gradesDirty_(); return; }
     if (name === SHEETS.TEACHERS.name && r >= 2) {
       const last = Math.min(sh.getLastRow(), r + e.range.getNumRows() - 1);
@@ -845,7 +882,7 @@ function route_(req) {
     case 'myQuestions':    return myQuestions_(me, req);
     case 'saveQuestions':  return withLock_(() => saveQuestions_(me, req));
     case 'tidy': {
-      const r = withLock_(() => { migrateFreezes_(); ensureStudentIds_(); ensureTeacherQuestionTabs_(); ensureQuestionIds_(); syncMarks_(); maybeBuildGrades_(); return { ok: true }; });
+      const r = withLock_(() => { migrateFreezes_(); ensureStudentIds_(); ensureTeacherQuestionTabs_(); ensureQuestionIds_(); syncMarks_(); sortMarks_(); maybeBuildGrades_(); return { ok: true }; });
       try { gradesAll_(); } catch (e) {}   // after the lock: the overview is worked out now, in the background, so opening it is quick
       return r;
     }
@@ -1015,7 +1052,7 @@ function state_(me) {
   const questions = sets[norm_(me.name)] || sets[''];
   return { ok: true, me: { name: me.name, role: me.role },
     students: students.map(s => ({ id: s.id, day: s.day, time: s.time, end: s.end, name: s.name, cap: s.cap, studio: s.studio, teacher: s.teacher, absent: s.absent })),
-    entries, teachers: teachers_().map(t => t.name), questions, qlive, qsets, slots: openSlots_(me) };
+    entries, teachers: teachers_().map(t => t.name), questions, qlive, qsets, slots: openSlots_(me), critical: critical_() };
 }
 
 /* Every write (and every edit in the Sheet) bumps a version number. A teacher's state is kept for up to a minute and
@@ -1239,6 +1276,7 @@ function saveEntry_(me, req) {
   const sh = sheet_(SHEETS.MARKS), row = marksRow_(s, me.name, data, ctx);
   const r = mine ? mine.row : sh.getLastRow() + 1;
   sh.getRange(r, 1, 1, row.length).setValues([row]);
+  if (!mine) sortMarks_();   // a new row goes to its day and teacher
   if (clean.ended === null && !marksRows_().some(m => m.sid === sid && m.data.ended)) unfreezeStudent_(sid);   // reset: back to the current questions
   return { ok: true };
 }
@@ -1318,6 +1356,8 @@ function syncMarks_(force) {
   if (!force && now.join('\u0001') === head.join('\u0001')) return ctx;
   const studs = {}; students_().forEach(s => studs[s.id] = s);
   const rows = marksRows_().map(m => marksRow_(studs[m.sid] || { id: m.sid, day: m.day, name: m.name, studio: '', teacher: '' }, m.teacher, m.data, ctx, m.updated));
+  const key = marksOrder_(head.length - 2);
+  rows.sort((a, b) => key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0);
   if (sh.getMaxColumns() < head.length) sh.insertColumnsAfter(sh.getMaxColumns(), head.length - sh.getMaxColumns());
   sh.clearContents();
   sh.getRange(1, 1, 1, head.length).setValues([head]);
@@ -1325,6 +1365,28 @@ function syncMarks_(force) {
   styleMarks_(ctx);
   return ctx;
 }
+/* Marks reads by teacher (the Teacher column, in the order of the Teachers tab), then by day, test time and name:
+   one block per teacher, like Grades. Only the order changes: every row moves whole, with its page data. */
+function marksOrder_(idCol) {
+  const studs = {}; students_().forEach(s => studs[s.id] = s);
+  const order = teachers_().map(t => norm_(t.name));
+  const rank = t => { const i = order.indexOf(norm_(t)); return String(i < 0 ? 99 : i).padStart(2, '0'); };
+  return r => {
+    const s = studs[String(r[idCol] || '')] || {}, d = r[0] instanceof Date ? r[0].getTime() : 0;
+    return [rank(r[2]), String(d).padStart(15, '0'), s.time || '99:99', norm_(r[1]), String(r[idCol] || '')].join('\u0001');
+  };
+}
+function sortMarks_() {
+  const sh = sheet_(SHEETS.MARKS), last = sh.getLastRow(), w = sh.getLastColumn();
+  if (last < 3 || !w) return;
+  const head = sh.getRange(1, 1, 1, w).getValues()[0].map(String), idCol = head.indexOf('Student ID');
+  if (idCol < 0) return;
+  const range = sh.getRange(2, 1, last - 1, w), rows = range.getValues(), key = marksOrder_(idCol);
+  const sorted = rows.map((r, i) => ({ r, i, k: key(r) })).sort((a, b) => a.k < b.k ? -1 : a.k > b.k ? 1 : a.i - b.i);
+  if (sorted.every((x, i) => x.i === i)) return;   // already in order: nothing is written
+  range.setValues(sorted.map(x => x.r));
+}
+function menuSortMarks() { const r = withLock_(() => { sortMarks_(); return { ok: true }; }); try { SpreadsheetApp.getUi().alert(r.ok ? 'Marks is sorted by teacher, then day and time.' : r.error); } catch (e) {} }
 function marksCtx_() { const sets = liveSets_(); return { sets, live: sets[''], cols: markColumns_(sets), stages: stageColumns_(sets) }; }
 /** The stage columns: the shared list on Start here, then any other stage a question set still uses. */
 function stageColumns_(sets) {

@@ -725,7 +725,7 @@ const STUDIOS=['K3','K4'];
 // marks, best first; tolerant on purpose: "Got there" on everything still passes
 const MARK={p:'Perfect',y:'Pass',h:'Hint',g:'Got there',n:'Failed'};
 const POINTS={p:1,y:.8,h:.65,g:.5,n:0};
-const QUICK=['Speakers switched with level up','Phantom switched with fader up','Control-room level dangerously loud while patching'];
+let QUICK=[];   // the critical errors offered as buttons: the list on Start here (empty: teachers type their own)
 // the score is the share of all the teacher's questions, each worth the same, as a percentage;
 // Grade A from 85, Eligible from 40; any critical error is a Resit whatever the score
 const GRADES=[{k:'merit',l:'Grade A',min:.85,col:'ok'},{k:'passg',l:'Eligible',min:.4,col:'ink'},{k:'resitg',l:'Resit',min:0,col:'no'}];
@@ -757,6 +757,7 @@ const API=new URLSearchParams(location.search).get('api')||window.OPS_API||'';
 // ?view=<key>: the view-only Overview for supervisors (no sign-in, nothing to change); the key comes from an admin's Overview page
 const VIEWKEY=(new URLSearchParams(location.search).get('view')||'').replace(/[^a-z0-9]/gi,'').slice(0,64);
 const S={token:ls.get('ops.token',''),me:ls.get('ops.me',''),role:ls.get('ops.role',''),demo:!API,tests:{},teachers:{},pending:ls.get('ops.pending',{}),view:'roster',open:null,day:ls.get('ops.day',null)||today(),all:false,days:{},dayWant:{},confirm:null,cal:null,sync:'ok',ready:false,loading:false,published:{},dayPicked:false,loadErr:'',stale:false,offline:false,mine:ls.get('ops.mine',true)};
+QUICK=ls.get('ops.crit',[]);
 if(ls.get('ops.q',null))setQuestions(ls.get('ops.q'),ls.get('ops.qlive',{}),ls.get('ops.qsets',{}));
 
 /* ---- each teacher marks on their own: a student keeps one entry per teacher under by.<teacher name>.
@@ -857,6 +858,7 @@ function applyState(j){
   for(const st of j.students)tests[st.id]={name:st.name,cap:st.cap||'',studio:st.studio,day:st.day,time:st.time||'',end:st.end||'',teacher:st.teacher||'',absent:!!st.absent,by:{}};
   for(const e of j.entries)if(tests[e.sid])tests[e.sid].by[e.teacher]=e.data||{_progress:e.progress||0};
   S.tests=tests;S.slots=j.slots||[];backupFromSheet();
+  if(Array.isArray(j.critical)){QUICK=j.critical;ls.set('ops.crit',QUICK)}
   S.teachers=Object.fromEntries(j.teachers.map(n=>[n,{name:n}]));
   if(Array.isArray(j.questions)){
     setQuestions(j.questions,j.qlive||{},j.qsets||{});
@@ -1057,7 +1059,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793736024';
+const BUILD='1793746284';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1784,7 +1786,7 @@ function renderSheet(){
      <section class="card safety" id="st-errors" aria-label="Critical Errors">
        <details class="errfold" id="errBox"><summary><h3>Critical Errors</h3><span class="errn" id="errCount"></span></summary>
        <div class="quick" id="critChips" style="margin-top:10px"></div>
-       <input type="text" id="incText" placeholder="Something else…" enterkeyhint="done" style="margin-top:10px">
+       <input type="text" id="incText" placeholder="Type a critical error…" enterkeyhint="done" style="margin-top:10px">
        </details>
      </section>
 
