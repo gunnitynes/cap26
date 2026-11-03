@@ -529,6 +529,7 @@ function styleMarks_(ctx) {
   }
   m.setConditionalFormatRules(rules);
   m.setTabColor(INK);
+  warnOnEdit_(m);
 }
 
 // ─────────────────────────────────────────────────────────────── typing in the Teachers tab
@@ -538,6 +539,7 @@ function onEdit(e) {
   bump_();   // any edit in the Sheet: the phones' next refresh reads it again
   try {
     const sh = e && e.range && e.range.getSheet(), name = sh && sh.getName(), r = e.range.getRow();
+    if (name === SHEETS.MARKS.name || name === SHEETS.GRADES.name) { typedInOutput_(name); return; }
     if (name === SHEETS.STUDENTS.name && r >= 2) { studentsTyped_(sh, r, e.range.getNumRows()); gradesDirty_(); return; }
     if (name === SHEETS.START.name) { storeTeamPassword_(); storeAdminPin_(); resetCells_(e.range); stagesTyped_(e); return; }
     if (isQuestionSheet_(name) && r >= 2) { questionsEdited_(sh, e); gradesDirty_(); return; }
@@ -1739,6 +1741,16 @@ function buildGrades_() {
   sh.setFrozenRows(top - 1); sh.setFrozenColumns(2);
   sh.setHiddenGridlines(true);
   sh.setTabColor(BLUE);
+  warnOnEdit_(sh); warnOnEdit_(sheet_(SHEETS.MARKS));
+}
+
+/* Marks and Grades are written by the script only: typing in them asks "are you sure?" first (a warning, never a block,
+   so the script and anyone who insists can still write), and onEdit then says where marks are really entered. */
+function warnOnEdit_(sh) {
+  try { if (!sh.getProtections(SpreadsheetApp.ProtectionType.SHEET).some(p => p.getDescription() === 'ops')) sh.protect().setDescription('ops').setWarningOnly(true); } catch (e) {}
+}
+function typedInOutput_(name) {
+  try { SpreadsheetApp.getActive().toast('Marks typed in ' + name + ' are not counted and are erased at the next update. Mark in the app instead, on a phone or a computer: ' + PAGE_URL, 'Mark in the app', 20); } catch (e) {}
 }
 
 // ─────────────────────────────────────────────────────────────── moving older layouts over (run by setup)

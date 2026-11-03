@@ -391,6 +391,7 @@ details.errfold[open]>summary::after{content:"–"}
 .qstage{display:flex;flex-direction:column;gap:10px}
 .qst-h{display:flex;align-items:baseline;gap:10px}.qst-h .mono{color:var(--led);font-size:12px}.qst-h b{font-size:18px;font-weight:800}.qst-h .qn{margin-left:auto;font-size:12px;color:var(--mute)}
 .qhead{font-size:14px!important}
+.qno .qsn{color:var(--mute);font-weight:600;margin-left:4px}
 .qstage{gap:14px!important}
 .qcard{position:relative;border:1px solid color-mix(in srgb,var(--ink) 22%,var(--line));border-left:4px solid var(--led);border-radius:12px;padding:10px 10px 10px 12px;background:var(--sunk);display:flex;flex-direction:column;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,.12)}
 .qno{font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--led)}
@@ -750,6 +751,10 @@ const tkey=t=>String(t&&t.teacher||'').trim().toLowerCase().replace(/\s+/g,' ');
 const skillsFor=t=>(QSETS[t.id]||QLIVE[tkey(t)]||QLIVE['']||QNOW).filter(c=>!c.studios||c.studios.includes(t.studio));
 // the stages of one student's questions, in order
 const stagesFor=t=>{const out=[];for(const c of skillsFor(t))if(!out.some(x=>x.id===c.s))out.push({id:c.s,short:c.stage,name:c.heading||c.stage});return out};
+// the questions as they stand in the teacher's tab: a run of rows in one stage is one block, so a tab that goes
+// Safety, Route, Safety shows three blocks in that order (a stage can come back; its score is the same either way)
+const runsFor=t=>{const st=stagesFor(t),out=[];for(const c of skillsFor(t)){const r=out[out.length-1];
+  if(r&&r.s.id===c.s)r.cs.push(c);else out.push({s:st.find(x=>x.id===c.s),i:st.findIndex(x=>x.id===c.s),cs:[c],first:!out.some(x=>x.s.id===c.s),k:out.length})}return out};
 const bandOf=p=>GRADES.find(g=>p>=g.min*100-1e-9);
 // one teacher's own progress and score; shown next to the combined result, never used for it
 // a bonus question can only help: it counts when it raises the score, and it does not have to be marked
@@ -1032,7 +1037,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793663384';
+const BUILD='1793734304';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1339,7 +1344,8 @@ function progress(el,signIn){
 }
 /* ------------------------------------------------------------------ questions editor
    A teacher edits their own questions tab here (an admin: anyone's, or the shared tab). Nothing is sent until Save;
-   Save sends the whole list in stage order. The Sheet refuses it if the tab was changed there in the meantime. */
+   The list is in the tab's own order, stages mixed as the teacher likes; Save writes it back in exactly that order.
+   The Sheet refuses it if the tab was changed there in the meantime. */
 const Q={who:null,list:null,dirty:false,busy:false,err:'',seq:0};
 async function loadQuestions(who){
   Q.loading=true;Q.list=null;Q.err='';renderQuestions();
@@ -1394,7 +1400,7 @@ function renderQuestions(){
     return}
   const y=scrollY,admin=S.role==='admin',SB=['Both','K3','K4'];
   const qcard=(q,i,arr)=>`<article class="qcard" data-k="${q.k}">
-      <span class="qno">Question ${i+1}${q.bonus?'<span class="bonus">· Bonus</span>':''}</span>
+      <span class="qno">Question ${i+1}<span class="qsn">· ${esc(q.stage)}</span>${q.bonus?'<span class="bonus">· Bonus</span>':''}</span>
       <textarea class="qt" rows="2" aria-label="Question ${i+1}" placeholder="What the teacher marks">${esc(q.t)}</textarea>
       <div class="qtools"><button type="button" class="qb" data-act="up" aria-label="Move up"${i?'':' disabled'}>↑</button><button type="button" class="qb" data-act="down" aria-label="Move down"${i<arr.length-1?'':' disabled'}>↓</button>
         <button type="button" class="qb wide" data-act="more" aria-expanded="${!!q.open}">${q.open?'Less':'Details'}</button><button type="button" class="qb del" data-act="del">Delete</button></div>
@@ -1410,11 +1416,13 @@ function renderQuestions(){
     <section class="card qintro"><span class="eyebrow">${admin?'Edit questions':'My questions'}</span>
       ${admin?`<div class="field"><label for="qWho">Whose questions</label><select id="qWho">${(Q.teachers||[]).map(n=>`<option value="${esc(n)}"${n.toLowerCase()===String(Q.who||'').toLowerCase()?' selected':''}>${esc(n)}</option>`).join('')}<option value=""${Q.who?'':' selected'}>Shared (students without a teacher)</option></select></div>`:''}
       <p class="readout" style="margin:0">Saved to the “${esc(Q.tab)}” tab in the Sheet. Phones pick up changes within a minute.</p></section>
-    ${Q.stages.map((st,si)=>{const qs=Q.list.filter(q=>q.stage===st);return `<section class="card qstage" data-stage="${esc(st)}">
-      <div class="qst-h"><span class="mono">${String(si+1).padStart(2,'0')}</span><b>${esc(st)}</b><span class="qn">${qs.length} question${qs.length===1?'':'s'}</span></div>
-      <input type="text" class="qhead" value="${esc(Q.head[st]||'')}" placeholder="Heading on the page (optional), e.g. ${esc(st)}">
-      ${qs.map(qcard).join('')}
-      <button type="button" class="ghost qadd" data-add="${esc(st)}">+ Add a question</button></section>`}).join('')}
+    <section class="card qstage">
+      <div class="qst-h"><b>Questions</b><span class="qn">${Q.list.length} question${Q.list.length===1?'':'s'} · in this order on the phone</span></div>
+      ${Q.list.map(qcard).join('')}
+      <button type="button" class="ghost qadd" data-add="1">+ Add a question</button></section>
+    ${(()=>{const used=Q.stages.filter(st=>Q.list.some(q=>q.stage===st));return used.length?`<section class="card qstage">
+      <div class="qst-h"><b>Stage headings</b><span class="qn">optional</span></div>
+      ${used.map(st=>`<div class="field"><label>${esc(st)}</label><input type="text" class="qhead" data-stage="${esc(st)}" value="${esc(Q.head[st]||'')}" placeholder="Heading on the page, e.g. ${esc(st)}"></div>`).join('')}</section>`:''})()}
     <div style="height:84px"></div></div>
     <div class="qbar"><span id="qState"${Q.dirty?' data-d="1"':''}>${Q.dirty?'Unsaved changes':'All saved'}</span><button class="ghost" id="qUndo" type="button">Undo all</button><button class="primary" id="qSave" type="button"${Q.dirty?'':' disabled'}>Save</button></div>`;
   app.querySelectorAll('.qcard .qt').forEach(fitQ);
@@ -1423,21 +1431,21 @@ function renderQuestions(){
   $('#qWho')?.addEventListener('change',e=>{if(Q.dirty&&!confirm('Switch without saving your changes?')){e.target.value=Q.who;return}Q.who=e.target.value;loadQuestions(Q.who)});
   // typing changes the list in place; moving, adding and deleting redraw it
   app.oninput=e=>{const c=cardOf(e.target);
-    if(e.target.classList.contains('qhead')){Q.head[e.target.closest('.qstage').dataset.stage]=e.target.value;qDirty();return}
+    if(e.target.classList.contains('qhead')){Q.head[e.target.dataset.stage]=e.target.value;qDirty();return}
     if(!c)return;const q=byK(c.dataset.k);
     if(e.target.classList.contains('qt')){q.t=e.target.value;fitQ(e.target)}else if(e.target.classList.contains('qa'))q.ask=e.target.value;else if(e.target.classList.contains('ql'))q.label=e.target.value;else return;
     qDirty()};
   app.onchange=e=>{if(!e.target.classList.contains('qs'))return;const q=byK(cardOf(e.target).dataset.k);
-    Q.list.splice(Q.list.indexOf(q),1);q.stage=e.target.value;Q.list.push(q);qDirty();renderQuestions();toast('Moved to '+q.stage)};
+    q.stage=e.target.value;qDirty();renderQuestions()};   // it keeps its place in the list
   app.onclick=e=>{
     const add=e.target.closest('[data-add]');
-    if(add){const q={k:++Q.seq,id:'',stage:add.dataset.add,heading:'',t:'',ask:'',studio:'Both',label:'',open:false};Q.list.push(q);qDirty();renderQuestions();
+    if(add){const q={k:++Q.seq,id:'',stage:Q.list.length?Q.list[Q.list.length-1].stage:Q.stages[0],heading:'',t:'',ask:'',studio:'Both',label:'',open:false};Q.list.push(q);qDirty();renderQuestions();
       const ta=app.querySelector(`.qcard[data-k="${q.k}"] .qt`);ta?.scrollIntoView({block:'center'});ta?.focus();return}
     const bb=e.target.closest('[data-bonus]');
     if(bb){const q=byK(cardOf(bb).dataset.k);q.bonus=bb.dataset.bonus==='1';qDirty();renderQuestions();return}
     const sb=e.target.closest('[data-studio]');
     if(sb){const q=byK(cardOf(sb).dataset.k);q.studio=sb.dataset.studio;sb.parentElement.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b===sb));qDirty();return}
-    const b=e.target.closest('[data-act]');if(!b)return;const q=byK(cardOf(b).dataset.k),same=Q.list.filter(x=>x.stage===q.stage),i=same.indexOf(q);
+    const b=e.target.closest('[data-act]');if(!b)return;const q=byK(cardOf(b).dataset.k),same=Q.list,i=same.indexOf(q);
     if(b.dataset.act==='more'){q.open=!q.open;renderQuestions();return}
     if(b.dataset.act==='del'){if(b.dataset.arm!=='1'){b.dataset.arm='1';b.textContent='Tap to delete';setTimeout(()=>{if(b.isConnected){b.dataset.arm='';b.textContent='Delete'}},4000);return}
       Q.list.splice(Q.list.indexOf(q),1);qDirty();renderQuestions();toast('Question removed (not saved yet)');return}
@@ -1445,7 +1453,8 @@ function renderQuestions(){
     const a=Q.list.indexOf(q),o=Q.list.indexOf(same[j]);[Q.list[a],Q.list[o]]=[Q.list[o],Q.list[a]];qDirty();renderQuestions()};
   $('#qUndo').onclick=()=>{if(!Q.dirty)return;if(confirm('Undo all changes since the last save?'))loadQuestions(Q.who)};
   $('#qSave').onclick=async()=>{
-    if(Q.busy)return;const list=[];Q.stages.forEach(st=>Q.list.filter(q=>q.stage===st&&q.t.trim()).forEach((q,i)=>list.push({id:q.id,stage:st,heading:i?'':(Q.head[st]||''),t:q.t,ask:q.ask,studio:q.studio,label:q.label,bonus:!!q.bonus})));
+    if(Q.busy)return;const headed={};   // in the list's own order; a stage's heading goes on its first question
+    const list=Q.list.filter(q=>q.t.trim()).map(q=>{const h=headed[q.stage]?'':(Q.head[q.stage]||'');headed[q.stage]=1;return {id:q.id,stage:q.stage,heading:h,t:q.t,ask:q.ask,studio:q.studio,label:q.label,bonus:!!q.bonus}});
     if(!list.length){toast('Keep at least one question');return}
     Q.busy=true;const btn=$('#qSave');btn.disabled=true;btn.textContent='Saving…';
     const j=await api('saveQuestions',{v:Q.v,questions:list,...(admin?{teacher:Q.who}:{})});
@@ -1691,10 +1700,10 @@ function renderSheet(){
    <nav class="stagenav" id="stageNav">${stagesFor(t).map((s,i)=>`<a href="#st-${s.id}" data-st="${s.id}"><span class="mono">${i+1}</span>${esc(s.short)}<i class="dot"></i></a>`).join('')}<a href="#st-errors" data-st="errors"><span class="mono">!</span>Errors</a><a href="#st-result" data-st="result"><span class="mono">✓</span>Finish</a></nav>
    <div class="sheet">
      ${skillsFor(t).length?'':'<section class="card"><p class="readout" style="margin:0">No questions yet. Add them in the Questions tab of the Sheet.</p></section>'}
-     ${stagesFor(t).map((s,i)=>`
-     <section class="stage" id="st-${s.id}">
+     ${runsFor(t).map(({s,i,cs,first,k})=>`
+     <section class="stage" id="st-${s.id}${first?'':'-'+k}">
        <div class="stage-h"><span class="mono">${String(i+1).padStart(2,'0')}</span><h2>${esc(s.name)}</h2><span class="count" data-count="${s.id}"></span></div>
-       ${skillsFor(t).filter(c=>c.s===s.id).map(c=>`
+       ${cs.map(c=>`
        <article class="crit" data-crit="${c.id}">
          <div class="crit-top"><div class="t"><h3>${esc(c.t)}</h3>
            <div class="tags">${c.bonus?'<span class="tag bonus">Bonus</span>':''}${c.ask?'<span class="tag">Ask</span>':''}</div></div>
@@ -1800,7 +1809,7 @@ function syncSheet(first){
   stagesFor(t).forEach(s=>{const cs=skillsFor(t).filter(c=>c.s===s.id);if(!cs.length||!app.querySelector(`[data-count="${s.id}"]`))return;
     // a bonus question is not counted: the stage is done without it, and a Failed on it costs nothing
     const vals=needed(cs).map(c=>e.marks?.[c.id]);const done=vals.filter(Boolean).length;
-    app.querySelector(`[data-count="${s.id}"]`).textContent=`${done}/${vals.length}`;
+    app.querySelectorAll(`[data-count="${s.id}"]`).forEach(x=>x.textContent=`${done}/${vals.length}`);
     const flag=needed(cs).some(c=>e.marks?.[c.id]==='n');   // a stage with a Failed mark is flagged
     app.querySelector(`.stagenav [data-st="${s.id}"]`).dataset.s=flag?'flag':done===vals.length?'done':done?'part':''});
   const inc=Object.entries(e.safety||{}).filter(([,v])=>v).sort((a,b)=>a[1].t-b[1].t);
