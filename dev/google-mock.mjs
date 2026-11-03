@@ -57,6 +57,8 @@ export function loadScript(file) {
     }
     appendRow(row) { this.data.splice(this.getLastRow(), 0, row.slice()); }
     deleteRow(r) { this.data.splice(r - 1, 1); }
+    insertRowAfter(r) { this.data.splice(r, 0, []); return this; }
+    insertRowsAfter(r, n) { return this; }
     deleteRows(r, n) { this.data.splice(r - 1, n); }
     insertColumnAfter(c) { this.data.forEach(row => { if (row.length > c) row.splice(c, 0, ''); }); }
     clear() { this.data = []; this.align = {}; return this; }   // like Google: contents and formats go, column widths stay

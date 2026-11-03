@@ -431,7 +431,7 @@ function fillStages_(sh) {
   st.forEach((r, i) => {
     const v = String(r[0] || '').trim();
     if (v) cur = v;
-    else if (cur && String(tx[i][0] || '').trim()) { r[0] = cur; changed = true; }
+    else if (cur && String(tx[i][0] || '').trim()) { r[0] = stageName_(clean_(cur, 40)) || cur; changed = true; }   // the listed name, not stray spaces
   });
   if (changed) sr.setValues(st);
 }
@@ -1015,7 +1015,7 @@ function state_(me) {
   const questions = sets[norm_(me.name)] || sets[''];
   return { ok: true, me: { name: me.name, role: me.role },
     students: students.map(s => ({ id: s.id, day: s.day, time: s.time, end: s.end, name: s.name, cap: s.cap, studio: s.studio, teacher: s.teacher, absent: s.absent })),
-    entries, teachers: teachers_().map(t => t.name), questions, qlive, qsets };
+    entries, teachers: teachers_().map(t => t.name), questions, qlive, qsets, slots: openSlots_(me) };
 }
 
 /* Every write (and every edit in the Sheet) bumps a version number. A teacher's state is kept for up to a minute and
@@ -1108,8 +1108,68 @@ function batch_(me, req) {
   }) };
 }
 
+/* Open slots: rows in Students with a date, a time and a teacher but no name yet (the organiser lays out each day's
+   slots in advance). The page offers them when a teacher adds a student. */
+function openSlots_(me) {
+  const sh = sheet_(SHEETS.STUDENTS), end = studentsEnd_(sh);
+  if (end < 2) return [];
+  const range = sh.getRange(2, 1, end - 1, SHEETS.STUDENTS.header.length), rows = range.getValues(), shown = range.getDisplayValues();
+  const out = [];
+  rows.forEach((r, i) => {
+    const day = day_(r[S_.DAY]), teacher = String(r[S_.TEACHER] || '').trim();
+    if (!day || String(r[S_.NAME] || '').trim() || r[S_.REMOVED] || !teacher || !sees_(me, { teacher })) return;
+    const sl = slot_(r[S_.TIME], shown[i][S_.TIME]);
+    if (sl.time) out.push({ row: i + 2, day, time: sl.time, end: sl.end, studio: String(r[S_.STUDIO] || ''), teacher });
+  });
+  return out;
+}
+/** The last row of Students with anything in its first six columns (the Absent checkboxes and stray IDs run further down). */
+function studentsEnd_(sh) {
+  const n = sh.getLastRow(); if (n < 2) return 1;
+  const v = sh.getRange(2, 1, n - 1, 6).getValues();
+  for (let i = v.length - 1; i >= 0; i--) if (v[i].some(x => x !== '' && x !== null && x !== false)) return i + 2;
+  return 1;
+}
+/* One student from the app: a name, a date, a time (and its end), a CAP. They go into the teacher's open slot at that
+   time if there is one (the row the page offered first), otherwise into a new row straight after that teacher's other
+   rows for the day, so the Sheet keeps its blocks. Only empty cells and a fresh row are ever written. */
+function addOne_(me, req) {
+  const day = checkDay_(req.day); if (!day) return { ok: false, error: 'Pick a test date first.' };
+  const name = clean_(req.name, 80); if (!name) return { ok: false, error: 'Type the student\'s name.' };
+  const start = req.time ? time_(req.time) : '', stop = start && req.end ? time_(req.end) : '';
+  if (req.time && !start) return { ok: false, error: 'That time is not valid.' };
+  const teacher = me.role === 'admin' ? teacherName_(req.teacher) : me.name;
+  const cap = clean_(req.cap, 30), studio = STUDIO_LIST.indexOf(clean_(req.studio, 10)) >= 0 ? clean_(req.studio, 10) : '';
+  const sh = sheet_(SHEETS.STUDENTS), W = SHEETS.STUDENTS.header.length, end = studentsEnd_(sh);
+  const rows = end >= 2 ? sh.getRange(2, 1, end - 1, W).getValues() : [], shown = end >= 2 ? sh.getRange(2, 1, end - 1, W).getDisplayValues() : [];
+  const mineToday = i => day_(rows[i][S_.DAY]) === day && norm_(rows[i][S_.TEACHER]) === norm_(teacher);
+  if (rows.some((r, i) => mineToday(i) && !r[S_.REMOVED] && norm_(r[S_.NAME]) === norm_(name)))
+    return { ok: false, error: name + ' is already on ' + day.split('-').reverse().join('.') + '.' };
+  const id = newId_();
+  // 1. an open slot at that time: the row the page offered, or any of this teacher's that day
+  const open = i => mineToday(i) && !String(rows[i][S_.NAME] || '').trim() && !rows[i][S_.REMOVED] && start && slot_(rows[i][S_.TIME], shown[i][S_.TIME]).time === start;
+  let at = +req.row >= 2 && open(+req.row - 2) ? +req.row - 2 : rows.findIndex((r, i) => open(i));
+  if (at >= 0) {
+    const r = at + 2;
+    sh.getRange(r, S_.NAME + 1, 1, 2).setValues([[name, cap]]);
+    if (!rows[at][S_.STUDIO] && studio) sh.getRange(r, S_.STUDIO + 1).setValue(studio);
+    sh.getRange(r, S_.ID + 1).setValue(id);
+    return { ok: true, ids: [id], filled: true };
+  }
+  // 2. a new row after this teacher's last row that day (or after the last row of the sheet)
+  let after = -1; rows.forEach((r, i) => { if (mineToday(i)) after = i; });
+  const row = [toDate_(day), start && stop ? start + ' - ' + stop : start, name, cap, studio || STUDIO_LIST[0], teacher, '', id];
+  let r;
+  if (after >= 0) { r = after + 3; sh.insertRowAfter(after + 2); }
+  else { r = end + 1; if (sh.getMaxRows() < r) sh.insertRowsAfter(sh.getMaxRows(), r - sh.getMaxRows()); }
+  sh.getRange(r, 1, 1, row.length).setValues([row]);
+  try { sh.getRange(r, S_.ABSENT + 1).setValue(false); } catch (e) {}
+  return { ok: true, ids: [id], filled: false };
+}
+
 function addStudents_(me, req) {
   gradesDirty_();
+  if (req.name !== undefined) return addOne_(me, req);   // the add screen: one student at a time
   const day = checkDay_(req.day); if (!day) return { ok: false, error: 'Pick a test date first.' };
   // a line may start with its test time: "10:30 Kim"
   const lines = (Array.isArray(req.names) ? req.names : []).map(n => clean_(n, 90)).filter(Boolean).slice(0, 60)
@@ -1122,7 +1182,9 @@ function addStudents_(me, req) {
   const studio = STUDIO_LIST.indexOf(clean_(req.studio, 10)) >= 0 ? clean_(req.studio, 10) : STUDIO_LIST[0], sh = sheet_(SHEETS.STUDENTS);
   const t = me.role === 'admin' ? teacherName_(req.teacher) : me.name;   // a teacher adds students to their own list
   const rows = lines.map(l => [toDate_(day), l.time, l.name, '', studio, t, '', newId_()]);
-  sh.getRange(sh.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+  const at = studentsEnd_(sh) + 1;
+  if (sh.getMaxRows() < at + rows.length - 1) sh.insertRowsAfter(sh.getMaxRows(), at + rows.length - 1 - sh.getMaxRows());
+  sh.getRange(at, 1, rows.length, rows[0].length).setValues(rows);
   return { ok: true, ids: rows.map(r => r[S_.ID]) };
 }
 

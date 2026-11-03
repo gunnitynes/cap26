@@ -1035,4 +1035,52 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   ok('Absent: ticked in Students, the page gets it and Grades shows Absent, not counted as remaining');
 }
 
+// 36. The add screen: one student at a time. The organiser's empty slot at that time is filled; otherwise a new row goes
+//     straight after the teacher's own rows for that day, never below the column of Absent checkboxes.
+{
+  const { g, book } = loadScript();
+  g.setup(); g.setTeacher_('Gunni', 'admin'); g.setTeacher_('Isuru', 'teacher'); g.setTeamPassword_('catalyst'); g.setAdminPin_('2468');
+  const it = call(g, { action: 'login', name: 'Isuru', password: 'catalyst' }).token;
+  const sh = g.SpreadsheetApp.getActive().getSheetByName('Students'), d = () => tab(book, 'Students').data;
+  const day = g.toDate_('2026-11-02');
+  // the organiser's layout: Isuru's block with one empty slot, a blank spacer, Gunni's block, then checkboxes far down
+  sh.getRange(2, 1, 5, 9).setValues([
+    [day, '10:00 - 10:15', 'Ana', 'CAP 26A', 'K3', 'Isuru', '', 'a1', false],
+    [day, '10:15 - 10:30', '', '', 'K3', 'Isuru', '', '', false],
+    ['', '', '', '', '', '', '', '', false],
+    [day, '10:00 - 10:15', 'Bo', 'CAP 26A', 'K4', 'Gunni', '', 'b1', false],
+    ['', '', '', '', '', '', '', '', false]]);
+  sh.getRange(40, 9).setValue(false);
+  const st = call(g, { action: 'state', token: it });
+  assert.deepEqual(st.slots.map(x => [x.row, x.time, x.end, x.teacher]), [[3, '10:15', '10:30', 'Isuru']]);
+  ok('the page gets the teacher\'s own open slots (date, time and teacher, no name), and only theirs');
+  const r1 = call(g, { action: 'addStudents', token: it, day: '2026-11-02', time: '10:15', end: '10:30', name: 'Ivan', cap: 'CAP 26A', studio: 'K3', row: 3 });
+  assert.ok(r1.ok && r1.filled);
+  assert.deepEqual(d()[2].slice(0, 7), [day, '10:15 - 10:30', 'Ivan', 'CAP 26A', 'K3', 'Isuru', '']);
+  assert.equal(d()[2][7], r1.ids[0]);
+  ok('a student added at an open slot\'s time goes into that slot\'s row; nothing else in the row changes');
+  const r2 = call(g, { action: 'addStudents', token: it, day: '2026-11-02', time: '10:30', end: '10:45', name: 'Lena', cap: '', studio: 'K3' });
+  assert.ok(r2.ok && !r2.filled);
+  assert.deepEqual(d().slice(1, 6).map(r => r[2]), ['Ana', 'Ivan', 'Lena', '', 'Bo']);
+  assert.equal(d()[3][1], '10:30 - 10:45'); assert.equal(d()[3][5], 'Isuru');
+  ok('with no open slot, a new row goes right under the teacher\'s block for that day, and the blocks stay apart');
+  const r3 = call(g, { action: 'addStudents', token: it, day: '2026-11-05', time: '09:00', name: 'Max', studio: 'K3' });
+  assert.ok(r3.ok); const at = d().findIndex(r => r[2] === 'Max');
+  assert.ok(at > 0 && at < 10, 'a new day goes under the last real row, not below the checkboxes (row ' + (at + 1) + ')');
+  ok('a student on a day with nothing yet goes under the last real row, above the trailing checkboxes');
+  assert.equal(call(g, { action: 'addStudents', token: it, day: '2026-11-02', time: '11:00', name: ' ivan ', studio: 'K3' }).ok, false);
+  assert.equal(call(g, { action: 'addStudents', token: it, day: '2026-11-02', time: '25:00', name: 'Zed', studio: 'K3' }).ok, false);
+  const names = call(g, { action: 'state', token: it }).students.map(x => x.name).sort();
+  assert.deepEqual(names, ['Ana', 'Ivan', 'Lena', 'Max']);
+  ok('the same name twice on one day, or an impossible time, is refused; the teacher sees exactly the students added');
+}
+
+// 37. The page itself parses (a name declared twice stops the whole app before it starts).
+{
+  const vm = await import('node:vm'), fs = await import('node:fs');
+  const html = fs.readFileSync(new URL('../docs/index.html', import.meta.url), 'utf8');
+  [...html.matchAll(/<script(?![^>]*src)[^>]*>([\s\S]*?)<\/script>/g)].forEach(m => new vm.Script(m[1]));
+  ok('every script on the page parses');
+}
+
 console.log(`\n${n} checks passed`);
