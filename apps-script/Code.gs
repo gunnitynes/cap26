@@ -95,6 +95,10 @@ function colourStudentNames_(list) {
   if (n < 1) return;
   const by = {}; list.forEach(({ s, g }) => { if (g.complete && g.final !== null) by[s.row] = heat_(g.final); });
   sh.getRange(2, S_.NAME + 1, n, 1).setBackgrounds(Array.from({ length: n }, (_, i) => [by[i + 2] || null]));
+  if (S_.SCORE < 0) return;
+  // the Score % column: the same number as in Grades, as soon as there is one (the script writes this column, nothing reads it)
+  const score = {}; list.forEach(({ s, g }) => { if (g.score !== null) score[s.row] = Math.round(g.score); });
+  sh.getRange(2, S_.SCORE + 1, n, 1).setValues(Array.from({ length: n }, (_, i) => [i + 2 in score ? score[i + 2] : '']));
 }
 
 const STUDIO_LIST = ['K3', 'K4'];   // the studios a test can be in
@@ -104,8 +108,8 @@ const BLUE = '#0b43e0', INK = '#10131c', PAPER = '#f4f6fa', MUTE = '#5a6276';
 const SHEETS = {
   START:    { name: 'Start here', header: [] },
   TEACHERS: { name: 'Teachers', header: ['Name', 'Role', 'Last sign-in'], widths: [220, 120, 170] },
-  STUDENTS: { name: 'Students', header: ['Test date', 'Test time', 'Student', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID', 'Absent'],
-              widths: [110, 110, 220, 110, 90, 140, 220, 110, 80] },   // Absent last: added after the hidden ID, so no column moved
+  STUDENTS: { name: 'Students', header: ['Test date', 'Test time', 'Student', 'Score %', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID', 'Absent'],
+              widths: [110, 110, 220, 64, 110, 90, 140, 220, 110, 80] },
   QUESTIONS:{ name: 'Questions', header: ['Stage', 'Stage heading', 'Question', 'Ask out loud (optional)', 'Studio', 'Column name', 'ID', 'Bonus'],
               widths: [110, 220, 380, 320, 80, 220, 90, 70] },
   MARKS:    { name: 'Marks', header: [] },   // its skill columns follow the questions: see syncMarks_
@@ -581,7 +585,7 @@ function onEdit(e) {
   try {
     const sh = e && e.range && e.range.getSheet(), name = sh && sh.getName(), r = e.range.getRow();
     if (name === SHEETS.MARKS.name || name === SHEETS.GRADES.name) { typedInOutput_(name); return; }
-    if (name === SHEETS.STUDENTS.name && r >= 2) { studentsTyped_(sh, r, e.range.getNumRows()); gradesDirty_(); return; }
+    if (name === SHEETS.STUDENTS.name && r >= 2) { studentLayout_(sh); studentsTyped_(sh, r, e.range.getNumRows()); gradesDirty_(); return; }
     if (name === SHEETS.START.name) { storeTeamPassword_(); storeAdminPin_(); resetCells_(e.range); stagesTyped_(e); criticalTyped_(e); return; }
     if (isQuestionSheet_(name) && r >= 2) { questionsEdited_(sh, e); gradesDirty_(); return; }
     if (name === SHEETS.TEACHERS.name && r >= 2) {
@@ -1014,7 +1018,46 @@ function teachers_() {
 
 // ─────────────────────────────────────────────────────────────── data
 
-const S_ = { DAY: 0, TIME: 1, NAME: 2, CAP: 3, STUDIO: 4, TEACHER: 5, REMOVED: 6, ID: 7, ABSENT: 8 };
+const S_ = { DAY: 0, TIME: 1, NAME: 2, SCORE: 3, CAP: 4, STUDIO: 5, TEACHER: 6, REMOVED: 7, ID: 8, ABSENT: 9 };
+/* Students may not have its Score % column yet (it was added while tests were running): S_ and the header follow what the
+   tab really has, read each time the tab is opened by the script, so both layouts always work. */
+const STUDENT_COLS = SHEETS.STUDENTS.header.slice(), STUDENT_KEYS = ['DAY', 'TIME', 'NAME', 'SCORE', 'CAP', 'STUDIO', 'TEACHER', 'REMOVED', 'ID', 'ABSENT'];
+function studentLayout_(sh) {
+  const has = !sh || sh.getLastRow() < 1 || String(sh.getRange(1, 4).getValue()) === 'Score %';
+  SHEETS.STUDENTS.header = has ? STUDENT_COLS : STUDENT_COLS.filter(h => h !== 'Score %');
+  let k = 0; STUDENT_KEYS.forEach(key => { S_[key] = key === 'SCORE' && !has ? -1 : k++; });
+}
+/** One new row, without the Absent cell (its checkbox stays as it is), in whichever layout the tab has. */
+function studentRow_(o) {
+  const r = Array(S_.ID + 1).fill('');
+  r[S_.DAY] = o.day; r[S_.TIME] = o.time; r[S_.NAME] = o.name; r[S_.CAP] = o.cap || ''; r[S_.STUDIO] = o.studio; r[S_.TEACHER] = o.teacher; r[S_.ID] = o.id;
+  return r;
+}
+/** Run once from the editor, after the script that reads both layouts is deployed: adds the column and fills it. */
+function addScoreColumn() { ensureScoreColumn_(); withLock_(() => { buildGrades_(); return { ok: true }; }); }
+/** Adds the Score % column right after Student. Under the lock, so no save is half way through writing by column number. */
+function ensureScoreColumn_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEETS.STUDENTS.name);
+  if (!sh || sh.getLastRow() < 1 || String(sh.getRange(1, 4).getValue()) === 'Score %' || String(sh.getRange(1, 3).getValue()) !== 'Student') return;
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return;
+  try {
+    if (String(sh.getRange(1, 4).getValue()) === 'Score %') return;
+    sh.insertColumnAfter(3);
+    sh.getRange(1, 4).setValue('Score %').setHorizontalAlignment('center').setNote('Filled in by the script: the same score as in Grades. Anything typed here is replaced.');
+    const rows = sh.getMaxRows() - 1, col = sh.getRange(2, 4, rows, 1);
+    col.clearDataValidations();
+    col.setBackground(null).setHorizontalAlignment('center').setNumberFormat('0').setFontWeight('bold');
+    sh.setColumnWidth(4, 64);
+    const rules = sh.getConditionalFormatRules();
+    rules.push(SpreadsheetApp.newConditionalFormatRule()
+      .setGradientMinpointWithValue(HEAT[0][1], SpreadsheetApp.InterpolationType.NUMBER, '0')
+      .setGradientMidpointWithValue(HEAT[1][1], SpreadsheetApp.InterpolationType.NUMBER, '60')
+      .setGradientMaxpointWithValue(HEAT[2][1], SpreadsheetApp.InterpolationType.NUMBER, '100').setRanges([col]).build());
+    sh.setConditionalFormatRules(rules);
+    gradesDirty_(); bump_();
+  } finally { lock.releaseLock(); }
+}
 
 function students_() {
   const sh = sheet_(SHEETS.STUDENTS), n = sh.getLastRow() - 1;
@@ -1164,10 +1207,10 @@ function openSlots_(me) {
   });
   return out;
 }
-/** The last row of Students with anything in its first six columns (the Absent checkboxes and stray IDs run further down). */
+/** The last row of Students with anything from the date to the teacher (the Absent checkboxes and stray IDs run further down). */
 function studentsEnd_(sh) {
   const n = sh.getLastRow(); if (n < 2) return 1;
-  const v = sh.getRange(2, 1, n - 1, 6).getValues();
+  const v = sh.getRange(2, 1, n - 1, S_.TEACHER + 1).getValues();
   for (let i = v.length - 1; i >= 0; i--) if (v[i].some(x => x !== '' && x !== null && x !== false)) return i + 2;
   return 1;
 }
@@ -1192,14 +1235,14 @@ function addOne_(me, req) {
   let at = +req.row >= 2 && open(+req.row - 2) ? +req.row - 2 : rows.findIndex((r, i) => open(i));
   if (at >= 0) {
     const r = at + 2;
-    sh.getRange(r, S_.NAME + 1, 1, 2).setValues([[name, cap]]);
+    sh.getRange(r, S_.NAME + 1).setValue(name); sh.getRange(r, S_.CAP + 1).setValue(cap);
     if (!rows[at][S_.STUDIO] && studio) sh.getRange(r, S_.STUDIO + 1).setValue(studio);
     sh.getRange(r, S_.ID + 1).setValue(id);
     return { ok: true, ids: [id], filled: true };
   }
   // 2. a new row after this teacher's last row that day (or after the last row of the sheet)
   let after = -1; rows.forEach((r, i) => { if (mineToday(i)) after = i; });
-  const row = [toDate_(day), start && stop ? start + ' - ' + stop : start, name, cap, studio || STUDIO_LIST[0], teacher, '', id];
+  const row = studentRow_({ day: toDate_(day), time: start && stop ? start + ' - ' + stop : start, name, cap, studio: studio || STUDIO_LIST[0], teacher, id });
   let r;
   if (after >= 0) { r = after + 3; sh.insertRowAfter(after + 2); }
   else { r = end + 1; if (sh.getMaxRows() < r) sh.insertRowsAfter(sh.getMaxRows(), r - sh.getMaxRows()); }
@@ -1222,7 +1265,7 @@ function addStudents_(me, req) {
   if (!lines.length) return { ok: false, error: 'Type at least one name.' };
   const studio = STUDIO_LIST.indexOf(clean_(req.studio, 10)) >= 0 ? clean_(req.studio, 10) : STUDIO_LIST[0], sh = sheet_(SHEETS.STUDENTS);
   const t = me.role === 'admin' ? teacherName_(req.teacher) : me.name;   // a teacher adds students to their own list
-  const rows = lines.map(l => [toDate_(day), l.time, l.name, '', studio, t, '', newId_()]);
+  const rows = lines.map(l => studentRow_({ day: toDate_(day), time: l.time, name: l.name, studio, teacher: t, id: newId_() }));
   const at = studentsEnd_(sh) + 1;
   if (sh.getMaxRows() < at + rows.length - 1) sh.insertRowsAfter(sh.getMaxRows(), at + rows.length - 1 - sh.getMaxRows());
   sh.getRange(at, 1, rows.length, rows[0].length).setValues(rows);
@@ -1845,7 +1888,12 @@ function buildGrades_() {
       .setGradientMaxpointWithValue(HEAT[2][1], SpreadsheetApp.InterpolationType.NUMBER, '100').setRanges([range]).build();
     const gradeCol = sh.getRange(top, C.GRADE, values.length, 1);
     const text = (t, bg, fg) => SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo(t).setBackground(bg).setFontColor(fg).setBold(true).setRanges([gradeCol]).build();
-    sh.setConditionalFormatRules((nS ? [heat(sh.getRange(top, C.STAGE, values.length, nS))] : []).concat([
+    // an absent student's whole row greys out with the name struck through, like in Students. It follows the Grade cell,
+    // so it goes by itself when Absent is unticked or the student is marked.
+    const absentRow = SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=$' + String.fromCharCode(64 + C.GRADE) + top + '="Absent"')
+      .setBackground('#e3e5ea').setFontColor('#7a8190').setStrikethrough(true)
+      .setRanges([sh.getRange(top, 1, values.length, C.GRADE - 1), sh.getRange(top, C.GRADE + 1, values.length, W - C.GRADE)]).build();
+    sh.setConditionalFormatRules([absentRow].concat(nS ? [heat(sh.getRange(top, C.STAGE, values.length, nS))] : []).concat([
       heat(sh.getRange(top, C.SCORE, values.length, 1)),
       text('Grade A', BANDS[0][3], BANDS[0][2]), text(BANDS[1][0], BANDS[1][3], INK), text('Resit', BANDS[2][3], BANDS[2][2]),
       text('Remaining', PAPER, MUTE), text('Not started', '#ffffff', '#9aa3b5'), text('Absent', '#d9dce3', '#6b7280'),
@@ -1899,8 +1947,10 @@ function migrateTeachers_() {
 }
 
 function migrateStudents_() {
+  sheet_(SHEETS.STUDENTS);
   const o = headerOf_(SHEETS.STUDENTS.name);
-  if (!o || o.head.join('|') === SHEETS.STUDENTS.header.join('|')) return;
+  if (!o) return;
+  if (o.head.join('|') === SHEETS.STUDENTS.header.join('|')) { ensureScoreColumn_(); studentLayout_(o.sh); return; }
   if (o.head[1] === 'Test time') {
     // layouts with a time: columns added later go in where they belong, nothing else moves
     const add = (name, after) => {
@@ -1913,19 +1963,21 @@ function migrateStudents_() {
     add('Teacher', 'Studio');
     add('CAP', 'Student');
     add('Absent', 'ID');
+    ensureScoreColumn_();
+    studentLayout_(o.sh);
     return;
   }
   let rows;
   if (o.head[0] === 'Test date') {
     // v2 layout: Test date | Student | Studio | Added by | Added at | Removed | ID
-    rows = o.rows.filter(r => r[1] || r[6]).map(r => [r[0], '', r[1], '', r[2], '', r[5] || '', r[6], false]);
+    rows = o.rows.filter(r => r[1] || r[6]).map(r => [r[0], '', r[1], '', '', r[2], '', r[5] || '', r[6], false]);
   } else {
     // v1 layout: ID | Test date | Student | Studio | Added by | Added at | Deleted
-    rows = o.rows.filter(r => r[0]).map(r => [toDate_(day_(r[1])), '', r[2], '', r[3], '', r[6] || '', r[0], false]);
+    rows = o.rows.filter(r => r[0]).map(r => [toDate_(day_(r[1])), '', r[2], '', '', r[3], '', r[6] || '', r[0], false]);
   }
   try { o.sh.showColumns(1, o.sh.getMaxColumns()); o.sh.getRange(1, 1, o.sh.getMaxRows(), o.sh.getMaxColumns()).clearDataValidations(); } catch (e) {}
-  o.sh.clear(); const W = SHEETS.STUDENTS.header.length;
-  o.sh.getRange(1, 1, 1, W).setValues([SHEETS.STUDENTS.header]);
+  o.sh.clear(); SHEETS.STUDENTS.header = STUDENT_COLS; studentLayout_(null); const W = STUDENT_COLS.length;
+  o.sh.getRange(1, 1, 1, W).setValues([STUDENT_COLS]);
   if (rows.length) o.sh.getRange(2, 1, rows.length, W).setValues(rows);
 }
 /** Dates stored as text by the first version ('2026-11-04') become real dates, so the date picker and sorting work. */
@@ -1959,6 +2011,7 @@ function migrateMarks_() {
 function sheet_(def) {
   const ss = SpreadsheetApp.getActive();
   let sh = ss.getSheetByName(def.name);
+  if (def === SHEETS.STUDENTS) studentLayout_(sh);
   if (!sh) {
     sh = ss.insertSheet(def.name);
     if (def.header.length) {

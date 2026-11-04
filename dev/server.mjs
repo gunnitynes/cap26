@@ -36,10 +36,10 @@ if (process.env.OPS_SEED) {
   save(at, 'Ida', { marks: { p1: 'y', p2: 'y', p3: 'h', m1: 'y' } });
   // CAPs, typed in the sheet as the organiser does
   const stu = g.SpreadsheetApp.getActive().getSheetByName('Students'), rows = book.sheets.find(x => x.name === 'Students').data;
-  rows.forEach((r, i) => { if (i && r[2]) stu.getRange(i + 1, 4).setValue(['CAP 26A', 'CAP 26B', 'TRANSFER', 'CAP 26C'][i % 4]); });
+  rows.forEach((r, i) => { if (i && r[2]) stu.getRange(i + 1, 5).setValue(['CAP 26A', 'CAP 26B', 'TRANSFER', 'CAP 26C'][i % 4]); });
   // the organiser's empty slots after Gunnar's two students: the add screen offers them
   const free = rows.filter(r => r[2] || r[0]).length + 1;
-  stu.getRange(free + 1, 1, 2, 6).setValues([[g.toDate_(ymd(3)), '10:30 - 10:45', '', '', 'K3', 'Gunnar'], [g.toDate_(ymd(3)), '10:45 - 11:00', '', '', 'K3', 'Gunnar']]);
+  stu.getRange(free + 1, 1, 2, 7).setValues([[g.toDate_(ymd(3)), '10:30 - 10:45', '', '', '', 'K3', 'Gunnar'], [g.toDate_(ymd(3)), '10:45 - 11:00', '', '', '', 'K3', 'Gunnar']]);
   // every teacher's own questions tab; Anna adds one question of her own
   g.ensureTeacherQuestionTabs_();
   const aq = g.SpreadsheetApp.getActive().getSheetByName('Questions · Anna'), al = aq.getLastRow() + 1;

@@ -97,21 +97,21 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const { g, book } = loadScript();
   g.setup();
   const ss = g.SpreadsheetApp.getActive(), te = ss.getSheetByName('Teachers'), st = ss.getSheetByName('Students');
-  assert.deepEqual(tab(book, 'Students').data[0], ['Test date', 'Test time', 'Student', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID', 'Absent']);
+  assert.deepEqual(tab(book, 'Students').data[0], ['Test date', 'Test time', 'Student', 'Score %', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID', 'Absent']);
   te.getRange(2, 1, 1, 2).setValues([['Gunni', 'admin']]); g.setTeamPassword_('test-pass-1');
   const tok = call(g, { action: 'login', name: 'gunni', password: 'test-pass-1' }).token;
   // dates must come from inside the sandbox, like the ones Google hands the script
   const pick = d => { const x = g.toDate_(d); x.setHours(0); return x; };   // what the date picker stores: midnight
   // 9.30 typed in Sheets arrives as the number 9.3
-  st.getRange(2, 1, 1, 5).setValues([[pick('2026-11-04'), 9.3, 'Polina', 'CAP 1', 'K3']]);
-  g.onEdit({ range: st.getRange(2, 1, 1, 5) });
+  st.getRange(2, 1, 1, 6).setValues([[pick('2026-11-04'), 9.3, 'Polina', '', 'CAP 1', 'K3']]);
+  g.onEdit({ range: st.getRange(2, 1, 1, 6) });
   st.getRange(3, 2, 3, 2).setValues([['10:30', 'Paul'], [1100, 'Faddei'], ['', '  Yutaro ']]);
   g.onEdit({ range: st.getRange(3, 2, 3, 2) });
-  st.getRange(6, 1, 1, 5).setValues([['5.11.2026', '8:05', 'Tales', 'CAP 2', 'K4']]);
-  g.onEdit({ range: st.getRange(6, 1, 1, 5) });
+  st.getRange(6, 1, 1, 6).setValues([['5.11.2026', '8:05', 'Tales', '', 'CAP 2', 'K4']]);
+  g.onEdit({ range: st.getRange(6, 1, 1, 6) });
   const rows = tab(book, 'Students').data.slice(1);
-  assert.ok(rows.every(r => r[7]), 'every named row gets an ID');
-  assert.deepEqual(rows.map(r => r[4]), ['K3', 'K3', 'K3', 'K3', 'K4']);
+  assert.ok(rows.every(r => r[8]), 'every named row gets an ID');
+  assert.deepEqual(rows.map(r => r[5]), ['K3', 'K3', 'K3', 'K3', 'K4']);
   ok('a pasted list takes the date and studio from the row above and gets IDs');
   assert.deepEqual(rows.map(r => r[1]), ['09:30', '10:30', '11:00', '', '8:05']);
   ok('test times typed as 9.30 or 1100 (numbers) are stored as a time; text stays as typed');
@@ -120,11 +120,11 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   ok('the page sees them on the right dates and times, including a date typed as text');
   assert.deepEqual(s1.map(x => x.cap), ['CAP 1', '', '', '', 'CAP 2']);
   ok('each student\'s CAP from the sheet reaches the page');
-  st.getRange(7, 1, 1, 5).setValues([[pick('2026-11-05'), '', 'Ida', '', 'K4']]);
+  st.getRange(7, 1, 1, 6).setValues([[pick('2026-11-05'), '', 'Ida', '', '', 'K4']]);
   call(g, { action: 'tidy', token: tok });
   assert.ok(call(g, { action: 'state', token: tok }).students.some(x => x.name === 'Ida'));
   ok('rows added without the edit trigger get an ID on the next refresh');
-  st.getRange(3, 7).setValue('absent');
+  st.getRange(3, 8).setValue('absent');
   assert.ok(!call(g, { action: 'state', token: tok }).students.some(x => x.name === 'Paul'));
   ok('typing in Removed takes a student off the page');
   call(g, { action: 'addStudents', token: tok, names: ['10:45 Mira', 'Noor'], studio: 'K3', day: '2026-11-04' });
@@ -137,8 +137,8 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(call(g, { action: 'state', token: tok }).students.find(x => x.name === 'Mira').time, '13:15');
   ok('a test time changed on the page is saved in the sheet');
   // slots typed as text, as the organiser does: 11:15 - 11:30 (hyphen or dash)
-  st.getRange(20, 1, 2, 5).setValues([[pick('2026-11-06'), '11:15 - 11:30', 'Andreas', '', 'K3'], [pick('2026-11-06'), '11:30 – 11:45', 'Connor', '', 'K3']]);
-  g.onEdit({ range: st.getRange(20, 1, 2, 5) });
+  st.getRange(20, 1, 2, 6).setValues([[pick('2026-11-06'), '11:15 - 11:30', 'Andreas', '', '', 'K3'], [pick('2026-11-06'), '11:30 – 11:45', 'Connor', '', '', 'K3']]);
+  g.onEdit({ range: st.getRange(20, 1, 2, 6) });
   assert.equal(tab(book, 'Students').data[19][1], '11:15 - 11:30');
   let sl = call(g, { action: 'state', token: tok }).students;
   const andreas = sl.find(x => x.name === 'Andreas'), connor = sl.find(x => x.name === 'Connor');
@@ -157,7 +157,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(ss2.find(x => x.name === 'Lior').teacher, 'Isuru'); assert.equal(ss2.find(x => x.name === 'Sam').teacher, '');
   call(g, { action: 'updateStudent', token: tok, id: ss2.find(x => x.name === 'Sam').id, teacher: 'Gunni' });
   assert.equal(call(g, { action: 'state', token: tok }).students.find(x => x.name === 'Sam').teacher, 'Gunni');
-  assert.equal(tab(book, 'Students').data.find(r => r[2] === 'Sam')[5], 'Gunni');
+  assert.equal(tab(book, 'Students').data.find(r => r[2] === 'Sam')[6], 'Gunni');
   ok('each student can be given a teacher from the Teachers tab, on the page or in the sheet; other names are refused');
 }
 // 6b. The older Students layout (with Added by / Added at) moves over without losing anyone.
@@ -168,8 +168,8 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   sh.getRange(2, 1, 2, 7).setValues([[g.toDate_('2026-11-02'), 'Faddei', 'K3', 'Gunni', new Date(), '', 'abc-1'], [g.toDate_('2026-11-02'), 'Paul', 'K4', 'Sheet', new Date(), 'absent', 'abc-2']]);
   g.setup();
   const d = tab(book, 'Students').data;
-  assert.deepEqual(d[0], ['Test date', 'Test time', 'Student', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID', 'Absent']);
-  assert.deepEqual(d.slice(1).map(r => r.slice(1)), [['', 'Faddei', '', 'K3', '', '', 'abc-1', false], ['', 'Paul', '', 'K4', '', 'absent', 'abc-2', false]]);
+  assert.deepEqual(d[0], ['Test date', 'Test time', 'Student', 'Score %', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID', 'Absent']);
+  assert.deepEqual(d.slice(1).map(r => r.slice(1)), [['', 'Faddei', '', '', 'K3', '', '', 'abc-1', false], ['', 'Paul', '', '', 'K4', '', 'absent', 'abc-2', false]]);
   assert.equal(g.day_(d[1][0]), '2026-11-02');
   ok('the oldest Students layout becomes date | time | name | CAP | studio | teacher | removed | id, keeping IDs');
 }
@@ -181,8 +181,8 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   sh.getRange(2, 1, 1, 6).setValues([[g.toDate_('2026-11-02'), '09:30', 'Faddei', 'K3', '', 'abc-1']]);
   g.setup();
   const d = tab(book, 'Students').data;
-  assert.deepEqual(d[0], ['Test date', 'Test time', 'Student', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID', 'Absent']);
-  assert.deepEqual(d[1].slice(1), ['09:30', 'Faddei', '', 'K3', '', '', 'abc-1']);
+  assert.deepEqual(d[0], ['Test date', 'Test time', 'Student', 'Score %', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID', 'Absent']);
+  assert.deepEqual(d[1].slice(1), ['09:30', 'Faddei', '', '', 'K3', '', '', 'abc-1']);
   ok('the layout without Teacher and CAP gets both where they belong, nothing else moves');
 }
 // 6d. Today's layout (with Teacher, without CAP) gets a CAP column after Student, keeping every value.
@@ -193,8 +193,8 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   sh.getRange(2, 1, 1, 7).setValues([[g.toDate_('2026-11-02'), '10:00 - 10:15', 'Alice', 'K4', 'Gunni', '', 'abc-1']]);
   g.setup();
   const d = tab(book, 'Students').data;
-  assert.deepEqual(d[0], ['Test date', 'Test time', 'Student', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID', 'Absent']);
-  assert.deepEqual(d[1].slice(1), ['10:00 - 10:15', 'Alice', '', 'K4', 'Gunni', '', 'abc-1']);
+  assert.deepEqual(d[0], ['Test date', 'Test time', 'Student', 'Score %', 'CAP', 'Studio', 'Teacher', 'Removed', 'ID', 'Absent']);
+  assert.deepEqual(d[1].slice(1), ['10:00 - 10:15', 'Alice', '', '', 'K4', 'Gunni', '', 'abc-1']);
   ok('the current layout gets a CAP column after Student; times, studios and teachers stay put');
 }
 // 7. The Grades tab: same sum as the page, a row per student, a summary per grade.
@@ -628,7 +628,7 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   g.setTeamPassword_('team-pass-1');
   const gt = call(g, { action: 'login', name: 'Gunni', password: 'team-pass-1', pin: '' }).token;
   call(g, { action: 'addStudents', token: gt, names: ['Kim'], studio: 'K3', day: '2026-11-04' });
-  ss.getSheetByName('Students').getRange(2, 6).setValue('Isuru');   // every student has a teacher: the shared tab is not asked
+  ss.getSheetByName('Students').getRange(2, 7).setValue('Isuru');   // every student has a teacher: the shared tab is not asked
   const gq = ss.getSheetByName('Questions · Gunni'), iq = ss.getSheetByName('Questions · Isuru');
   const lastG = gq.getLastRow(), lastI = iq.getLastRow();
   gq.getRange(lastG, 3).setValue('Leaves the studio as it was found'); gq.getRange(lastG, 6).setValue('Leaves the studio');
@@ -1024,14 +1024,22 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const gt = call(g, { action: 'login', name: 'Gunni', password: 'catalyst', pin: '2468' }).token;
   call(g, { action: 'addStudents', token: gt, studio: 'K3', day: '2026-11-03', teacher: 'Gunni', names: ['Here', 'Away'] });
   const sh = g.SpreadsheetApp.getActive().getSheetByName('Students'), d = tab(book, 'Students').data;
-  assert.equal(d[0][8], 'Absent');
-  sh.getRange(d.findIndex(r => r[2] === 'Away') + 1, 9).setValue(true);
+  assert.equal(d[0][9], 'Absent');
+  sh.getRange(d.findIndex(r => r[2] === 'Away') + 1, 10).setValue(true);
   const st = call(g, { action: 'state', token: gt });
   assert.equal(st.students.find(s => s.name === 'Away').absent, true); assert.equal(st.students.find(s => s.name === 'Here').absent, false);
   g.buildGrades_();
   const gd = tab(book, 'Grades').data, h = gd.find(r => r[0] === 'Test date'), grade = n => gd.find(r => r[1] === n)[h.indexOf('Grade')];
   assert.equal(grade('Away'), 'Absent'); assert.equal(grade('Here'), 'Not started');
   assert.equal(gd[0][8], '1  Remaining');   // only Here is waiting for a test
+  const col = h.indexOf('Grade') + 1, rule = book.sheets.find(s => s.name === 'Grades').cf.find(r => r.setStrikethrough);
+  assert.equal(rule.whenFormulaSatisfied, '=$' + String.fromCharCode(64 + col) + (gd.indexOf(h) + 2) + '="Absent"');
+  // marked after all (or unticked): the Grade cell is no longer Absent, so the row mark goes by itself
+  const away = st.students.find(s => s.name === 'Away').id, q = st.qlive.gunni[0].id;
+  call(g, { action: 'saveEntry', token: gt, sid: away, patch: { marks: { [q]: 'y' } } });
+  g.buildGrades_();
+  const gd2 = tab(book, 'Grades').data, h2 = gd2.find(r => r[0] === 'Test date');
+  assert.equal(gd2.find(r => r[1] === 'Away')[h2.indexOf('Grade')], 'Remaining');
   ok('Absent: ticked in Students, the page gets it and Grades shows Absent, not counted as remaining');
 }
 
@@ -1044,25 +1052,25 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   const sh = g.SpreadsheetApp.getActive().getSheetByName('Students'), d = () => tab(book, 'Students').data;
   const day = g.toDate_('2026-11-02');
   // the organiser's layout: Isuru's block with one empty slot, a blank spacer, Gunni's block, then checkboxes far down
-  sh.getRange(2, 1, 5, 9).setValues([
-    [day, '10:00 - 10:15', 'Ana', 'CAP 26A', 'K3', 'Isuru', '', 'a1', false],
-    [day, '10:15 - 10:30', '', '', 'K3', 'Isuru', '', '', false],
-    ['', '', '', '', '', '', '', '', false],
-    [day, '10:00 - 10:15', 'Bo', 'CAP 26A', 'K4', 'Gunni', '', 'b1', false],
-    ['', '', '', '', '', '', '', '', false]]);
-  sh.getRange(40, 9).setValue(false);
+  sh.getRange(2, 1, 5, 10).setValues([
+    [day, '10:00 - 10:15', 'Ana', '', 'CAP 26A', 'K3', 'Isuru', '', 'a1', false],
+    [day, '10:15 - 10:30', '', '', '', 'K3', 'Isuru', '', '', false],
+    ['', '', '', '', '', '', '', '', '', false],
+    [day, '10:00 - 10:15', 'Bo', '', 'CAP 26A', 'K4', 'Gunni', '', 'b1', false],
+    ['', '', '', '', '', '', '', '', '', false]]);
+  sh.getRange(40, 10).setValue(false);
   const st = call(g, { action: 'state', token: it });
   assert.deepEqual(st.slots.map(x => [x.row, x.time, x.end, x.teacher]), [[3, '10:15', '10:30', 'Isuru']]);
   ok('the page gets the teacher\'s own open slots (date, time and teacher, no name), and only theirs');
   const r1 = call(g, { action: 'addStudents', token: it, day: '2026-11-02', time: '10:15', end: '10:30', name: 'Ivan', cap: 'CAP 26A', studio: 'K3', row: 3 });
   assert.ok(r1.ok && r1.filled);
-  assert.deepEqual(d()[2].slice(0, 7), [day, '10:15 - 10:30', 'Ivan', 'CAP 26A', 'K3', 'Isuru', '']);
-  assert.equal(d()[2][7], r1.ids[0]);
+  assert.deepEqual(d()[2].slice(0, 8), [day, '10:15 - 10:30', 'Ivan', '', 'CAP 26A', 'K3', 'Isuru', '']);
+  assert.equal(d()[2][8], r1.ids[0]);
   ok('a student added at an open slot\'s time goes into that slot\'s row; nothing else in the row changes');
   const r2 = call(g, { action: 'addStudents', token: it, day: '2026-11-02', time: '10:30', end: '10:45', name: 'Lena', cap: '', studio: 'K3' });
   assert.ok(r2.ok && !r2.filled);
   assert.deepEqual(d().slice(1, 6).map(r => r[2]), ['Ana', 'Ivan', 'Lena', '', 'Bo']);
-  assert.equal(d()[3][1], '10:30 - 10:45'); assert.equal(d()[3][5], 'Isuru');
+  assert.equal(d()[3][1], '10:30 - 10:45'); assert.equal(d()[3][6], 'Isuru');
   ok('with no open slot, a new row goes right under the teacher\'s block for that day, and the blocks stay apart');
   const r3 = call(g, { action: 'addStudents', token: it, day: '2026-11-05', time: '09:00', name: 'Max', studio: 'K3' });
   assert.ok(r3.ok); const at = d().findIndex(r => r[2] === 'Max');
@@ -1142,6 +1150,45 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.notEqual(tint(stages[3]), tint(stages[4]));
   assert.ok(rules.filter(r => r.setFontColor).length === stages.length && rules.findIndex(r => r.setFontColor) === 0);
   ok('stage colours: one per stage by the Start here order, read from the row\'s Stage cell; no cell value changes');
+}
+// 41. Score % in Students, and the tab as it is live now (no such column): every action works in that old layout, then
+//     the column goes in right after Student with nothing lost, and the score follows Grades.
+{
+  const { g, book } = loadScript();
+  g.setup(); g.setTeacher_('Gunni', 'admin'); g.setTeamPassword_('catalyst'); g.setAdminPin_('2468');
+  const raw = book.sheets.find(s => s.name === 'Students');
+  raw.data = raw.data.map(r => { const c = r.slice(); c.splice(3, 1); return c; });   // back to the old layout
+  const sh = g.SpreadsheetApp.getActive().getSheetByName('Students'), day = g.toDate_('2026-11-03');
+  assert.equal(raw.data[0][3], 'CAP');
+  const gt = call(g, { action: 'login', name: 'Gunni', password: 'catalyst', pin: '2468' }).token;
+  sh.getRange(2, 1, 2, 9).setValues([[day, '10:00 - 10:15', 'Ana', 'CAP 26A', 'K3', 'Gunni', '', 'a1', false], [day, '10:15 - 10:30', '', '', 'K3', 'Gunni', '', '', false]]);
+  let st = call(g, { action: 'state', token: gt });
+  assert.deepEqual([st.students[0].cap, st.students[0].studio, st.students[0].teacher, st.students[0].id], ['CAP 26A', 'K3', 'Gunni', 'a1']);
+  assert.deepEqual(st.slots.map(x => x.row), [3]);
+  assert.ok(call(g, { action: 'addStudents', token: gt, day: '2026-11-03', time: '10:15', end: '10:30', name: 'Bo', cap: 'CAP 26B', studio: 'K3', teacher: 'Gunni', row: 3 }).filled);
+  assert.ok(call(g, { action: 'addStudents', token: gt, day: '2026-11-03', time: '10:30', name: 'Cy', cap: 'CAP 26B', studio: 'K3', teacher: 'Gunni' }).ok);
+  assert.ok(call(g, { action: 'addStudents', token: gt, names: ['Di'], studio: 'K3', day: '2026-11-03', teacher: 'Gunni' }).ok);
+  const row = n => raw.data.find(r => r[2] === n);
+  assert.deepEqual(row('Bo').slice(3, 6), ['CAP 26B', 'K3', 'Gunni']); assert.deepEqual(row('Cy').slice(3, 6), ['CAP 26B', 'K3', 'Gunni']); assert.equal(row('Di')[5], 'Gunni');
+  st = call(g, { action: 'state', token: gt });
+  const qs = st.qlive.gunni.filter(q => !q.studios || q.studios.includes('K3')), id = n => st.students.find(s => s.name === n).id;
+  call(g, { action: 'saveEntry', token: gt, sid: id('Ana'), patch: { marks: Object.fromEntries(qs.map(q => [q.id, 'y'])), ended: 1 } });
+  g.buildGrades_();
+  ok('in the layout without Score %, students, slots and adding all use the right columns');
+  const before = raw.data.map(r => r.slice());
+  g.addScoreColumn(); g.addScoreColumn();
+  assert.deepEqual(raw.data[0].slice(0, 6), ['Test date', 'Test time', 'Student', 'Score %', 'CAP', 'Studio']);
+  before.slice(1).forEach((r, i) => { const n = raw.data[i + 1]; assert.deepEqual(n.slice(0, 3).concat(n.slice(4)), r); });
+  st = call(g, { action: 'state', token: gt });
+  assert.deepEqual([st.students.find(s => s.name === 'Ana').cap, st.students.find(s => s.name === 'Ana').teacher, st.students.find(s => s.name === 'Ana').id], ['CAP 26A', 'Gunni', 'a1']);
+  g.buildGrades_();
+  const gd = tab(book, 'Grades').data, h = gd.find(r => r[0] === 'Test date');
+  assert.equal(row('Ana')[3], gd.find(r => r[1] === 'Ana')[h.indexOf('Score %')]);
+  assert.equal(row('Bo')[3], '');
+  ok('Score % goes in once, right after Student; nothing else moves; it shows the Grades score, blank without marks');
+  const iu = call(g, { action: 'addStudents', token: gt, day: '2026-11-03', time: '10:45', name: 'Ed', cap: 'CAP 26C', studio: 'K4', teacher: 'Gunni' });
+  assert.ok(iu.ok); assert.deepEqual(row('Ed').slice(3, 9), ['', 'CAP 26C', 'K4', 'Gunni', '', iu.ids[0]]);
+  ok('after the column is in, a new student lands in the right columns');
 }
 // 37. The page itself parses (a name declared twice stops the whole app before it starts).
 {
