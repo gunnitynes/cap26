@@ -134,6 +134,7 @@ function onOpen() {
     .addItem('Reset ALL test results…', 'menuResetAll')
     .addToUi();
   try { ensureCriticalRows_(); } catch (e) {}
+  try { questionSheets_().forEach(colourStages_); } catch (e) {}   // the lines above each block follow rows moved since the last edit
 }
 
 /** Builds every tab, moves older layouts over without losing anything, and styles it all. Safe to run any time. */
@@ -312,31 +313,34 @@ function normalizeQuestionTab_(sh) {
 }
 
 /** One questions tab (the shared one or a teacher's): bold questions, Studio dropdown, notes, hidden IDs. */
-/** Questions tab: every stage gets its own soft colour and a line above its first question, so it is clear which
- *  questions belong together (a blank Stage cell still means "the stage above"). Runs on setup and after every edit. */
+/** Questions tab: every stage has its own soft colour, the same in every teacher's tab, and a line above each block.
+ *  The colours are conditional rules that read the row's own Stage cell, so they stay right when rows are dragged, added
+ *  or deleted (none of which tell the script) and however a teacher mixes the stages. Only formatting: no cell value changes. */
 const STAGE_TINTS = ['#eaf0ff', '#fff3df', '#e6f5ec', '#fdeaee', '#efe9fb', '#e4f4f6', '#f6f1e3'];
 function colourStages_(q) {
   const last = q.getLastRow(), W = SHEETS.QUESTIONS.header.length;
   if (last < 2) return;
-  const vals = rowsStd_(q), tintOf = {}, bg = [], starts = [];
+  const vals = rowsStd_(q), names = stages_().slice(), starts = [];
   let prev = null;
   vals.forEach((r, i) => {
     const st = String(r[Q_.STAGE] || '').trim();
-    if (st && !(st in tintOf)) tintOf[st] = STAGE_TINTS[Object.keys(tintOf).length % STAGE_TINTS.length];   // one colour per stage name
+    if (st && !names.some(x => norm_(x) === norm_(st))) names.push(st);   // a stage not on the list still gets its own colour
     if (st && st !== prev) starts.push(i + 2);
     if (st) prev = st;
-    bg.push(Array(W).fill(st ? tintOf[st] : '#ffffff'));
   });
+  const rows = q.getMaxRows() - 1, table = q.getRange(2, 1, rows, W);
   try { q.getBandings().forEach(b => b.remove()); } catch (e) {}
-  q.getRange(2, 1, vals.length, W).setBackgrounds(bg);
+  try { table.setBackground(null); } catch (e) {}   // the colours painted on cells before the rules: they stayed behind when rows moved
   grid_(q.getRange(1, 1, q.getMaxRows(), W));
   starts.forEach(r => q.getRange(r, 1, 1, W).setBorder(true, null, null, null, null, null, INK, SpreadsheetApp.BorderStyle.SOLID_MEDIUM));
   // the stage name is on every row (so a row keeps its stage when moved), but only the first of a block is shown strongly
-  try {
-    const col = q.getRange(3, Q_.STAGE + 1, Math.max(1, q.getMaxRows() - 2), 1);
-    q.setConditionalFormatRules([SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=AND(A3<>"",A3=A2)')
-      .setFontColor('#aab3c5').setBold(false).setRanges([col]).build()]);
-  } catch (e) {}
+  const lit = st => '"' + String(st).replace(/"/g, '""') + '"';
+  const stageCol = q.getRange(3, Q_.STAGE + 1, Math.max(1, rows - 1), 1);
+  const repeats = names.map((st, i) => SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=AND(TRIM($A3)=' + lit(st) + ',TRIM($A3)=TRIM($A2))')
+    .setBackground(STAGE_TINTS[i % STAGE_TINTS.length]).setFontColor('#aab3c5').setBold(false).setRanges([stageCol]).build());
+  const tints = names.map((st, i) => SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=TRIM($A2)=' + lit(st))
+    .setBackground(STAGE_TINTS[i % STAGE_TINTS.length]).setRanges([table]).build());
+  q.setConditionalFormatRules(repeats.concat(tints));
 }
 /* What happens when a teacher edits a questions tab:
    - a question without a stage takes the stage of the row above, written into its own cell, so it keeps it when moved;

@@ -35,7 +35,7 @@ export function loadScript(file) {
     getRow() { return this.r; } getNumRows() { return this.nr; } getColumn() { return this.c; } getNumColumns() { return this.nc; } getSheet() { return this.sh; }
   }
   class Sheet {
-    constructor(name) { this.name = name; this.data = []; this.rules = []; this.align = {}; this.widths = {}; this.bg = {}; }
+    constructor(name) { this.name = name; this.data = []; this.rules = []; this.align = {}; this.widths = {}; this.bg = {}; this.cf = []; }
     setColumnWidth(c, w) { this.widths[c] = w; return this; }
     getColumnWidth(c) { return this.widths[c] || 100; }
     check(r, c, x) { if (!mock.strict || x === '' || x == null) return; const q = this.rules.find(q => r >= q.r && r < q.r + q.nr && c >= q.c && c < q.c + q.nc);
@@ -66,6 +66,8 @@ export function loadScript(file) {
     clearContents() { this.data = []; return this; }
     getMaxColumns() { return Math.max(26, this.getLastColumn()); }
     getBandings() { return []; }
+    setConditionalFormatRules(r) { this.cf = r; return this; }
+    getConditionalFormatRules() { return this.cf; }
   }
   const book = { sheets: [new Sheet('Sheet1')] };
   const SpreadsheetApp = {
@@ -76,7 +78,7 @@ export function loadScript(file) {
       deleteSheet: s => { book.sheets = book.sheets.filter(x => x.name !== s.getName()); },
     }),
     getUi: () => { throw new Error('no ui here'); },
-    newDataValidation: dv, newConditionalFormatRule: chain, BandingTheme: {}, InterpolationType: { NUMBER: 'NUMBER' }, BorderStyle: {},
+    newDataValidation: dv, newConditionalFormatRule: () => { const rule = {}; const b = new Proxy({}, { get: (t, k) => k === 'build' ? () => rule : v => { rule[k] = v; return b; } }); return b; }, BandingTheme: {}, InterpolationType: { NUMBER: 'NUMBER' }, BorderStyle: {},
   };
   const props = new Map(), cache = new Map();
   const g = {

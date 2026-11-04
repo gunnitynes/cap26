@@ -1126,6 +1126,23 @@ let n = 0; const ok = msg => console.log('  ✓', msg, ++n && '');
   assert.equal(gd.find(r => r[1] === 'Kim')[h.indexOf('Grade')], 'Resit');
   ok('with the list empty, an error a teacher types still means Resit');
 }
+// 40. Stage colours are rules read from each row's own Stage cell: right in any order, and recolouring changes no value.
+{
+  const { g, book } = loadScript();
+  g.setup(); g.setTeacher_('Gunni', 'admin');
+  const q = g.SpreadsheetApp.getActive().getSheetByName('Questions'), data = () => JSON.stringify(tab(book, 'Questions').data);
+  const stages = g.stages_();
+  q.getRange(2, 1).setValue(stages[3]); q.getRange(3, 1).setValue(stages[0]); q.getRange(4, 1).setValue(stages[3]);   // mixed order
+  const before = data();
+  g.colourStages_(q);
+  assert.equal(data(), before);
+  const rules = tab(book, 'Questions') && book.sheets.find(s => s.name === 'Questions').cf;
+  const tint = st => rules.find(r => r.whenFormulaSatisfied === '=TRIM($A2)="' + st + '"').setBackground;
+  assert.equal(tint(stages[3]), '#fdeaee'); assert.equal(tint(stages[0]), '#eaf0ff');
+  assert.notEqual(tint(stages[3]), tint(stages[4]));
+  assert.ok(rules.filter(r => r.setFontColor).length === stages.length && rules.findIndex(r => r.setFontColor) === 0);
+  ok('stage colours: one per stage by the Start here order, read from the row\'s Stage cell; no cell value changes');
+}
 // 37. The page itself parses (a name declared twice stops the whole app before it starts).
 {
   const vm = await import('node:vm'), fs = await import('node:fs');

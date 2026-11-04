@@ -1059,7 +1059,7 @@ addEventListener('beforeunload',e=>{if(!S.demo&&myPending().length){e.preventDef
    GitHub Pages lets phones keep an old copy of this page for 10 minutes (longer in a home-screen app).
    When the app opens or comes back on screen it asks for the newest page, and if that is a newer BUILD
    it reloads into it, unless marks are still waiting to be sent. BUILD is stamped on every publish. */
-const BUILD='1793746284';
+const BUILD='1793785058';
 let updAt=0;
 async function checkUpdate(){
   if(S.demo||Date.now()-updAt<60000)return;updAt=Date.now();
@@ -1841,6 +1841,7 @@ function renderSheet(){
       clearTimeout(debounced._s);const fb=$('#summary').value;
       patchMine(S.open,{...(fb!==(e.summary||'')?{summary:fb}:{}),...(e.ended?{}:{ended:Date.now()})});
     }
+    setTimer(S.open,false);buzzed.delete(S.open);   // the test is over: its timer stops and is back at 10:00 if it is reopened
     flushSoon(0);go('roster');
     if(canMark())showDone(t,!!e.ended)};   // (t was taken before leaving the student)
   $('#endBarBtn').onclick=finish;
